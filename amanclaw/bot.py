@@ -1003,6 +1003,33 @@ async def prune_job(context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"Pruned {msgs} old messages, {reminders} delivered reminders, {expired} expired knowledge")
 
 
+async def checkin_job(context: ContextTypes.DEFAULT_TYPE):
+    """Weekly job to send proactive check-in messages."""
+    if not learning_engine:
+        return
+    # Get all active users
+    users = memory.list_users(status="approved")
+    admin_ids = [str(uid) for uid in config.get("admin_users", {}).get("telegram", [])]
+    all_user_ids = set(u["user_id"] for u in users) | set(admin_ids)
+
+    for user_id in all_user_ids:
+        candidates = learning_engine.get_checkin_candidates(user_id, min_age_days=14)
+        if not candidates:
+            continue
+        msg = learning_engine.format_checkin_message(candidates)
+        if not msg:
+            continue
+        try:
+            await context.bot.send_message(
+                chat_id=int(user_id),
+                text=msg,
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            logger.info(f"Sent proactive check-in to user {user_id}")
+        except Exception as e:
+            logger.debug(f"Failed to send check-in to {user_id}: {e}")
+
+
 # --- Main ---
 
 def main():
@@ -1092,6 +1119,10 @@ def main():
 
     # Schedule daily pruning at 3:00 AM
     app.job_queue.run_daily(prune_job, time=datetime_time(hour=3, minute=0))
+
+    # Schedule weekly proactive check-in (Sundays at 10:00 AM)
+    app.job_queue.run_daily(checkin_job, time=datetime_time(hour=10, minute=0),
+                            days=(6,))  # 6 = Sunday
 
     if webhook_config and webhook_config.get("enabled"):
         webhook_url = webhook_config["url"]

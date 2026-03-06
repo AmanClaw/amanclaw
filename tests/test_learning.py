@@ -191,3 +191,41 @@ class TestDocumentIngestionSkill:
         assert "learned" in result.lower() or "ingested" in result.lower()
         docs = self.memory.list_documents("testuser")
         assert len(docs) == 1
+
+
+class TestProactiveCheckins:
+    @pytest.fixture
+    def engine(self):
+        memory = Memory(":memory:")
+        engine = LearningEngine(memory)
+        yield engine
+        memory.close()
+
+    def test_get_checkin_candidates(self, engine):
+        # Add old knowledge
+        engine.memory.save_knowledge("user1", "preference", "coffee", "americano",
+                                     source="conversation")
+        # Manually set created_at to 30 days ago
+        engine.memory.conn.execute(
+            "UPDATE knowledge SET created_at = datetime('now', '-30 days') WHERE subject = 'coffee'"
+        )
+        engine.memory.conn.commit()
+        candidates = engine.get_checkin_candidates("user1", min_age_days=7)
+        assert len(candidates) >= 1
+        assert candidates[0]["subject"] == "coffee"
+
+    def test_no_checkins_for_recent_knowledge(self, engine):
+        engine.memory.save_knowledge("user1", "preference", "coffee", "latte")
+        candidates = engine.get_checkin_candidates("user1", min_age_days=7)
+        assert len(candidates) == 0
+
+    def test_format_checkin_message(self, engine):
+        engine.memory.save_knowledge("user1", "preference", "coffee", "americano")
+        engine.memory.conn.execute(
+            "UPDATE knowledge SET created_at = datetime('now', '-30 days') WHERE subject = 'coffee'"
+        )
+        engine.memory.conn.commit()
+        candidates = engine.get_checkin_candidates("user1", min_age_days=7)
+        msg = engine.format_checkin_message(candidates[:2])
+        assert "coffee" in msg.lower()
+        assert "still" in msg.lower() or "true" in msg.lower()

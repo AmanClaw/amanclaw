@@ -210,3 +210,30 @@ class LearningEngine:
             return "No learning activity recorded yet. Talk to me, teach me, or send me documents to learn from!"
 
         return "\n\n".join(sections)
+
+    # --- Proactive Check-ins ---
+
+    def get_checkin_candidates(self, user_id: str, min_age_days: int = 7,
+                               limit: int = 5) -> list[dict]:
+        cutoff = (datetime.now() - timedelta(days=min_age_days)).strftime("%Y-%m-%d %H:%M:%S")
+        rows = self.memory.conn.execute(
+            """SELECT id, category, subject, content, context, created_at
+               FROM knowledge
+               WHERE user_id = ? AND expired = 0 AND created_at <= ?
+                 AND source IN ('conversation', 'explicit')
+                 AND category IN ('preference', 'personal', 'routine', 'temporal')
+               ORDER BY created_at ASC LIMIT ?""",
+            (str(user_id), cutoff, limit)
+        ).fetchall()
+        return [{"id": r[0], "category": r[1], "subject": r[2], "content": r[3],
+                 "context": r[4], "created_at": r[5]} for r in rows]
+
+    def format_checkin_message(self, candidates: list[dict]) -> str:
+        if not candidates:
+            return ""
+        lines = ["Just checking in on a few things I remember:\n"]
+        for c in candidates[:2]:
+            context = f" ({c['context']})" if c.get("context") else ""
+            lines.append(f"- Is it still true that your {c['subject']} is \"{c['content']}\"{context}?")
+        lines.append("\nLet me know if anything changed!")
+        return "\n".join(lines)
