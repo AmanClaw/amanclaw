@@ -141,8 +141,8 @@ class Memory:
                 )
             """)
             self.conn.commit()
-        except Exception:
-            pass  # FTS5 may already exist
+        except Exception as e:
+            logger.debug("FTS5 operation failed: %s", e)
 
     def get_history(self, user_id: str, last_n: int = 20) -> list[dict]:
         """Get last N messages for a user as Claude-format messages."""
@@ -288,55 +288,6 @@ class Memory:
         )
         self.conn.commit()
         return cursor.rowcount > 0
-
-    def add_schedule(self, user_id, platform, chat_id, message, hour, minute, days="0,1,2,3,4,5,6"):
-        self.conn.execute(
-            "INSERT INTO schedules (user_id, platform, chat_id, message, cron_hour, cron_minute, cron_days) VALUES (?,?,?,?,?,?,?)",
-            (str(user_id), platform, str(chat_id), message, hour, minute, days)
-        )
-        self.conn.commit()
-
-    def get_due_schedules(self):
-        """Get schedules that should run now (matching hour, minute, day of week, not yet run today)."""
-        from datetime import datetime
-        now = datetime.now()
-        today = now.strftime("%Y-%m-%d")
-        dow = str(now.weekday())  # 0=Monday
-        rows = self.conn.execute(
-            "SELECT id, user_id, platform, chat_id, message FROM schedules "
-            "WHERE enabled = 1 AND cron_hour = ? AND cron_minute = ? "
-            "AND (last_run IS NULL OR last_run < ?) "
-            "AND cron_days LIKE '%' || ? || '%'",
-            (now.hour, now.minute, today, dow)
-        ).fetchall()
-        return [{"id": r[0], "user_id": r[1], "platform": r[2], "chat_id": r[3], "message": r[4]} for r in rows]
-
-    def mark_schedule_run(self, schedule_id):
-        from datetime import datetime
-        self.conn.execute(
-            "UPDATE schedules SET last_run = ? WHERE id = ?",
-            (datetime.now().strftime("%Y-%m-%d"), schedule_id)
-        )
-        self.conn.commit()
-
-    def get_user_schedules(self, user_id):
-        rows = self.conn.execute(
-            "SELECT id, message, cron_hour, cron_minute, cron_days, enabled FROM schedules WHERE user_id = ? ORDER BY cron_hour, cron_minute",
-            (str(user_id),)
-        ).fetchall()
-        return [{"id": r[0], "message": r[1], "hour": r[2], "minute": r[3], "days": r[4], "enabled": r[5]} for r in rows]
-
-    def delete_schedule(self, schedule_id, user_id):
-        cursor = self.conn.execute("DELETE FROM schedules WHERE id = ? AND user_id = ?", (schedule_id, str(user_id)))
-        self.conn.commit()
-        return cursor.rowcount > 0
-
-    def toggle_schedule(self, schedule_id, user_id):
-        self.conn.execute(
-            "UPDATE schedules SET enabled = CASE WHEN enabled = 1 THEN 0 ELSE 1 END WHERE id = ? AND user_id = ?",
-            (schedule_id, str(user_id))
-        )
-        self.conn.commit()
 
     def export_history(self, user_id: str) -> str:
         """Export full conversation history as formatted text."""
@@ -515,6 +466,15 @@ class Memory:
         self.conn.commit()
         return cursor.rowcount > 0
 
+    def toggle_schedule(self, schedule_id: int, user_id: str) -> None:
+        """Toggle a schedule's enabled state."""
+        self.conn.execute(
+            "UPDATE schedules SET enabled = CASE WHEN enabled = 1 THEN 0 ELSE 1 END "
+            "WHERE id = ? AND user_id = ?",
+            (schedule_id, str(user_id))
+        )
+        self.conn.commit()
+
     def close(self):
         self.conn.close()
 
@@ -538,8 +498,8 @@ class Memory:
                 "INSERT INTO knowledge_fts(rowid, subject, content, context) VALUES (?, ?, ?, ?)",
                 (kid, subject, content, context or "")
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("FTS5 operation failed: %s", e)
         self.conn.commit()
         return kid
 
@@ -579,8 +539,8 @@ class Memory:
                     "INSERT INTO knowledge_fts(rowid, subject, content, context) VALUES (?, ?, ?, ?)",
                     (knowledge_id, row[0], row[1], row[2] or "")
                 )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("FTS5 operation failed: %s", e)
         self.conn.commit()
 
     def get_active_knowledge(self, user_id: str) -> list[dict]:
@@ -613,7 +573,8 @@ class Memory:
                    LIMIT ?""",
                 (query, str(user_id), limit)
             ).fetchall()
-        except Exception:
+        except Exception as e:
+            logger.debug("FTS5 operation failed: %s", e)
             rows = []
 
         if not rows:
