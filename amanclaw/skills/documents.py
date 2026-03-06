@@ -12,6 +12,15 @@ logger = logging.getLogger("amanclaw.skills.documents")
 
 WORKSPACE = Path.home() / "amanclaw-workspace"
 
+_current_user_id = None
+_learning_engine = None
+
+
+def set_learning_context(user_id: str, engine=None):
+    global _current_user_id, _learning_engine
+    _current_user_id = user_id
+    _learning_engine = engine
+
 
 def configure(workspace_dir: str = None):
     global WORKSPACE
@@ -86,3 +95,42 @@ def _read_pdf(path: Path, max_chars: int) -> str:
         return "PDF support requires pypdf. Install with: pip install pypdf"
     except Exception as e:
         return f"Error reading PDF: {e}"
+
+
+@skill(
+    name="learn_document",
+    description="Ingest and learn from a document file in the workspace. After learning, I can answer questions about its content. Supported: TXT, MD, CSV, JSON, YAML, PDF.",
+    parameters={
+        "path": {
+            "type": "string",
+            "description": "Relative path to the document in the workspace",
+        },
+    },
+    timeout=30,
+)
+def learn_document(path: str) -> str:
+    if not _current_user_id or not _learning_engine:
+        return "Error: Learning context not available."
+    try:
+        safe = _safe_path(path)
+        if not safe.exists():
+            return f"File not found: {path}"
+
+        suffix = safe.suffix.lower()
+        if suffix == ".pdf":
+            text = _read_pdf(safe, max_chars=50000)
+        elif suffix in (".txt", ".md", ".csv", ".tsv", ".json", ".yaml", ".yml", ".xml", ".html", ".log"):
+            text = safe.read_text(encoding="utf-8", errors="replace")
+        else:
+            return f"Unsupported format: {suffix}"
+
+        if not text or len(text) < 10:
+            return "Document is empty or too short to learn from."
+
+        source_type = suffix.lstrip(".")
+        count = _learning_engine.ingest_document(_current_user_id, safe.name, source_type, text)
+        return f"Learned from '{safe.name}': ingested {count} chunks. I can now answer questions about this document."
+    except ValueError as e:
+        return str(e)
+    except Exception as e:
+        return f"Error learning document: {e}"

@@ -164,3 +164,30 @@ class TestTeachingSkill:
         self.memory.save_knowledge("testuser", "preference", "coffee", "latte")
         result = forget(query="coffee")
         assert "forgot" in result.lower() or "removed" in result.lower()
+
+
+class TestDocumentIngestionSkill:
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        from amanclaw.memory import Memory
+        from amanclaw.learning import LearningEngine
+        from amanclaw.skills.documents import configure as configure_docs, set_learning_context
+        import tempfile
+        self.memory = Memory(":memory:")
+        self.engine = LearningEngine(self.memory)
+        self.tmpdir = tempfile.mkdtemp()
+        configure_docs(workspace_dir=self.tmpdir)
+        set_learning_context("testuser", self.engine)
+        yield
+        self.memory.close()
+
+    def test_learn_document(self):
+        from amanclaw.skills.documents import learn_document
+        from pathlib import Path
+        # Create a test file
+        test_file = Path(self.tmpdir) / "notes.txt"
+        test_file.write_text("Python is great for automation. Rust is great for performance.")
+        result = learn_document("notes.txt")
+        assert "learned" in result.lower() or "ingested" in result.lower()
+        docs = self.memory.list_documents("testuser")
+        assert len(docs) == 1
