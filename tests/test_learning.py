@@ -130,3 +130,37 @@ class TestLearningJournal:
     def test_empty_journal(self, engine):
         journal = engine.get_learning_journal("user1")
         assert "nothing" in journal.lower() or "no " in journal.lower()
+
+
+class TestTeachingSkill:
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        from amanclaw.memory import Memory
+        from amanclaw.learning import LearningEngine
+        from amanclaw.skills.remember import configure, set_current_user, set_learning_engine
+        self.memory = Memory(":memory:")
+        self.engine = LearningEngine(self.memory)
+        configure(memory=self.memory)
+        set_current_user("testuser")
+        set_learning_engine(self.engine)
+        yield
+        self.memory.close()
+
+    def test_teach_skill(self):
+        from amanclaw.skills.remember import teach
+        result = teach(rule="when I say deploy, push to staging first", category="work")
+        assert "learned" in result.lower() or "got it" in result.lower()
+        teachings = self.memory.get_teachings("testuser")
+        assert len(teachings) == 1
+
+    def test_learned_skill(self):
+        from amanclaw.skills.remember import learned
+        self.memory.save_knowledge("testuser", "preference", "coffee", "latte", source="conversation")
+        result = learned()
+        assert "coffee" in result or "latte" in result
+
+    def test_forget_skill(self):
+        from amanclaw.skills.remember import forget
+        self.memory.save_knowledge("testuser", "preference", "coffee", "latte")
+        result = forget(query="coffee")
+        assert "forgot" in result.lower() or "removed" in result.lower()

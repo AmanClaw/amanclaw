@@ -16,7 +16,8 @@ class TestSkillRegistry:
     def test_skills_registered(self):
         expected = {"run_command", "read_file", "write_file", "list_files",
                     "system_status", "save_fact", "get_facts", "recall",
-                    "set_reminder", "list_reminders", "cancel_reminder"}
+                    "set_reminder", "list_reminders", "cancel_reminder",
+                    "teach", "learned", "forget"}
         assert expected.issubset(set(REGISTRY.keys()))
 
     def test_tool_definitions_format(self):
