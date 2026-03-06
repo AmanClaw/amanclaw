@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Smart, secure personal AI assistant on Telegram"
 requires-python = ">=3.11"
 dependencies = [
-    "python-telegram-bot==21.7",
+    "python-telegram-bot[job-queue]==21.7",
     "pyyaml>=6.0,<7",
     "requests>=2.31,<3",
     "aiohttp>=3.9,<4",
