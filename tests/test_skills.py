@@ -15,7 +15,7 @@ from amanclaw.skills.files import read_file, write_file, list_files, configure a
 class TestSkillRegistry:
     def test_skills_registered(self):
         expected = {"run_command", "read_file", "write_file", "list_files",
-                    "system_status", "save_fact", "get_facts",
+                    "system_status", "save_fact", "get_facts", "recall",
                     "set_reminder", "list_reminders", "cancel_reminder"}
         assert expected.issubset(set(REGISTRY.keys()))
 
