@@ -453,3 +453,40 @@ class TestKnowledgeExtraction:
         raw = '```json\n{"knowledge": [{"category": "personal", "subject": "name", "content": "Aman"}], "entities": [], "relationships": [], "updates": []}\n```'
         result = parse_extraction_response(raw)
         assert len(result["knowledge"]) == 1
+
+
+# --- Remember Skill with Knowledge Graph ---
+
+class TestRememberSkillKnowledge:
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        from amanclaw.memory import Memory
+        from amanclaw.skills.remember import configure, set_current_user
+        self.memory = Memory(":memory:")
+        configure(memory=self.memory)
+        set_current_user("testuser")
+        yield
+        self.memory.close()
+
+    def test_save_fact_writes_to_knowledge(self):
+        from amanclaw.skills.remember import save_fact
+        result = save_fact(key="timezone", value="UTC+8")
+        assert "Remembered" in result
+        # Should be in knowledge table
+        entries = self.memory.get_active_knowledge("testuser")
+        assert any(e["subject"] == "timezone" for e in entries)
+
+    def test_save_fact_with_category(self):
+        from amanclaw.skills.remember import save_fact
+        result = save_fact(key="coffee", value="dark roast", category="preference")
+        entries = self.memory.get_active_knowledge("testuser")
+        coffee = [e for e in entries if e["subject"] == "coffee"]
+        assert len(coffee) == 1
+        assert coffee[0]["category"] == "preference"
+
+    def test_recall_skill(self):
+        from amanclaw.skills.remember import save_fact, recall
+        save_fact(key="name", value="Aman")
+        save_fact(key="language", value="Python")
+        result = recall(query="name")
+        assert "Aman" in result
