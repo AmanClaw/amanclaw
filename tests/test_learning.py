@@ -229,3 +229,56 @@ class TestProactiveCheckins:
         msg = engine.format_checkin_message(candidates[:2])
         assert "coffee" in msg.lower()
         assert "still" in msg.lower() or "true" in msg.lower()
+
+
+class TestLearningIntegration:
+    @pytest.fixture
+    def setup_all(self):
+        memory = Memory(":memory:")
+        engine = LearningEngine(memory)
+        yield memory, engine
+        memory.close()
+
+    def test_full_learning_lifecycle(self, setup_all):
+        memory, engine = setup_all
+        user = "user1"
+
+        # 1. Bot learns from conversation
+        memory.save_knowledge(user, "preference", "coffee", "americano", source="conversation")
+
+        # 2. User corrects
+        kid = memory.get_active_knowledge(user)[0]["id"]
+        engine.process_correction(user, "no I prefer latte", kid, "americano", "latte")
+        assert memory.get_active_knowledge(user)[0]["content"] == "latte"
+        assert len(memory.get_corrections(user)) == 1
+
+        # 3. User teaches a rule
+        engine.save_teaching(user, "when I say deploy", "push to staging first", "work")
+        teachings = memory.get_teachings(user)
+        assert len(teachings) == 1
+
+        # 4. User sends a document
+        engine.ingest_document(user, "notes.txt", "txt", "Python is great. Rust is fast.")
+        docs = memory.list_documents(user)
+        assert len(docs) == 1
+
+        # 5. A skill fails
+        engine.log_failure(user, "web_search", {"query": "test"}, "timeout error")
+        assert len(memory.get_recent_failures(user)) == 1
+
+        # 6. Learning journal shows everything
+        journal = engine.get_learning_journal(user)
+        assert "latte" in journal
+        assert "deploy" in journal or "staging" in journal
+        assert "notes.txt" in journal
+        assert "web_search" in journal or "failure" in journal.lower()
+
+        # 7. Proactive check-in
+        memory.conn.execute(
+            "UPDATE knowledge SET created_at = datetime('now', '-30 days')"
+        )
+        memory.conn.commit()
+        candidates = engine.get_checkin_candidates(user, min_age_days=7)
+        assert len(candidates) >= 1
+        msg = engine.format_checkin_message(candidates)
+        assert "still true" in msg.lower() or "still" in msg.lower()
