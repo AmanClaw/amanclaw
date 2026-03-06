@@ -90,8 +90,59 @@ class Memory:
 
             CREATE INDEX IF NOT EXISTS idx_reminders_pending
                 ON reminders(delivered, remind_at);
+
+            CREATE TABLE IF NOT EXISTS knowledge (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                category TEXT NOT NULL,
+                subject TEXT NOT NULL,
+                content TEXT NOT NULL,
+                context TEXT,
+                valid_from DATE,
+                valid_until DATE,
+                confidence REAL DEFAULT 1.0,
+                source TEXT DEFAULT 'conversation',
+                expired INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_knowledge_user
+                ON knowledge(user_id, expired);
+
+            CREATE TABLE IF NOT EXISTS entities (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                entity_type TEXT NOT NULL,
+                attributes TEXT DEFAULT '{}',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, name, entity_type)
+            );
+
+            CREATE TABLE IF NOT EXISTS relationships (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                from_entity_id INTEGER REFERENCES entities(id),
+                relation TEXT NOT NULL,
+                to_entity_id INTEGER REFERENCES entities(id),
+                context TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
         """)
         self.conn.commit()
+
+        # FTS5 index for knowledge search
+        try:
+            self.conn.execute("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_fts USING fts5(
+                    subject, content, context,
+                    content=knowledge, content_rowid=id
+                )
+            """)
+            self.conn.commit()
+        except Exception:
+            pass  # FTS5 may already exist
 
     def get_history(self, user_id: str, last_n: int = 20) -> list[dict]:
         """Get last N messages for a user as Claude-format messages."""
@@ -466,3 +517,232 @@ class Memory:
 
     def close(self):
         self.conn.close()
+
+    # --- Knowledge Graph ---
+
+    def save_knowledge(self, user_id: str, category: str, subject: str, content: str,
+                       context: str = None, valid_from: str = None, valid_until: str = None,
+                       confidence: float = 1.0, source: str = "conversation") -> int:
+        """Save a knowledge entry. Returns the knowledge ID."""
+        cursor = self.conn.execute(
+            """INSERT INTO knowledge (user_id, category, subject, content, context,
+                   valid_from, valid_until, confidence, source)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (str(user_id), category, subject, content, context,
+             valid_from, valid_until, confidence, source)
+        )
+        kid = cursor.lastrowid
+        # Sync FTS5 index
+        try:
+            self.conn.execute(
+                "INSERT INTO knowledge_fts(rowid, subject, content, context) VALUES (?, ?, ?, ?)",
+                (kid, subject, content, context or "")
+            )
+        except Exception:
+            pass
+        self.conn.commit()
+        return kid
+
+    def update_knowledge(self, knowledge_id: int, content: str = None, context: str = None,
+                         valid_until: str = None, confidence: float = None):
+        """Update fields of a knowledge entry."""
+        updates = []
+        params = []
+        if content is not None:
+            updates.append("content = ?")
+            params.append(content)
+        if context is not None:
+            updates.append("context = ?")
+            params.append(context)
+        if valid_until is not None:
+            updates.append("valid_until = ?")
+            params.append(valid_until)
+        if confidence is not None:
+            updates.append("confidence = ?")
+            params.append(confidence)
+        if not updates:
+            return
+        updates.append("updated_at = CURRENT_TIMESTAMP")
+        params.append(knowledge_id)
+        self.conn.execute(
+            f"UPDATE knowledge SET {', '.join(updates)} WHERE id = ?", params
+        )
+        # Sync FTS5 index
+        try:
+            row = self.conn.execute(
+                "SELECT subject, content, context FROM knowledge WHERE id = ?",
+                (knowledge_id,)
+            ).fetchone()
+            if row:
+                self.conn.execute("DELETE FROM knowledge_fts WHERE rowid = ?", (knowledge_id,))
+                self.conn.execute(
+                    "INSERT INTO knowledge_fts(rowid, subject, content, context) VALUES (?, ?, ?, ?)",
+                    (knowledge_id, row[0], row[1], row[2] or "")
+                )
+        except Exception:
+            pass
+        self.conn.commit()
+
+    def get_active_knowledge(self, user_id: str) -> list[dict]:
+        """Get all active (non-expired) knowledge for a user."""
+        rows = self.conn.execute(
+            """SELECT id, category, subject, content, context, valid_from, valid_until,
+                      confidence, source, created_at, updated_at
+               FROM knowledge
+               WHERE user_id = ? AND expired = 0
+                 AND (valid_until IS NULL OR valid_until >= date('now'))
+               ORDER BY category, subject""",
+            (str(user_id),)
+        ).fetchall()
+        return [
+            {"id": r[0], "category": r[1], "subject": r[2], "content": r[3],
+             "context": r[4], "valid_from": r[5], "valid_until": r[6],
+             "confidence": r[7], "source": r[8], "created_at": r[9], "updated_at": r[10]}
+            for r in rows
+        ]
+
+    def search_knowledge(self, user_id: str, query: str, limit: int = 10) -> list[dict]:
+        """Search knowledge using FTS5 with fallback to LIKE."""
+        try:
+            rows = self.conn.execute(
+                """SELECT k.id, k.category, k.subject, k.content, k.context,
+                          k.valid_from, k.valid_until, k.confidence, k.source
+                   FROM knowledge_fts fts
+                   JOIN knowledge k ON k.id = fts.rowid
+                   WHERE knowledge_fts MATCH ? AND k.user_id = ? AND k.expired = 0
+                   LIMIT ?""",
+                (query, str(user_id), limit)
+            ).fetchall()
+        except Exception:
+            rows = []
+
+        if not rows:
+            # Fallback to LIKE search
+            terms = query.split()
+            conditions = []
+            params = [str(user_id)]
+            for term in terms:
+                conditions.append("(subject LIKE ? OR content LIKE ? OR context LIKE ?)")
+                params.extend([f"%{term}%", f"%{term}%", f"%{term}%"])
+            where_clause = " OR ".join(conditions) if conditions else "1=1"
+            rows = self.conn.execute(
+                f"""SELECT id, category, subject, content, context,
+                           valid_from, valid_until, confidence, source
+                    FROM knowledge
+                    WHERE user_id = ? AND expired = 0 AND ({where_clause})
+                    LIMIT ?""",
+                params + [limit]
+            ).fetchall()
+
+        return [
+            {"id": r[0], "category": r[1], "subject": r[2], "content": r[3],
+             "context": r[4], "valid_from": r[5], "valid_until": r[6],
+             "confidence": r[7], "source": r[8]}
+            for r in rows
+        ]
+
+    def save_entity(self, user_id: str, name: str, entity_type: str,
+                    attributes: dict = None) -> int:
+        """Save or update an entity. Returns the entity ID."""
+        attrs_json = json.dumps(attributes or {})
+        # Try upsert
+        self.conn.execute(
+            """INSERT INTO entities (user_id, name, entity_type, attributes)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(user_id, name, entity_type) DO UPDATE SET
+                   attributes = excluded.attributes""",
+            (str(user_id), name, entity_type, attrs_json)
+        )
+        self.conn.commit()
+        row = self.conn.execute(
+            "SELECT id FROM entities WHERE user_id = ? AND name = ? AND entity_type = ?",
+            (str(user_id), name, entity_type)
+        ).fetchone()
+        return row[0]
+
+    def get_entities(self, user_id: str, entity_type: str = None) -> list[dict]:
+        """Get all entities for a user, optionally filtered by type."""
+        if entity_type:
+            rows = self.conn.execute(
+                "SELECT id, name, entity_type, attributes, created_at FROM entities WHERE user_id = ? AND entity_type = ?",
+                (str(user_id), entity_type)
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT id, name, entity_type, attributes, created_at FROM entities WHERE user_id = ?",
+                (str(user_id),)
+            ).fetchall()
+        return [
+            {"id": r[0], "name": r[1], "entity_type": r[2],
+             "attributes": json.loads(r[3]), "created_at": r[4]}
+            for r in rows
+        ]
+
+    def get_entity_by_name(self, user_id: str, name: str) -> dict | None:
+        """Get an entity by name (case-insensitive)."""
+        row = self.conn.execute(
+            "SELECT id, name, entity_type, attributes, created_at FROM entities WHERE user_id = ? AND name COLLATE NOCASE = ?",
+            (str(user_id), name)
+        ).fetchone()
+        if not row:
+            return None
+        return {"id": row[0], "name": row[1], "entity_type": row[2],
+                "attributes": json.loads(row[3]), "created_at": row[4]}
+
+    def save_relationship(self, user_id: str, from_entity_id: int, relation: str,
+                          to_entity_id: int, context: str = None):
+        """Save a relationship between two entities."""
+        self.conn.execute(
+            "INSERT INTO relationships (user_id, from_entity_id, relation, to_entity_id, context) VALUES (?, ?, ?, ?, ?)",
+            (str(user_id), from_entity_id, relation, to_entity_id, context)
+        )
+        self.conn.commit()
+
+    def get_relationships(self, user_id: str, entity_id: int = None) -> list[dict]:
+        """Get relationships, optionally filtered by entity (as source or target)."""
+        if entity_id is not None:
+            rows = self.conn.execute(
+                """SELECT r.id, r.from_entity_id, e1.name as from_name, r.relation,
+                          r.to_entity_id, e2.name as to_name, r.context, r.created_at
+                   FROM relationships r
+                   JOIN entities e1 ON r.from_entity_id = e1.id
+                   JOIN entities e2 ON r.to_entity_id = e2.id
+                   WHERE r.user_id = ? AND (r.from_entity_id = ? OR r.to_entity_id = ?)""",
+                (str(user_id), entity_id, entity_id)
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                """SELECT r.id, r.from_entity_id, e1.name as from_name, r.relation,
+                          r.to_entity_id, e2.name as to_name, r.context, r.created_at
+                   FROM relationships r
+                   JOIN entities e1 ON r.from_entity_id = e1.id
+                   JOIN entities e2 ON r.to_entity_id = e2.id
+                   WHERE r.user_id = ?""",
+                (str(user_id),)
+            ).fetchall()
+        return [
+            {"id": r[0], "from_entity_id": r[1], "from_name": r[2], "relation": r[3],
+             "to_entity_id": r[4], "to_name": r[5], "context": r[6], "created_at": r[7]}
+            for r in rows
+        ]
+
+    def expire_old_knowledge(self) -> int:
+        """Mark knowledge entries as expired if their valid_until date has passed. Returns count."""
+        cursor = self.conn.execute(
+            "UPDATE knowledge SET expired = 1 WHERE expired = 0 AND valid_until IS NOT NULL AND valid_until < date('now')"
+        )
+        self.conn.commit()
+        return cursor.rowcount
+
+    def migrate_facts_to_knowledge(self):
+        """Copy facts rows to knowledge table, deduplicating by subject."""
+        rows = self.conn.execute("SELECT user_id, key, value, source FROM facts").fetchall()
+        for user_id, key, value, source in rows:
+            # Check if already migrated
+            existing = self.conn.execute(
+                "SELECT id FROM knowledge WHERE user_id = ? AND subject = ? AND category = 'personal'",
+                (user_id, key)
+            ).fetchone()
+            if not existing:
+                self.save_knowledge(user_id, category="personal", subject=key,
+                                    content=value, source=source or "migrated")

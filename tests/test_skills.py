@@ -297,3 +297,117 @@ class TestUserManagement:
         approved = memory.list_users(status="approved")
         assert len(approved) == 1
         assert approved[0]["username"] == "alice"
+
+
+# --- Knowledge Graph Tests ---
+
+class TestKnowledgeGraph:
+    @pytest.fixture
+    def memory(self):
+        from amanclaw.memory import Memory
+        m = Memory(":memory:")
+        yield m
+        m.close()
+
+    def test_save_and_get_knowledge(self, memory):
+        memory.save_knowledge("user1", category="preference", subject="coffee",
+                              content="prefers dark roast", context="morning only")
+        entries = memory.get_active_knowledge("user1")
+        assert len(entries) == 1
+        assert entries[0]["subject"] == "coffee"
+        assert entries[0]["content"] == "prefers dark roast"
+        assert entries[0]["context"] == "morning only"
+
+    def test_knowledge_categories(self, memory):
+        memory.save_knowledge("user1", category="preference", subject="coffee", content="dark roast")
+        memory.save_knowledge("user1", category="personal", subject="name", content="Aman")
+        memory.save_knowledge("user1", category="temporal", subject="diet",
+                              content="keto diet", valid_until="2026-03-31")
+        entries = memory.get_active_knowledge("user1")
+        assert len(entries) == 3
+        categories = {e["category"] for e in entries}
+        assert categories == {"preference", "personal", "temporal"}
+
+    def test_knowledge_expiry(self, memory):
+        memory.save_knowledge("user1", category="temporal", subject="trip",
+                              content="visiting Tokyo", valid_until="2020-01-01")
+        entries = memory.get_active_knowledge("user1")
+        assert len(entries) == 0  # expired
+
+    def test_knowledge_update(self, memory):
+        kid = memory.save_knowledge("user1", category="preference", subject="coffee",
+                                    content="dark roast")
+        memory.update_knowledge(kid, content="light roast")
+        entries = memory.get_active_knowledge("user1")
+        assert entries[0]["content"] == "light roast"
+
+    def test_knowledge_user_isolation(self, memory):
+        memory.save_knowledge("user1", category="personal", subject="name", content="Aman")
+        memory.save_knowledge("user2", category="personal", subject="name", content="Ali")
+        assert len(memory.get_active_knowledge("user1")) == 1
+        assert len(memory.get_active_knowledge("user2")) == 1
+
+    def test_search_knowledge(self, memory):
+        memory.save_knowledge("user1", category="preference", subject="coffee", content="dark roast every morning")
+        memory.save_knowledge("user1", category="preference", subject="tea", content="green tea in evening")
+        results = memory.search_knowledge("user1", "morning coffee")
+        assert len(results) >= 1
+        assert any("coffee" in r["subject"] for r in results)
+
+    def test_save_entity(self, memory):
+        eid = memory.save_entity("user1", name="Ali", entity_type="person",
+                                 attributes={"email": "ali@co.com", "role": "engineer"})
+        entities = memory.get_entities("user1")
+        assert len(entities) == 1
+        assert entities[0]["name"] == "Ali"
+        assert entities[0]["attributes"]["email"] == "ali@co.com"
+
+    def test_entity_upsert(self, memory):
+        memory.save_entity("user1", name="Ali", entity_type="person",
+                           attributes={"role": "engineer"})
+        memory.save_entity("user1", name="Ali", entity_type="person",
+                           attributes={"role": "senior engineer", "email": "ali@co.com"})
+        entities = memory.get_entities("user1")
+        assert len(entities) == 1
+        assert entities[0]["attributes"]["role"] == "senior engineer"
+
+    def test_get_entity_by_name(self, memory):
+        memory.save_entity("user1", name="SecureClaw", entity_type="project",
+                           attributes={"desc": "security tool"})
+        entity = memory.get_entity_by_name("user1", "SecureClaw")
+        assert entity is not None
+        assert entity["entity_type"] == "project"
+
+    def test_save_relationship(self, memory):
+        eid1 = memory.save_entity("user1", name="Ali", entity_type="person", attributes={})
+        eid2 = memory.save_entity("user1", name="SecureClaw", entity_type="project", attributes={})
+        memory.save_relationship("user1", eid1, "works_on", eid2)
+        rels = memory.get_relationships("user1")
+        assert len(rels) == 1
+        assert rels[0]["relation"] == "works_on"
+
+    def test_get_relationships_for_entity(self, memory):
+        eid1 = memory.save_entity("user1", name="Ali", entity_type="person", attributes={})
+        eid2 = memory.save_entity("user1", name="SecureClaw", entity_type="project", attributes={})
+        eid3 = memory.save_entity("user1", name="Bob", entity_type="person", attributes={})
+        memory.save_relationship("user1", eid1, "works_on", eid2)
+        memory.save_relationship("user1", eid3, "works_on", eid2)
+        rels = memory.get_relationships("user1", entity_id=eid2)
+        assert len(rels) == 2
+
+    def test_expire_old_knowledge(self, memory):
+        memory.save_knowledge("user1", category="temporal", subject="trip",
+                              content="visiting Tokyo", valid_until="2020-01-01")
+        memory.save_knowledge("user1", category="personal", subject="name", content="Aman")
+        count = memory.expire_old_knowledge()
+        assert count == 1
+
+    def test_migrate_facts_to_knowledge(self, memory):
+        # Simulate old-style facts
+        memory.save_fact("user1", "name", "Aman")
+        memory.save_fact("user1", "timezone", "UTC+8")
+        memory.migrate_facts_to_knowledge()
+        entries = memory.get_active_knowledge("user1")
+        subjects = {e["subject"] for e in entries}
+        assert "name" in subjects
+        assert "timezone" in subjects
