@@ -1,6 +1,7 @@
 """Tests for skill execution — shell, files, and skill registry."""
 
 import os
+import json
 import tempfile
 import pytest
 from pathlib import Path
@@ -411,3 +412,44 @@ class TestKnowledgeGraph:
         subjects = {e["subject"] for e in entries}
         assert "name" in subjects
         assert "timezone" in subjects
+
+
+# --- Knowledge Extraction Tests ---
+
+class TestKnowledgeExtraction:
+    def test_parse_extraction_response_valid(self):
+        from amanclaw.llm import parse_extraction_response
+        raw = json.dumps({
+            "knowledge": [
+                {"category": "preference", "subject": "coffee", "content": "dark roast"}
+            ],
+            "entities": [
+                {"name": "Ali", "type": "person", "attributes": {"role": "engineer"}}
+            ],
+            "relationships": [
+                {"from": "Ali", "relation": "works_on", "to": "SecureClaw"}
+            ],
+            "updates": []
+        })
+        result = parse_extraction_response(raw)
+        assert len(result["knowledge"]) == 1
+        assert result["knowledge"][0]["subject"] == "coffee"
+        assert len(result["entities"]) == 1
+        assert len(result["relationships"]) == 1
+
+    def test_parse_extraction_response_empty(self):
+        from amanclaw.llm import parse_extraction_response
+        raw = json.dumps({"knowledge": [], "entities": [], "relationships": [], "updates": []})
+        result = parse_extraction_response(raw)
+        assert result["knowledge"] == []
+
+    def test_parse_extraction_response_invalid_json(self):
+        from amanclaw.llm import parse_extraction_response
+        result = parse_extraction_response("not json at all")
+        assert result is None
+
+    def test_parse_extraction_response_json_in_markdown(self):
+        from amanclaw.llm import parse_extraction_response
+        raw = '```json\n{"knowledge": [{"category": "personal", "subject": "name", "content": "Aman"}], "entities": [], "relationships": [], "updates": []}\n```'
+        result = parse_extraction_response(raw)
+        assert len(result["knowledge"]) == 1

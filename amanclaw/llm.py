@@ -92,6 +92,74 @@ SUMMARY_PROMPT = """Summarize this conversation between the user and assistant i
 Focus on: what the user wanted, key decisions made, and any important outcomes.
 Be factual and brief. Do not include greetings or small talk."""
 
+EXTRACTION_PROMPT = """Extract structured knowledge from this conversation exchange.
+Return ONLY valid JSON, no other text.
+
+User message: {user_message}
+Assistant reply: {assistant_reply}
+
+Existing knowledge about this user:
+{existing_knowledge}
+
+Return this JSON structure:
+{{
+  "knowledge": [
+    {{"category": "preference|personal|work|health|routine|temporal", "subject": "topic", "content": "the knowledge", "context": "optional condition", "valid_until": "YYYY-MM-DD or null"}}
+  ],
+  "entities": [
+    {{"name": "entity name", "type": "person|project|place|organization", "attributes": {{}}}}
+  ],
+  "relationships": [
+    {{"from": "entity_name", "relation": "works_on|manages|lives_in|reports_to|etc", "to": "entity_name"}}
+  ],
+  "updates": [
+    {{"id": 123, "content": "corrected value"}}
+  ]
+}}
+
+Rules:
+- Only extract NEW or CHANGED information. Skip greetings and small talk.
+- If the user corrects a previous fact, include it in "updates" with the knowledge ID.
+- Set valid_until for temporary facts (diets, deadlines, trips).
+- Return empty arrays if nothing to extract.
+- Return ONLY the JSON object, no markdown fences or extra text."""
+
+
+def parse_extraction_response(text: str) -> dict | None:
+    """Parse the LLM's extraction response into structured data."""
+    if not text:
+        return None
+
+    # Try direct JSON parse
+    try:
+        data = json.loads(text.strip())
+        if "knowledge" in data:
+            return data
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    # Try extracting JSON from markdown code block
+    json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?\s*```', text, re.DOTALL)
+    if json_match:
+        try:
+            data = json.loads(json_match.group(1).strip())
+            if "knowledge" in data:
+                return data
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # Try finding a JSON object in the text
+    brace_match = re.search(r'\{.*\}', text, re.DOTALL)
+    if brace_match:
+        try:
+            data = json.loads(brace_match.group(0))
+            if "knowledge" in data:
+                return data
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    return None
+
 
 def _build_tool_details(tools: list[dict]) -> str:
     """Build human-readable tool docs for the fallback prompt."""
@@ -356,6 +424,25 @@ class LLM:
             return resp["choices"][0]["message"].get("content", "").strip()
         except Exception as e:
             logger.warning(f"Summarization failed: {e}")
+            return None
+
+    async def extract_knowledge(self, user_message: str, assistant_reply: str,
+                                existing_knowledge: str = "") -> dict | None:
+        """Ask the LLM to extract structured knowledge from an exchange."""
+        prompt = EXTRACTION_PROMPT.format(
+            user_message=user_message[:2000],
+            assistant_reply=assistant_reply[:2000],
+            existing_knowledge=existing_knowledge[:1000] or "(none yet)",
+        )
+        try:
+            resp = await self._call_api([
+                {"role": "system", "content": "You are a knowledge extraction assistant. Return only valid JSON."},
+                {"role": "user", "content": prompt},
+            ])
+            content = resp["choices"][0]["message"].get("content", "")
+            return parse_extraction_response(content)
+        except Exception as e:
+            logger.warning(f"Knowledge extraction failed: {e}")
             return None
 
     async def _respond_native(self, message, history: list[dict], facts: dict = None, summary: str = None) -> str:
