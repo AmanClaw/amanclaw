@@ -40,3 +40,6 @@ bridge/whatsapp/auth_state/
 
 # Logs
 *.log
+
+# Git worktrees
+.worktrees/
