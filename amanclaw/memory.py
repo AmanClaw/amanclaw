@@ -132,6 +132,60 @@ class Memory:
                 context TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS corrections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                knowledge_id INTEGER REFERENCES knowledge(id),
+                old_content TEXT NOT NULL,
+                new_content TEXT NOT NULL,
+                trigger_text TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS teachings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                trigger_pattern TEXT NOT NULL,
+                response_guidance TEXT NOT NULL,
+                category TEXT DEFAULT 'general',
+                active INTEGER DEFAULT 1,
+                usage_count INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS documents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                source_name TEXT NOT NULL,
+                source_type TEXT NOT NULL,
+                chunk_index INTEGER NOT NULL,
+                content TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS failure_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                skill_name TEXT NOT NULL,
+                skill_input TEXT DEFAULT '{}',
+                error_message TEXT NOT NULL,
+                user_feedback TEXT,
+                resolved INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS behavioral_patterns (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                pattern_type TEXT NOT NULL,
+                description TEXT NOT NULL,
+                evidence TEXT DEFAULT '{}',
+                confidence REAL DEFAULT 0.5,
+                confirmed INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
         """)
         self.conn.commit()
 
@@ -146,6 +200,18 @@ class Memory:
             self.conn.commit()
         except Exception as e:
             logger.debug("FTS5 operation failed: %s", e)
+
+        # FTS5 index for document search
+        try:
+            self.conn.execute("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts5(
+                    content,
+                    content=documents, content_rowid=id
+                )
+            """)
+            self.conn.commit()
+        except Exception as e:
+            logger.debug("Documents FTS5 operation failed: %s", e)
 
     def get_history(self, user_id: str, last_n: int = 20) -> list[dict]:
         """Get last N messages for a user as Claude-format messages."""
@@ -719,3 +785,216 @@ class Memory:
             if not existing:
                 self.save_knowledge(user_id, category="personal", subject=key,
                                     content=value, source=source or "migrated")
+
+    # --- Corrections ---
+
+    def save_correction(self, user_id: str, knowledge_id: int,
+                        old_content: str, new_content: str,
+                        trigger_text: str = None) -> int:
+        cursor = self.conn.execute(
+            "INSERT INTO corrections (user_id, knowledge_id, old_content, new_content, trigger_text) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (str(user_id), knowledge_id, old_content, new_content, trigger_text)
+        )
+        self.conn.commit()
+        return cursor.lastrowid
+
+    def get_corrections(self, user_id: str, limit: int = 20) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT id, knowledge_id, old_content, new_content, trigger_text, created_at "
+            "FROM corrections WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
+            (str(user_id), limit)
+        ).fetchall()
+        return [{"id": r[0], "knowledge_id": r[1], "old_content": r[2],
+                 "new_content": r[3], "trigger_text": r[4], "created_at": r[5]} for r in rows]
+
+    # --- Teachings ---
+
+    def save_teaching(self, user_id: str, trigger_pattern: str,
+                      response_guidance: str, category: str = "general") -> int:
+        cursor = self.conn.execute(
+            "INSERT INTO teachings (user_id, trigger_pattern, response_guidance, category) "
+            "VALUES (?, ?, ?, ?)",
+            (str(user_id), trigger_pattern, response_guidance, category)
+        )
+        self.conn.commit()
+        return cursor.lastrowid
+
+    def get_teachings(self, user_id: str, active_only: bool = False) -> list[dict]:
+        query = "SELECT id, trigger_pattern, response_guidance, category, active, usage_count, created_at FROM teachings WHERE user_id = ?"
+        params = [str(user_id)]
+        if active_only:
+            query += " AND active = 1"
+        query += " ORDER BY usage_count DESC"
+        rows = self.conn.execute(query, params).fetchall()
+        return [{"id": r[0], "trigger_pattern": r[1], "response_guidance": r[2],
+                 "category": r[3], "active": r[4], "usage_count": r[5], "created_at": r[6]} for r in rows]
+
+    def deactivate_teaching(self, user_id: str, teaching_id: int):
+        self.conn.execute(
+            "UPDATE teachings SET active = 0 WHERE id = ? AND user_id = ?",
+            (teaching_id, str(user_id))
+        )
+        self.conn.commit()
+
+    def increment_teaching_usage(self, teaching_id: int):
+        self.conn.execute(
+            "UPDATE teachings SET usage_count = usage_count + 1 WHERE id = ?",
+            (teaching_id,)
+        )
+        self.conn.commit()
+
+    # --- Documents ---
+
+    def save_document_chunk(self, user_id: str, source_name: str, source_type: str,
+                            chunk_index: int, content: str) -> int:
+        cursor = self.conn.execute(
+            "INSERT INTO documents (user_id, source_name, source_type, chunk_index, content) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (str(user_id), source_name, source_type, chunk_index, content)
+        )
+        did = cursor.lastrowid
+        try:
+            self.conn.execute(
+                "INSERT INTO documents_fts(rowid, content) VALUES (?, ?)",
+                (did, content)
+            )
+        except Exception as e:
+            logger.debug("Documents FTS5 operation failed: %s", e)
+        self.conn.commit()
+        return did
+
+    def get_document_chunks(self, user_id: str, source_name: str) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT id, chunk_index, content FROM documents WHERE user_id = ? AND source_name = ? ORDER BY chunk_index",
+            (str(user_id), source_name)
+        ).fetchall()
+        return [{"id": r[0], "chunk_index": r[1], "content": r[2]} for r in rows]
+
+    def search_documents(self, user_id: str, query: str, limit: int = 5) -> list[dict]:
+        try:
+            rows = self.conn.execute(
+                """SELECT d.id, d.source_name, d.chunk_index, d.content
+                   FROM documents_fts fts
+                   JOIN documents d ON d.id = fts.rowid
+                   WHERE documents_fts MATCH ? AND d.user_id = ?
+                   LIMIT ?""",
+                (query, str(user_id), limit)
+            ).fetchall()
+        except Exception:
+            rows = []
+        if not rows:
+            terms = query.split()
+            conditions = []
+            params = [str(user_id)]
+            for term in terms:
+                conditions.append("content LIKE ?")
+                params.append(f"%{term}%")
+            where = " OR ".join(conditions) if conditions else "1=1"
+            rows = self.conn.execute(
+                f"SELECT id, source_name, chunk_index, content FROM documents WHERE user_id = ? AND ({where}) LIMIT ?",
+                params + [limit]
+            ).fetchall()
+        return [{"id": r[0], "source_name": r[1], "chunk_index": r[2], "content": r[3]} for r in rows]
+
+    def list_documents(self, user_id: str) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT source_name, source_type, COUNT(*) as chunks, MIN(created_at) as created_at "
+            "FROM documents WHERE user_id = ? GROUP BY source_name, source_type ORDER BY created_at DESC",
+            (str(user_id),)
+        ).fetchall()
+        return [{"source_name": r[0], "source_type": r[1], "chunks": r[2], "created_at": r[3]} for r in rows]
+
+    def delete_document(self, user_id: str, source_name: str) -> int:
+        try:
+            self.conn.execute(
+                "DELETE FROM documents_fts WHERE rowid IN (SELECT id FROM documents WHERE user_id = ? AND source_name = ?)",
+                (str(user_id), source_name)
+            )
+        except Exception as e:
+            logger.debug("Documents FTS5 delete failed: %s", e)
+        cursor = self.conn.execute(
+            "DELETE FROM documents WHERE user_id = ? AND source_name = ?",
+            (str(user_id), source_name)
+        )
+        self.conn.commit()
+        return cursor.rowcount
+
+    # --- Failure Log ---
+
+    def save_failure(self, user_id: str, skill_name: str, skill_input: str,
+                     error_message: str) -> int:
+        cursor = self.conn.execute(
+            "INSERT INTO failure_log (user_id, skill_name, skill_input, error_message) VALUES (?, ?, ?, ?)",
+            (str(user_id), skill_name, skill_input, error_message)
+        )
+        self.conn.commit()
+        return cursor.lastrowid
+
+    def resolve_failure(self, failure_id: int, feedback: str = None):
+        self.conn.execute(
+            "UPDATE failure_log SET resolved = 1, user_feedback = ? WHERE id = ?",
+            (feedback, failure_id)
+        )
+        self.conn.commit()
+
+    def get_recent_failures(self, user_id: str, limit: int = 10) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT id, skill_name, skill_input, error_message, user_feedback, resolved, created_at "
+            "FROM failure_log WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
+            (str(user_id), limit)
+        ).fetchall()
+        return [{"id": r[0], "skill_name": r[1], "skill_input": r[2], "error_message": r[3],
+                 "user_feedback": r[4], "resolved": r[5], "created_at": r[6]} for r in rows]
+
+    # --- Behavioral Patterns ---
+
+    def save_behavioral_pattern(self, user_id: str, pattern_type: str,
+                                description: str, evidence: str = "{}",
+                                confidence: float = 0.5) -> int:
+        cursor = self.conn.execute(
+            "INSERT INTO behavioral_patterns (user_id, pattern_type, description, evidence, confidence) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (str(user_id), pattern_type, description, evidence, confidence)
+        )
+        self.conn.commit()
+        return cursor.lastrowid
+
+    def get_behavioral_patterns(self, user_id: str, min_confidence: float = 0.0) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT id, pattern_type, description, evidence, confidence, confirmed, created_at, updated_at "
+            "FROM behavioral_patterns WHERE user_id = ? AND confidence >= ? ORDER BY confidence DESC",
+            (str(user_id), min_confidence)
+        ).fetchall()
+        return [{"id": r[0], "pattern_type": r[1], "description": r[2], "evidence": r[3],
+                 "confidence": r[4], "confirmed": r[5], "created_at": r[6], "updated_at": r[7]} for r in rows]
+
+    def confirm_pattern(self, pattern_id: int):
+        self.conn.execute(
+            "UPDATE behavioral_patterns SET confirmed = 1, confidence = MAX(confidence, 0.9), "
+            "updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (pattern_id,)
+        )
+        self.conn.commit()
+
+    def update_behavioral_pattern(self, pattern_id: int, confidence: float = None,
+                                  description: str = None, evidence: str = None):
+        updates = []
+        params = []
+        if confidence is not None:
+            updates.append("confidence = ?")
+            params.append(confidence)
+        if description is not None:
+            updates.append("description = ?")
+            params.append(description)
+        if evidence is not None:
+            updates.append("evidence = ?")
+            params.append(evidence)
+        if not updates:
+            return
+        updates.append("updated_at = CURRENT_TIMESTAMP")
+        params.append(pattern_id)
+        self.conn.execute(
+            f"UPDATE behavioral_patterns SET {', '.join(updates)} WHERE id = ?", params
+        )
+        self.conn.commit()

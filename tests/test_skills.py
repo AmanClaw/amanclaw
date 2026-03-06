@@ -550,3 +550,116 @@ class TestKnowledgeIntegration:
         entries = m.get_active_knowledge("user1")
         assert len(entries) >= 2
         m.close()
+
+
+# --- Learning Tables Tests ---
+
+class TestLearningTables:
+    @pytest.fixture
+    def memory(self):
+        from amanclaw.memory import Memory
+        m = Memory(":memory:")
+        yield m
+        m.close()
+
+    # --- Corrections ---
+    def test_save_correction(self, memory):
+        kid = memory.save_knowledge("user1", "preference", "coffee", "americano")
+        cid = memory.save_correction("user1", kid, "americano", "latte", "no I meant latte")
+        assert cid > 0
+        corrections = memory.get_corrections("user1")
+        assert len(corrections) == 1
+        assert corrections[0]["old_content"] == "americano"
+        assert corrections[0]["new_content"] == "latte"
+
+    def test_correction_count(self, memory):
+        kid = memory.save_knowledge("user1", "preference", "coffee", "americano")
+        memory.save_correction("user1", kid, "americano", "latte", "wrong")
+        memory.save_correction("user1", kid, "latte", "cappuccino", "actually this")
+        assert len(memory.get_corrections("user1")) == 2
+
+    # --- Teachings ---
+    def test_save_teaching(self, memory):
+        tid = memory.save_teaching("user1", "when I say deploy", "push to staging first", "work")
+        assert tid > 0
+        teachings = memory.get_teachings("user1")
+        assert len(teachings) == 1
+        assert teachings[0]["trigger_pattern"] == "when I say deploy"
+
+    def test_teaching_active_filter(self, memory):
+        memory.save_teaching("user1", "trigger1", "response1", "general")
+        tid = memory.save_teaching("user1", "trigger2", "response2", "general")
+        memory.deactivate_teaching("user1", tid)
+        active = memory.get_teachings("user1", active_only=True)
+        assert len(active) == 1
+
+    def test_increment_teaching_usage(self, memory):
+        tid = memory.save_teaching("user1", "trigger", "response", "general")
+        memory.increment_teaching_usage(tid)
+        memory.increment_teaching_usage(tid)
+        teachings = memory.get_teachings("user1")
+        assert teachings[0]["usage_count"] == 2
+
+    # --- Documents ---
+    def test_save_document_chunks(self, memory):
+        memory.save_document_chunk("user1", "readme.txt", "txt", 0, "first chunk of text")
+        memory.save_document_chunk("user1", "readme.txt", "txt", 1, "second chunk of text")
+        chunks = memory.get_document_chunks("user1", "readme.txt")
+        assert len(chunks) == 2
+        assert chunks[0]["chunk_index"] == 0
+
+    def test_search_documents(self, memory):
+        memory.save_document_chunk("user1", "notes.txt", "txt", 0, "python is great for automation")
+        memory.save_document_chunk("user1", "notes.txt", "txt", 1, "rust is great for performance")
+        results = memory.search_documents("user1", "python automation")
+        assert len(results) >= 1
+
+    def test_list_user_documents(self, memory):
+        memory.save_document_chunk("user1", "a.txt", "txt", 0, "aaa")
+        memory.save_document_chunk("user1", "b.pdf", "pdf", 0, "bbb")
+        docs = memory.list_documents("user1")
+        assert len(docs) == 2
+
+    def test_delete_document(self, memory):
+        memory.save_document_chunk("user1", "temp.txt", "txt", 0, "temp content")
+        deleted = memory.delete_document("user1", "temp.txt")
+        assert deleted > 0
+        assert len(memory.get_document_chunks("user1", "temp.txt")) == 0
+
+    # --- Failure Log ---
+    def test_save_failure(self, memory):
+        fid = memory.save_failure("user1", "run_command", '{"command": "ls"}', "permission denied")
+        assert fid > 0
+        failures = memory.get_recent_failures("user1", limit=10)
+        assert len(failures) == 1
+        assert failures[0]["skill_name"] == "run_command"
+
+    def test_resolve_failure(self, memory):
+        fid = memory.save_failure("user1", "web_search", '{}', "timeout")
+        memory.resolve_failure(fid, "user retried successfully")
+        failures = memory.get_recent_failures("user1", limit=10)
+        assert failures[0]["resolved"] == 1
+
+    # --- Behavioral Patterns ---
+    def test_save_pattern(self, memory):
+        pid = memory.save_behavioral_pattern(
+            "user1", "response_length", "user prefers short answers",
+            '{"avg_words": 50}', 0.8
+        )
+        assert pid > 0
+        patterns = memory.get_behavioral_patterns("user1")
+        assert len(patterns) == 1
+        assert patterns[0]["confidence"] == 0.8
+
+    def test_confirm_pattern(self, memory):
+        pid = memory.save_behavioral_pattern("user1", "topic", "asks about servers daily", "{}", 0.6)
+        memory.confirm_pattern(pid)
+        patterns = memory.get_behavioral_patterns("user1")
+        assert patterns[0]["confirmed"] == 1
+
+    def test_pattern_update(self, memory):
+        pid = memory.save_behavioral_pattern("user1", "topic", "desc", "{}", 0.5)
+        memory.update_behavioral_pattern(pid, confidence=0.9, description="updated desc")
+        patterns = memory.get_behavioral_patterns("user1")
+        assert patterns[0]["confidence"] == 0.9
+        assert patterns[0]["description"] == "updated desc"
