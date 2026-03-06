@@ -238,11 +238,29 @@ async def handle_registration(update: Update, context: ContextTypes.DEFAULT_TYPE
     return False
 
 
-async def build_context(user_id: str) -> tuple[list, dict, str]:
-    """Build the smart context: history, facts, summary. Auto-summarize if needed."""
+async def build_context(user_id: str, message_text: str = "") -> tuple[list, dict, str, str]:
+    """Build the smart context: history, facts, summary, knowledge context.
+    Auto-summarize if needed."""
     history = memory.get_history(user_id)
-    facts = memory.get_facts(user_id)
+    facts = memory.get_facts(user_id)  # backward compat
     summary = memory.get_latest_summary(user_id)
+
+    # Build knowledge graph context
+    knowledge_entries = memory.get_active_knowledge(user_id)
+    entities = memory.get_entities(user_id)
+    relationships = memory.get_relationships(user_id)
+
+    # Also search for relevant knowledge based on message
+    if message_text:
+        relevant = memory.search_knowledge(user_id, message_text, limit=5)
+        # Merge relevant results (deduplicate by ID)
+        existing_ids = {k["id"] for k in knowledge_entries}
+        for r in relevant:
+            if r["id"] not in existing_ids:
+                knowledge_entries.append(r)
+
+    from amanclaw.llm import format_knowledge_context
+    knowledge_context = format_knowledge_context(knowledge_entries, entities, relationships)
 
     # Auto-summarize when conversation gets long
     msg_count = memory.get_message_count(user_id)
@@ -259,7 +277,7 @@ async def build_context(user_id: str) -> tuple[list, dict, str]:
                 summary = new_summary
                 logger.info(f"Auto-summarized {len(old_msgs)} messages for user {user_id}")
 
-    return history, facts or None, summary
+    return history, facts, summary, knowledge_context
 
 
 # --- Telegram Handlers ---
@@ -299,9 +317,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     try:
-        history, facts, summary = await build_context(user_id)
+        history, facts, summary, knowledge_context = await build_context(user_id, clean_text)
         response = await llm.respond(clean_text, history, flagged=was_flagged,
-                                     facts=facts, summary=summary)
+                                     facts=facts, summary=summary,
+                                     knowledge_context=knowledge_context)
     except Exception as e:
         logger.error(f"LLM error: {e}")
         response = "Something went wrong talking to the AI. Try again in a moment."
@@ -352,9 +371,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Build vision message
         vision_msg = llm.build_vision_message(bytes(image_bytes), clean_caption)
 
-        history, facts, summary = await build_context(user_id)
+        history, facts, summary, knowledge_context = await build_context(user_id)
         response = await llm.respond(vision_msg, history, flagged=was_flagged,
-                                     facts=facts, summary=summary)
+                                     facts=facts, summary=summary,
+                                     knowledge_context=knowledge_context)
     except Exception as e:
         logger.error(f"Vision error: {e}")
         response = "I couldn't process that image. Try again or send a text message instead."

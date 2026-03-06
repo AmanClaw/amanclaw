@@ -225,6 +225,65 @@ def _strip_tool_block(text: str) -> str:
     return TOOL_CALL_PATTERN.sub("", text).strip()
 
 
+def format_knowledge_context(knowledge: list[dict], entities: list[dict],
+                              relationships: list[dict]) -> str:
+    """Format knowledge graph data for injection into the system prompt."""
+    if not knowledge and not entities:
+        return ""
+
+    sections = []
+
+    # Group knowledge by category
+    by_category = {}
+    for k in knowledge:
+        cat = k["category"]
+        if cat not in by_category:
+            by_category[cat] = []
+        by_category[cat].append(k)
+
+    category_labels = {
+        "preference": "Preferences",
+        "personal": "Personal",
+        "work": "Work",
+        "health": "Health",
+        "routine": "Routines",
+        "temporal": "Temporal (active now)",
+    }
+
+    for cat, label in category_labels.items():
+        items = by_category.get(cat, [])
+        if not items:
+            continue
+        lines = [f"### {label}"]
+        for item in items:
+            line = f"- {item['subject']}: {item['content']}"
+            if item.get("context"):
+                line += f" (context: {item['context']})"
+            if item.get("valid_until"):
+                line += f" [expires: {item['valid_until']}]"
+            lines.append(line)
+        sections.append("\n".join(lines))
+
+    # Entities and relationships
+    if entities:
+        lines = ["### People & Projects"]
+        for e in entities:
+            attrs = e.get("attributes", {})
+            attr_str = ", ".join(f"{k}: {v}" for k, v in attrs.items()) if attrs else ""
+            line = f"- {e['name']} ({e['entity_type']})"
+            if attr_str:
+                line += f": {attr_str}"
+            # Find relationships for this entity
+            rels = [r for r in relationships
+                    if r.get("from_name") == e["name"] or r.get("to_name") == e["name"]]
+            for r in rels:
+                line += f" -- {r['relation']} {r['to_name'] if r['from_name'] == e['name'] else r['from_name']}"
+            lines.append(line)
+        sections.append("\n".join(lines))
+
+    return "\n\n".join(sections)
+
+
 class LLM:
     MAX_RETRIES = 2
     RETRY_DELAY = 2  # seconds
@@ -356,7 +415,8 @@ class LLM:
     # ------------------------------------------------------------------ #
 
     async def respond(self, message, history: list[dict], flagged: bool = False,
-                      facts: dict = None, summary: str = None) -> str:
+                      facts: dict = None, summary: str = None,
+                      knowledge_context: str = None) -> str:
         """Respond to a message. `message` can be a string or a list (for vision)."""
         if flagged:
             flag_note = (
@@ -372,9 +432,9 @@ class LLM:
         await self._ensure_tool_mode_detected()
 
         if self.native_tools:
-            return await self._respond_native(message, history, facts, summary)
+            return await self._respond_native(message, history, facts, summary, knowledge_context)
         else:
-            return await self._respond_fallback(message, history, facts, summary)
+            return await self._respond_fallback(message, history, facts, summary, knowledge_context)
 
     # ------------------------------------------------------------------ #
     #  Vision support                                                     #
@@ -398,11 +458,15 @@ class LLM:
     #  Mode 1: Native tool calling (server has --enable-auto-tool-choice) #
     # ------------------------------------------------------------------ #
 
-    def _build_system_prompt(self, base_prompt: str, facts: dict = None, summary: str = None) -> str:
-        # Inject current datetime
+    def _build_system_prompt(self, base_prompt: str, facts: dict = None,
+                             summary: str = None, knowledge_context: str = None) -> str:
         prompt = base_prompt.format(datetime=datetime.now().strftime("%Y-%m-%d %H:%M %A"))
 
-        if facts:
+        # New knowledge graph context (preferred over flat facts)
+        if knowledge_context:
+            prompt += f"\n\n## What I know about this user\n{knowledge_context}"
+        elif facts:
+            # Backward compatibility: flat facts dict
             facts_text = "\n".join(f"- {k}: {v}" for k, v in facts.items())
             prompt += f"\n\n## What I know about this user\n{facts_text}"
 
@@ -445,11 +509,12 @@ class LLM:
             logger.warning(f"Knowledge extraction failed: {e}")
             return None
 
-    async def _respond_native(self, message, history: list[dict], facts: dict = None, summary: str = None) -> str:
+    async def _respond_native(self, message, history: list[dict], facts: dict = None,
+                              summary: str = None, knowledge_context: str = None) -> str:
         our_tools = get_tool_definitions()
         openai_tools = _convert_tools_to_openai_format(our_tools) if our_tools else None
 
-        system = self._build_system_prompt(SYSTEM_PROMPT_NATIVE, facts, summary)
+        system = self._build_system_prompt(SYSTEM_PROMPT_NATIVE, facts, summary, knowledge_context)
         messages = [{"role": "system", "content": system}]
         messages.extend(history)
         messages.append({"role": "user", "content": message})
@@ -490,14 +555,15 @@ class LLM:
     # ------------------------------------------------------------------ #
 
     async def _respond_fallback(self, message, history: list[dict],
-                                facts: dict = None, summary: str = None) -> str:
+                                facts: dict = None, summary: str = None,
+                                knowledge_context: str = None) -> str:
         our_tools = get_tool_definitions()
 
         # Build fallback prompt — use placeholders for skill_list/tool_details
         # but leave {datetime} for _build_system_prompt
         base = SYSTEM_PROMPT_FALLBACK.replace("{skill_list}", get_skill_list()).replace(
             "{tool_details}", _build_tool_details(our_tools))
-        system = self._build_system_prompt(base, facts, summary)
+        system = self._build_system_prompt(base, facts, summary, knowledge_context)
 
         messages = [{"role": "system", "content": system}]
         messages.extend(history)
