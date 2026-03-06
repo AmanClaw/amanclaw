@@ -40,7 +40,8 @@ from amanclaw.skills.files import configure as configure_files
 from amanclaw.skills.remember import configure as configure_remember, set_current_user
 from amanclaw.skills.reminder import configure as configure_reminder, set_context as set_reminder_context
 from amanclaw.skills.scheduled import configure as configure_scheduled, set_context as set_scheduled_context
-from amanclaw.skills.documents import configure as configure_documents
+from amanclaw.skills.documents import configure as configure_documents, set_learning_context as set_doc_learning_context
+from amanclaw.learning import LearningEngine
 from amanclaw.whatsapp import WhatsAppAdapter
 
 
@@ -124,6 +125,7 @@ rate_limiter: RateLimiter = None
 memory: Memory = None
 llm: LLM = None
 whatsapp: WhatsAppAdapter = None
+learning_engine: LearningEngine = None
 
 
 # --- Helpers ---
@@ -277,12 +279,48 @@ async def build_context(user_id: str, message_text: str = "") -> tuple[list, dic
                 summary = new_summary
                 logger.info(f"Auto-summarized {len(old_msgs)} messages for user {user_id}")
 
+    # Add active teachings to context
+    if learning_engine:
+        teachings = learning_engine.get_matching_teachings(user_id, message_text)
+        if teachings:
+            teaching_text = "\n\n### User-taught rules\n"
+            for t in teachings:
+                teaching_text += f"- {t['trigger_pattern']}: {t['response_guidance']}\n"
+            knowledge_context += teaching_text
+
+        # Search ingested documents for relevant chunks
+        if message_text:
+            doc_results = memory.search_documents(user_id, message_text, limit=3)
+            if doc_results:
+                doc_text = "\n\n### From learned documents\n"
+                for d in doc_results:
+                    doc_text += f"[{d['source_name']}]: {d['content'][:300]}\n"
+                knowledge_context += doc_text
+
+        # Add behavioral patterns as hints
+        patterns = memory.get_behavioral_patterns(user_id, min_confidence=0.6)
+        if patterns:
+            pattern_text = "\n\n### Observed user preferences\n"
+            for p in patterns:
+                pattern_text += f"- {p['description']}\n"
+            knowledge_context += pattern_text
+
     return history, facts, summary, knowledge_context
 
 
 async def extract_and_save_knowledge(user_id: str, user_msg: str, assistant_reply: str):
-    """Background task: extract knowledge from exchange and save to DB."""
+    """Background task: extract knowledge, detect corrections and teachings."""
     try:
+        # Detect corrections
+        if learning_engine and learning_engine.is_correction(user_msg):
+            logger.info(f"Correction detected from user {user_id}")
+            # The LLM extraction will handle the actual correction via 'updates'
+
+        # Detect teaching intent and save
+        if learning_engine and learning_engine.is_teaching(user_msg):
+            learning_engine.save_teaching(user_id, user_msg, assistant_reply, "conversation")
+            logger.info(f"Teaching detected from user {user_id}")
+
         # Get existing knowledge for dedup context
         existing = memory.get_active_knowledge(user_id)
         existing_summary = "\n".join(
@@ -320,7 +358,6 @@ async def extract_and_save_knowledge(user_id: str, user_msg: str, assistant_repl
         for r in extracted.get("relationships", []):
             from_name = r.get("from", "")
             to_name = r.get("to", "")
-            # Resolve entity IDs
             from_id = entity_name_to_id.get(from_name)
             to_id = entity_name_to_id.get(to_name)
             if not from_id:
@@ -332,11 +369,21 @@ async def extract_and_save_knowledge(user_id: str, user_msg: str, assistant_repl
             if from_id and to_id:
                 memory.save_relationship(user_id, from_id, r.get("relation", "related_to"), to_id)
 
-        # Apply updates to existing knowledge
+        # Apply updates (corrections)
         for u in extracted.get("updates", []):
             kid = u.get("id")
             if kid and u.get("content"):
-                memory.update_knowledge(kid, content=u["content"])
+                # Log as correction
+                if learning_engine:
+                    old_entry = memory.conn.execute(
+                        "SELECT content FROM knowledge WHERE id = ?", (kid,)
+                    ).fetchone()
+                    if old_entry:
+                        learning_engine.process_correction(
+                            user_id, user_msg, kid, old_entry[0], u["content"]
+                        )
+                else:
+                    memory.update_knowledge(kid, content=u["content"])
 
         count = len(extracted.get("knowledge", [])) + len(extracted.get("entities", []))
         if count:
@@ -375,6 +422,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     set_current_user(user_id)
     set_reminder_context(user_id, str(update.effective_chat.id))
     set_scheduled_context(user_id, str(update.effective_chat.id))
+    set_doc_learning_context(user_id, learning_engine)
 
     # Start typing indicator
     stop_typing = asyncio.Event()
@@ -398,6 +446,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Background knowledge extraction (non-blocking)
     asyncio.create_task(extract_and_save_knowledge(user_id, message_text, response))
+
+    # Track skill failures in response
+    if learning_engine and ("failed:" in response.lower() or "error:" in response.lower()):
+        learning_engine.log_failure(user_id, "llm_response", {"message": clean_text[:200]}, response[:500])
 
     await send_long_reply(update.message, response, with_actions=True)
 
@@ -426,6 +478,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     set_current_user(user_id)
     set_reminder_context(user_id, str(update.effective_chat.id))
     set_scheduled_context(user_id, str(update.effective_chat.id))
+    set_doc_learning_context(user_id, learning_engine)
 
     # Start typing indicator
     stop_typing = asyncio.Event()
@@ -679,6 +732,57 @@ async def cmd_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await reply_with_markdown(update.message, "\n".join(lines))
 
 
+async def cmd_teach(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /teach command — enter teaching mode."""
+    user_id = str(update.effective_user.id)
+    if not auth_check(user_id):
+        return
+    if not context.args:
+        await reply_with_markdown(update.message,
+            "*Teaching mode*\n\n"
+            "Teach me rules like:\n"
+            "`/teach when I say deploy, push to staging first`\n"
+            "`/teach always keep answers short about food`\n"
+            "`/teach if I ask about servers, check status first`\n\n"
+            "Or just tell me naturally in conversation:\n"
+            "\"Remember that when I say X, I mean Y\""
+        )
+        return
+    rule = " ".join(context.args)
+    set_current_user(user_id)
+    from amanclaw.skills.remember import teach
+    result = teach(rule=rule)
+    await reply_with_markdown(update.message, result)
+
+
+async def cmd_learned(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /learned command — show learning journal."""
+    user_id = str(update.effective_user.id)
+    if not auth_check(user_id):
+        return
+    days = int(context.args[0]) if context.args else 7
+    if learning_engine:
+        journal = learning_engine.get_learning_journal(user_id, days=days)
+    else:
+        journal = "Learning engine not initialized."
+    await send_long_reply(update.message, journal)
+
+
+async def cmd_forget(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /forget command — remove specific knowledge."""
+    user_id = str(update.effective_user.id)
+    if not auth_check(user_id):
+        return
+    if not context.args:
+        await update.message.reply_text("Usage: /forget <topic>\nExample: /forget coffee preference")
+        return
+    query = " ".join(context.args)
+    set_current_user(user_id)
+    from amanclaw.skills.remember import forget
+    result = forget(query=query)
+    await reply_with_markdown(update.message, result)
+
+
 # --- Inline Keyboard Callback ---
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -844,6 +948,9 @@ async def post_init(application):
         BotCommand("clear", "Clear conversation history"),
         BotCommand("export", "Export chat history"),
         BotCommand("myid", "Show your Telegram user ID"),
+        BotCommand("teach", "Teach me a rule or behavior"),
+        BotCommand("learned", "Show what I've learned"),
+        BotCommand("forget", "Forget specific knowledge"),
         BotCommand("approve", "Admin: approve a user"),
         BotCommand("block", "Admin: block a user"),
         BotCommand("users", "Admin: list users"),
@@ -899,7 +1006,7 @@ async def prune_job(context: ContextTypes.DEFAULT_TYPE):
 # --- Main ---
 
 def main():
-    global config, auth, rate_limiter, memory, llm, whatsapp
+    global config, auth, rate_limiter, memory, llm, whatsapp, learning_engine
 
     logger.info("Starting AmanClaw...")
 
@@ -936,6 +1043,11 @@ def main():
     configure_reminder(memory=memory)
     configure_scheduled(memory=memory)
 
+    learning_engine = LearningEngine(memory)
+    from amanclaw.skills.remember import set_learning_engine
+    set_learning_engine(learning_engine)
+    logger.info("Learning engine initialized")
+
     # --- WhatsApp (optional) ---
     wa_config = config.get("whatsapp", {})
     if wa_config.get("enabled"):
@@ -961,6 +1073,9 @@ def main():
     app.add_handler(CommandHandler("approve", cmd_approve))
     app.add_handler(CommandHandler("block", cmd_block))
     app.add_handler(CommandHandler("users", cmd_users))
+    app.add_handler(CommandHandler("teach", cmd_teach))
+    app.add_handler(CommandHandler("learned", cmd_learned))
+    app.add_handler(CommandHandler("forget", cmd_forget))
     app.add_handler(CallbackQueryHandler(handle_callback))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_voice))
