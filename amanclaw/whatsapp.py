@@ -218,6 +218,11 @@ class WhatsAppAdapter:
 
             # --- Save and reply ---
             self.memory.save_exchange(user_id, "whatsapp", text, response)
+
+            # Background knowledge extraction
+            from amanclaw.bot import extract_and_save_knowledge
+            asyncio.create_task(extract_and_save_knowledge(user_id, text, response))
+
             await self.send_message(jid, response)
 
         except Exception as e:

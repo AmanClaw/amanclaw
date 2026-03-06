@@ -280,6 +280,72 @@ async def build_context(user_id: str, message_text: str = "") -> tuple[list, dic
     return history, facts, summary, knowledge_context
 
 
+async def extract_and_save_knowledge(user_id: str, user_msg: str, assistant_reply: str):
+    """Background task: extract knowledge from exchange and save to DB."""
+    try:
+        # Get existing knowledge for dedup context
+        existing = memory.get_active_knowledge(user_id)
+        existing_summary = "\n".join(
+            f"- [{e['category']}] {e['subject']}: {e['content']}" for e in existing[:20]
+        )
+
+        extracted = await llm.extract_knowledge(user_msg, assistant_reply, existing_summary)
+        if not extracted:
+            return
+
+        # Save knowledge entries
+        for k in extracted.get("knowledge", []):
+            memory.save_knowledge(
+                user_id,
+                category=k.get("category", "personal"),
+                subject=k.get("subject", ""),
+                content=k.get("content", ""),
+                context=k.get("context"),
+                valid_until=k.get("valid_until"),
+                source="conversation",
+            )
+
+        # Save entities
+        entity_name_to_id = {}
+        for e in extracted.get("entities", []):
+            eid = memory.save_entity(
+                user_id,
+                name=e.get("name", ""),
+                entity_type=e.get("type", "person"),
+                attributes=e.get("attributes", {}),
+            )
+            entity_name_to_id[e.get("name", "")] = eid
+
+        # Save relationships
+        for r in extracted.get("relationships", []):
+            from_name = r.get("from", "")
+            to_name = r.get("to", "")
+            # Resolve entity IDs
+            from_id = entity_name_to_id.get(from_name)
+            to_id = entity_name_to_id.get(to_name)
+            if not from_id:
+                ent = memory.get_entity_by_name(user_id, from_name)
+                from_id = ent["id"] if ent else None
+            if not to_id:
+                ent = memory.get_entity_by_name(user_id, to_name)
+                to_id = ent["id"] if ent else None
+            if from_id and to_id:
+                memory.save_relationship(user_id, from_id, r.get("relation", "related_to"), to_id)
+
+        # Apply updates to existing knowledge
+        for u in extracted.get("updates", []):
+            kid = u.get("id")
+            if kid and u.get("content"):
+                memory.update_knowledge(kid, content=u["content"])
+
+        count = len(extracted.get("knowledge", [])) + len(extracted.get("entities", []))
+        if count:
+            logger.info(f"Extracted {count} knowledge items for user {user_id}")
+
+    except Exception as e:
+        logger.warning(f"Background knowledge extraction failed for {user_id}: {e}")
+
+
 # --- Telegram Handlers ---
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -329,6 +395,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await typing_task
 
     memory.save_exchange(user_id, "telegram", message_text, response)
+
+    # Background knowledge extraction (non-blocking)
+    asyncio.create_task(extract_and_save_knowledge(user_id, message_text, response))
+
     await send_long_reply(update.message, response, with_actions=True)
 
 
@@ -384,6 +454,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     save_text = f"[Photo: {clean_caption or 'no caption'}]"
     memory.save_exchange(user_id, "telegram", save_text, response)
+
+    asyncio.create_task(extract_and_save_knowledge(user_id, save_text, response))
+
     await send_long_reply(update.message, response, with_actions=True)
 
 
@@ -815,11 +888,12 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # --- Pruning Job ---
 
 async def prune_job(context: ContextTypes.DEFAULT_TYPE):
-    """Daily cleanup of old messages and delivered reminders."""
+    """Daily cleanup of old messages, delivered reminders, and expired knowledge."""
     msgs = memory.prune_all_users(keep_last=200)
     reminders = memory.prune_delivered_reminders(older_than_days=30)
-    if msgs or reminders:
-        logger.info(f"Pruned {msgs} old messages and {reminders} delivered reminders")
+    expired = memory.expire_old_knowledge()
+    if msgs or reminders or expired:
+        logger.info(f"Pruned {msgs} old messages, {reminders} delivered reminders, {expired} expired knowledge")
 
 
 # --- Main ---
