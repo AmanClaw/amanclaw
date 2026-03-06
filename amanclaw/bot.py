@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 
 # Load .env before anything else reads env vars
 load_dotenv()
-from datetime import datetime
+from datetime import datetime, time as datetime_time
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.ext import (
     ApplicationBuilder,
@@ -39,13 +39,66 @@ from amanclaw.skills.shell import configure as configure_shell
 from amanclaw.skills.files import configure as configure_files
 from amanclaw.skills.remember import configure as configure_remember, set_current_user
 from amanclaw.skills.reminder import configure as configure_reminder, set_context as set_reminder_context
+from amanclaw.skills.scheduled import configure as configure_scheduled, set_context as set_scheduled_context
+from amanclaw.skills.documents import configure as configure_documents
+
+
+class JsonFormatter(logging.Formatter):
+    """JSON log formatter for structured logging (Docker, log aggregators)."""
+    def format(self, record):
+        import json as _json
+        log_data = {
+            "ts": datetime.now().isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        if record.exc_info and record.exc_info[0]:
+            log_data["exception"] = self.formatException(record.exc_info)
+        return _json.dumps(log_data)
+
+
+def setup_logging():
+    """Configure logging with console + optional rotating file output."""
+    log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+    log_file = os.environ.get("LOG_FILE")  # e.g. "amanclaw.log"
+    log_format = os.environ.get("LOG_FORMAT", "text")  # "text" or "json"
+
+    root = logging.getLogger()
+    root.setLevel(getattr(logging, log_level, logging.INFO))
+
+    # Console handler
+    console = logging.StreamHandler()
+    if log_format == "json":
+        console.setFormatter(JsonFormatter())
+    else:
+        console.setFormatter(logging.Formatter(
+            "%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+            datefmt="%H:%M:%S",
+        ))
+    root.addHandler(console)
+
+    # Optional rotating file handler
+    if log_file:
+        from logging.handlers import RotatingFileHandler
+        file_handler = RotatingFileHandler(
+            log_file, maxBytes=10_000_000, backupCount=5, encoding="utf-8"
+        )
+        file_handler.setFormatter(logging.Formatter(
+            "%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        ))
+        root.addHandler(file_handler)
+
+    # Quieten noisy libraries
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("telegram").setLevel(logging.WARNING)
+    logging.getLogger("aiohttp").setLevel(logging.WARNING)
+
 
 # Logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
-    datefmt="%H:%M:%S",
-)
+setup_logging()
 logger = logging.getLogger("amanclaw.bot")
 
 
@@ -235,6 +288,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Set context for skills
     set_current_user(user_id)
     set_reminder_context(user_id, str(update.effective_chat.id))
+    set_scheduled_context(user_id, str(update.effective_chat.id))
 
     # Start typing indicator
     stop_typing = asyncio.Event()
@@ -280,6 +334,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     set_current_user(user_id)
     set_reminder_context(user_id, str(update.effective_chat.id))
+    set_scheduled_context(user_id, str(update.effective_chat.id))
 
     # Start typing indicator
     stop_typing = asyncio.Event()
@@ -653,6 +708,23 @@ async def check_reminders(context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Failed to deliver reminder #{r['id']}: {e}")
 
 
+# --- Schedule Checker ---
+
+async def check_schedules(context: ContextTypes.DEFAULT_TYPE):
+    """Periodic job to check and deliver due scheduled tasks."""
+    due = memory.get_due_schedules()
+    for s in due:
+        try:
+            await context.bot.send_message(
+                chat_id=int(s["chat_id"]),
+                text=f"*Scheduled:* {s['message']}",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            memory.mark_schedule_run(s["id"])
+        except Exception as e:
+            logger.error(f"Failed to deliver schedule #{s['id']}: {e}")
+
+
 # --- Bot Menu ---
 
 async def post_init(application):
@@ -671,6 +743,48 @@ async def post_init(application):
     await application.bot.set_my_commands(commands)
 
 
+async def post_shutdown(application):
+    """Clean up resources on shutdown."""
+    if memory:
+        memory.close()
+    if llm:
+        await llm.close()
+    logger.info("AmanClaw shut down cleanly.")
+
+
+# --- Error Handler ---
+
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Log errors and notify admins."""
+    logger.error(f"Update {update} caused error: {context.error}", exc_info=context.error)
+
+    # Notify admins
+    admin_ids = config.get("admin_users", {}).get("telegram", [])
+    error_text = f"Bot error:\n{type(context.error).__name__}: {context.error}"
+    if update and update.effective_user:
+        error_text = f"User: {update.effective_user.id}\n{error_text}"
+
+    for admin_id in admin_ids:
+        try:
+            await context.bot.send_message(
+                chat_id=int(admin_id),
+                text=f"*AmanClaw Error*\n\n`{error_text[:1000]}`",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+        except Exception:
+            pass
+
+
+# --- Pruning Job ---
+
+async def prune_job(context: ContextTypes.DEFAULT_TYPE):
+    """Daily cleanup of old messages and delivered reminders."""
+    msgs = memory.prune_all_users(keep_last=200)
+    reminders = memory.prune_delivered_reminders(older_than_days=30)
+    if msgs or reminders:
+        logger.info(f"Pruned {msgs} old messages and {reminders} delivered reminders")
+
+
 # --- Main ---
 
 def main():
@@ -680,6 +794,7 @@ def main():
 
     # Load config
     config = load_config()
+    webhook_config = config.get("webhook")
 
     # Initialize components — env vars override config values
     db_path = os.environ.get("MEMORY_DB_PATH") or config.get("memory_db", "memory.db")
@@ -705,8 +820,10 @@ def main():
         configure_shell(working_dir=skills_config["shell_working_dir"])
     if skills_config.get("workspace_dir"):
         configure_files(workspace_dir=skills_config["workspace_dir"])
+        configure_documents(workspace_dir=skills_config["workspace_dir"])
     configure_remember(memory=memory)
     configure_reminder(memory=memory)
+    configure_scheduled(memory=memory)
 
     # Get Telegram token
     token = config.get("telegram", {}).get("bot_token") or os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -715,7 +832,7 @@ def main():
         sys.exit(1)
 
     # Build Telegram bot
-    app = ApplicationBuilder().token(token).post_init(post_init).build()
+    app = ApplicationBuilder().token(token).post_init(post_init).post_shutdown(post_shutdown).build()
 
     # Register handlers
     app.add_handler(CommandHandler("start", cmd_start))
@@ -732,11 +849,40 @@ def main():
     app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_voice))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
+    # Error handler
+    app.add_error_handler(error_handler)
+
     # Schedule reminder checker every 30 seconds
     app.job_queue.run_repeating(check_reminders, interval=30, first=5)
 
-    logger.info("Bot is running. Press Ctrl+C to stop.")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    # Schedule recurring task checker every 60 seconds
+    app.job_queue.run_repeating(check_schedules, interval=60, first=15)
+
+    # Schedule daily pruning at 3:00 AM
+    app.job_queue.run_daily(prune_job, time=datetime_time(hour=3, minute=0))
+
+    if webhook_config and webhook_config.get("enabled"):
+        webhook_url = webhook_config["url"]
+        listen = webhook_config.get("listen", "0.0.0.0")
+        port = webhook_config.get("port", 8443)
+        secret_token = os.environ.get("WEBHOOK_SECRET") or webhook_config.get("secret_token")
+
+        logger.info(f"Starting webhook mode on {listen}:{port}")
+        app.run_webhook(
+            listen=listen,
+            port=port,
+            url_path=f"webhook/{token[:10]}",  # Use part of token as path for obscurity
+            webhook_url=f"{webhook_url}/webhook/{token[:10]}",
+            secret_token=secret_token,
+            allowed_updates=Update.ALL_TYPES,
+        )
+    else:
+        logger.info("Starting polling mode")
+        app.run_polling(allowed_updates=Update.ALL_TYPES)
+
+    # Cleanup after run_polling returns (shutdown)
+    if memory:
+        memory.close()
 
 
 if __name__ == "__main__":

@@ -74,6 +74,20 @@ class Memory:
             CREATE INDEX IF NOT EXISTS idx_messages_user
                 ON messages(user_id, timestamp DESC);
 
+            CREATE TABLE IF NOT EXISTS schedules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                platform TEXT NOT NULL,
+                chat_id TEXT NOT NULL,
+                message TEXT NOT NULL,
+                cron_hour INTEGER NOT NULL,
+                cron_minute INTEGER NOT NULL,
+                cron_days TEXT NOT NULL DEFAULT '0,1,2,3,4,5,6',
+                enabled INTEGER DEFAULT 1,
+                last_run DATE,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE INDEX IF NOT EXISTS idx_reminders_pending
                 ON reminders(delivered, remind_at);
         """)
@@ -224,6 +238,55 @@ class Memory:
         self.conn.commit()
         return cursor.rowcount > 0
 
+    def add_schedule(self, user_id, platform, chat_id, message, hour, minute, days="0,1,2,3,4,5,6"):
+        self.conn.execute(
+            "INSERT INTO schedules (user_id, platform, chat_id, message, cron_hour, cron_minute, cron_days) VALUES (?,?,?,?,?,?,?)",
+            (str(user_id), platform, str(chat_id), message, hour, minute, days)
+        )
+        self.conn.commit()
+
+    def get_due_schedules(self):
+        """Get schedules that should run now (matching hour, minute, day of week, not yet run today)."""
+        from datetime import datetime
+        now = datetime.now()
+        today = now.strftime("%Y-%m-%d")
+        dow = str(now.weekday())  # 0=Monday
+        rows = self.conn.execute(
+            "SELECT id, user_id, platform, chat_id, message FROM schedules "
+            "WHERE enabled = 1 AND cron_hour = ? AND cron_minute = ? "
+            "AND (last_run IS NULL OR last_run < ?) "
+            "AND cron_days LIKE '%' || ? || '%'",
+            (now.hour, now.minute, today, dow)
+        ).fetchall()
+        return [{"id": r[0], "user_id": r[1], "platform": r[2], "chat_id": r[3], "message": r[4]} for r in rows]
+
+    def mark_schedule_run(self, schedule_id):
+        from datetime import datetime
+        self.conn.execute(
+            "UPDATE schedules SET last_run = ? WHERE id = ?",
+            (datetime.now().strftime("%Y-%m-%d"), schedule_id)
+        )
+        self.conn.commit()
+
+    def get_user_schedules(self, user_id):
+        rows = self.conn.execute(
+            "SELECT id, message, cron_hour, cron_minute, cron_days, enabled FROM schedules WHERE user_id = ? ORDER BY cron_hour, cron_minute",
+            (str(user_id),)
+        ).fetchall()
+        return [{"id": r[0], "message": r[1], "hour": r[2], "minute": r[3], "days": r[4], "enabled": r[5]} for r in rows]
+
+    def delete_schedule(self, schedule_id, user_id):
+        cursor = self.conn.execute("DELETE FROM schedules WHERE id = ? AND user_id = ?", (schedule_id, str(user_id)))
+        self.conn.commit()
+        return cursor.rowcount > 0
+
+    def toggle_schedule(self, schedule_id, user_id):
+        self.conn.execute(
+            "UPDATE schedules SET enabled = CASE WHEN enabled = 1 THEN 0 ELSE 1 END WHERE id = ? AND user_id = ?",
+            (schedule_id, str(user_id))
+        )
+        self.conn.commit()
+
     def export_history(self, user_id: str) -> str:
         """Export full conversation history as formatted text."""
         rows = self.conn.execute(
@@ -312,6 +375,94 @@ class Memory:
              "last_name": r[4], "status": r[5], "registered_at": r[6]}
             for r in rows
         ]
+
+    def prune_old_messages(self, user_id: str, keep_last: int = 100) -> int:
+        """Delete messages older than the most recent `keep_last` for a user."""
+        cursor = self.conn.execute(
+            "DELETE FROM messages WHERE user_id = ? AND id NOT IN "
+            "(SELECT id FROM messages WHERE user_id = ? ORDER BY id DESC LIMIT ?)",
+            (str(user_id), str(user_id), keep_last)
+        )
+        self.conn.commit()
+        deleted = cursor.rowcount
+        if deleted:
+            logger.info(f"Pruned {deleted} old messages for user {user_id}")
+        return deleted
+
+    def prune_all_users(self, keep_last: int = 100) -> int:
+        """Prune old messages for all users. Returns total deleted count."""
+        rows = self.conn.execute(
+            "SELECT DISTINCT user_id FROM messages"
+        ).fetchall()
+        total = 0
+        for (user_id,) in rows:
+            total += self.prune_old_messages(user_id, keep_last)
+        return total
+
+    def prune_delivered_reminders(self, older_than_days: int = 30) -> int:
+        """Delete delivered reminders older than N days. Returns count deleted."""
+        cursor = self.conn.execute(
+            "DELETE FROM reminders WHERE delivered = 1 AND remind_at <= datetime('now', ?)",
+            (f"-{older_than_days} days",)
+        )
+        self.conn.commit()
+        deleted = cursor.rowcount
+        if deleted:
+            logger.info(f"Pruned {deleted} delivered reminders older than {older_than_days} days")
+        return deleted
+
+    # --- Scheduled Tasks ---
+
+    def add_schedule(self, user_id: str, platform: str, chat_id: str,
+                     message: str, hour: int, minute: int, days: str = "0,1,2,3,4,5,6"):
+        """Add a recurring schedule."""
+        self.conn.execute(
+            "INSERT INTO schedules (user_id, platform, chat_id, message, cron_hour, cron_minute, cron_days) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (str(user_id), platform, str(chat_id), message, hour, minute, days)
+        )
+        self.conn.commit()
+
+    def get_due_schedules(self) -> list[dict]:
+        """Get schedules that should run now (matching hour, minute, day of week, not yet run today)."""
+        now = datetime.now()
+        today = now.strftime("%Y-%m-%d")
+        dow = str(now.weekday())  # 0=Monday
+        rows = self.conn.execute(
+            "SELECT id, user_id, platform, chat_id, message FROM schedules "
+            "WHERE enabled = 1 AND cron_hour = ? AND cron_minute = ? "
+            "AND (last_run IS NULL OR last_run < ?) "
+            "AND cron_days LIKE '%' || ? || '%'",
+            (now.hour, now.minute, today, dow)
+        ).fetchall()
+        return [{"id": r[0], "user_id": r[1], "platform": r[2], "chat_id": r[3], "message": r[4]} for r in rows]
+
+    def mark_schedule_run(self, schedule_id: int):
+        """Mark a schedule as run today."""
+        self.conn.execute(
+            "UPDATE schedules SET last_run = ? WHERE id = ?",
+            (datetime.now().strftime("%Y-%m-%d"), schedule_id)
+        )
+        self.conn.commit()
+
+    def get_user_schedules(self, user_id: str) -> list[dict]:
+        """Get all schedules for a user."""
+        rows = self.conn.execute(
+            "SELECT id, message, cron_hour, cron_minute, cron_days, enabled "
+            "FROM schedules WHERE user_id = ? ORDER BY cron_hour, cron_minute",
+            (str(user_id),)
+        ).fetchall()
+        return [{"id": r[0], "message": r[1], "hour": r[2], "minute": r[3],
+                 "days": r[4], "enabled": r[5]} for r in rows]
+
+    def delete_schedule(self, schedule_id: int, user_id: str) -> bool:
+        """Delete a schedule. Returns True if deleted."""
+        cursor = self.conn.execute(
+            "DELETE FROM schedules WHERE id = ? AND user_id = ?",
+            (schedule_id, str(user_id))
+        )
+        self.conn.commit()
+        return cursor.rowcount > 0
 
     def close(self):
         self.conn.close()

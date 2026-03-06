@@ -11,14 +11,17 @@ dependencies = [
     "python-telegram-bot==21.7",
     "pyyaml>=6.0,<7",
     "requests>=2.31,<3",
+    "aiohttp>=3.9,<4",
     "psutil>=5.9,<7",
     "python-dotenv>=1.0,<2",
 ]
 
 [project.optional-dependencies]
+pdf = ["pypdf>=4.0,<5"]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
+    "pypdf>=4.0,<5",
 ]
 
 [project.scripts]

@@ -46,3 +46,15 @@ skills:
   shell_working_dir: "~"
   workspace_dir: "~/amanclaw-workspace"
   skill_timeout_seconds: 30
+
+# Optional environment variables for extra skills:
+#   BRAVE_API_KEY — enables the web_search skill (get one at https://api.search.brave.com/)
+
+# Webhook mode (optional — uses polling by default)
+# Requires HTTPS. Use with a reverse proxy (nginx, caddy, etc.)
+# webhook:
+#   enabled: false
+#   url: "https://your-domain.com"
+#   listen: "0.0.0.0"
+#   port: 8443
+#   # secret_token: loaded from WEBHOOK_SECRET env var

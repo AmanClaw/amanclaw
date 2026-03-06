@@ -7,10 +7,10 @@ Includes vision support for image analysis.
 import os
 import re
 import json
-import time
+import asyncio
 import base64
 import logging
-import requests
+import aiohttp
 from datetime import datetime
 from amanclaw.skills import get_tool_definitions, get_skill_list, execute
 from amanclaw.security import sanitize_skill_output
@@ -170,22 +170,39 @@ class LLM:
         self.temperature = config.get("temperature", 0.7)
 
         # Try native tool calling first; fall back to prompt-based
-        self.native_tools = config.get("native_tool_calling", None)  # None = auto-detect
-        if self.native_tools is None:
-            self.native_tools = self._detect_tool_support()
+        # None = auto-detect lazily on first request
+        self.native_tools = config.get("native_tool_calling", None)
 
-        mode = "native tool_call" if self.native_tools else "prompt-based (fallback)"
+        # aiohttp session — created lazily
+        self._session: aiohttp.ClientSession | None = None
+
+        mode = "native tool_call" if self.native_tools else ("prompt-based (fallback)" if self.native_tools is False else "auto-detect (pending)")
         logger.info(f"LLM initialized: {self.model} @ {self.base_url} [{mode}]")
 
-    def _detect_tool_support(self) -> bool:
-        """Auto-detect if the server supports native tool calling."""
-        try:
-            resp = requests.post(
-                f"{self.base_url}/chat/completions",
+    def _get_session(self) -> aiohttp.ClientSession:
+        """Get or create the aiohttp session (lazy initialization)."""
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession(
                 headers={
                     "Content-Type": "application/json",
                     "Authorization": f"Bearer {self.api_key}",
                 },
+            )
+        return self._session
+
+    async def close(self):
+        """Close the aiohttp session."""
+        if self._session is not None and not self._session.closed:
+            await self._session.close()
+            self._session = None
+
+    async def _detect_tool_support(self) -> bool:
+        """Auto-detect if the server supports native tool calling."""
+        try:
+            session = self._get_session()
+            timeout = aiohttp.ClientTimeout(total=15)
+            async with session.post(
+                f"{self.base_url}/chat/completions",
                 json={
                     "model": self.model,
                     "messages": [{"role": "user", "content": "hi"}],
@@ -193,19 +210,26 @@ class LLM:
                     "tools": [{"type": "function", "function": {"name": "test", "description": "test", "parameters": {"type": "object", "properties": {}}}}],
                     "tool_choice": "auto",
                 },
-                timeout=15,
-            )
-            if resp.status_code == 200:
-                logger.info("Server supports native tool calling")
-                return True
-            else:
-                logger.info(f"Server does not support native tool calling ({resp.status_code}), using fallback")
-                return False
+                timeout=timeout,
+            ) as resp:
+                if resp.status == 200:
+                    logger.info("Server supports native tool calling")
+                    return True
+                else:
+                    logger.info(f"Server does not support native tool calling ({resp.status}), using fallback")
+                    return False
         except Exception as e:
             logger.info(f"Tool support detection failed ({e}), using fallback")
             return False
 
-    def _call_api(self, messages: list[dict], tools: list[dict] = None) -> dict:
+    async def _ensure_tool_mode_detected(self):
+        """Lazily detect tool support on first request if not yet determined."""
+        if self.native_tools is None:
+            self.native_tools = await self._detect_tool_support()
+            mode = "native tool_call" if self.native_tools else "prompt-based (fallback)"
+            logger.info(f"Tool mode resolved: [{mode}]")
+
+    async def _call_api(self, messages: list[dict], tools: list[dict] = None) -> dict:
         """Make a request to the OpenAI-compatible chat completions endpoint with retry."""
         payload = {
             "model": self.model,
@@ -218,35 +242,44 @@ class LLM:
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
 
+        session = self._get_session()
+        timeout = aiohttp.ClientTimeout(total=120)
+
         last_error = None
         for attempt in range(self.MAX_RETRIES + 1):
             try:
-                resp = requests.post(
+                async with session.post(
                     f"{self.base_url}/chat/completions",
-                    headers={
-                        "Content-Type": "application/json",
-                        "Authorization": f"Bearer {self.api_key}",
-                    },
                     json=payload,
-                    timeout=120,
-                )
-                resp.raise_for_status()
-                return resp.json()
-            except requests.ConnectionError as e:
-                last_error = e
-                logger.warning(f"LLM connection failed (attempt {attempt + 1}/{self.MAX_RETRIES + 1}): {e}")
-            except requests.Timeout as e:
+                    timeout=timeout,
+                ) as resp:
+                    if resp.status >= 400:
+                        body = await resp.text()
+                        if resp.status < 500:
+                            # Client error — don't retry
+                            raise aiohttp.ClientResponseError(
+                                resp.request_info,
+                                resp.history,
+                                status=resp.status,
+                                message=f"Client error {resp.status}: {body}",
+                            )
+                        # Server error — retry
+                        last_error = Exception(f"Server error {resp.status}: {body}")
+                        logger.warning(f"LLM server error {resp.status} (attempt {attempt + 1}/{self.MAX_RETRIES + 1})")
+                    else:
+                        return await resp.json()
+            except aiohttp.ClientResponseError:
+                # Client errors (4xx) — re-raise immediately, don't retry
+                raise
+            except aiohttp.ServerTimeoutError as e:
                 last_error = e
                 logger.warning(f"LLM request timed out (attempt {attempt + 1}/{self.MAX_RETRIES + 1})")
-            except requests.HTTPError as e:
-                # Don't retry client errors (4xx), only server errors (5xx)
-                if resp.status_code < 500:
-                    raise
+            except (aiohttp.ClientConnectionError, aiohttp.ClientError) as e:
                 last_error = e
-                logger.warning(f"LLM server error {resp.status_code} (attempt {attempt + 1}/{self.MAX_RETRIES + 1})")
+                logger.warning(f"LLM connection failed (attempt {attempt + 1}/{self.MAX_RETRIES + 1}): {e}")
 
             if attempt < self.MAX_RETRIES:
-                time.sleep(self.RETRY_DELAY * (attempt + 1))
+                await asyncio.sleep(self.RETRY_DELAY * (attempt + 1))
 
         raise ConnectionError(f"LLM unavailable after {self.MAX_RETRIES + 1} attempts: {last_error}")
 
@@ -267,6 +300,8 @@ class LLM:
             else:
                 # For vision messages, prepend to the text part
                 message = [{"type": "text", "text": flag_note}] + message
+
+        await self._ensure_tool_mode_detected()
 
         if self.native_tools:
             return await self._respond_native(message, history, facts, summary)
@@ -308,13 +343,13 @@ class LLM:
 
         return prompt
 
-    def summarize(self, messages: list[dict]) -> str | None:
+    async def summarize(self, messages: list[dict]) -> str | None:
         """Ask the LLM to summarize a conversation. Returns summary text or None."""
         if not messages:
             return None
         try:
             conversation = "\n".join(f"{m['role']}: {m['content']}" for m in messages[:40])
-            resp = self._call_api([
+            resp = await self._call_api([
                 {"role": "system", "content": SUMMARY_PROMPT},
                 {"role": "user", "content": conversation},
             ])
@@ -334,7 +369,7 @@ class LLM:
 
         for turn in range(5):
             logger.info(f"LLM native call (turn {turn + 1})")
-            data = self._call_api(messages, tools=openai_tools)
+            data = await self._call_api(messages, tools=openai_tools)
 
             choice = data["choices"][0]
             assistant_msg = choice["message"]
@@ -383,7 +418,7 @@ class LLM:
 
         for turn in range(5):
             logger.info(f"LLM fallback call (turn {turn + 1})")
-            data = self._call_api(messages)
+            data = await self._call_api(messages)
 
             content = data["choices"][0]["message"].get("content", "") or ""
 
