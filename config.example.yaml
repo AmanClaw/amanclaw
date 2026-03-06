@@ -49,6 +49,15 @@ skills:
   workspace_dir: "~/amanclaw-workspace"
   skill_timeout_seconds: 30
 
+# Learning Engine
+learning:
+  enabled: true
+  proactive_checkins: true
+  checkin_day: 6           # 0=Monday, 6=Sunday
+  checkin_hour: 10
+  checkin_min_age_days: 14  # Only check facts older than this
+  document_max_chars: 50000 # Max chars to ingest per document
+
 # WhatsApp (optional — requires the Baileys bridge)
 # See bridge/whatsapp/README.md for setup instructions.
 # whatsapp:

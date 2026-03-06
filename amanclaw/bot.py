@@ -1070,10 +1070,12 @@ def main():
     configure_reminder(memory=memory)
     configure_scheduled(memory=memory)
 
-    learning_engine = LearningEngine(memory)
-    from amanclaw.skills.remember import set_learning_engine
-    set_learning_engine(learning_engine)
-    logger.info("Learning engine initialized")
+    learning_config = config.get("learning", {})
+    if learning_config.get("enabled", True):
+        learning_engine = LearningEngine(memory)
+        from amanclaw.skills.remember import set_learning_engine
+        set_learning_engine(learning_engine)
+        logger.info("Learning engine initialized")
 
     # --- WhatsApp (optional) ---
     wa_config = config.get("whatsapp", {})
@@ -1120,9 +1122,12 @@ def main():
     # Schedule daily pruning at 3:00 AM
     app.job_queue.run_daily(prune_job, time=datetime_time(hour=3, minute=0))
 
-    # Schedule weekly proactive check-in (Sundays at 10:00 AM)
-    app.job_queue.run_daily(checkin_job, time=datetime_time(hour=10, minute=0),
-                            days=(6,))  # 6 = Sunday
+    # Schedule weekly proactive check-in
+    if learning_config.get("proactive_checkins", True):
+        checkin_day = learning_config.get("checkin_day", 6)
+        checkin_hour = learning_config.get("checkin_hour", 10)
+        app.job_queue.run_daily(checkin_job, time=datetime_time(hour=checkin_hour, minute=0),
+                                days=(checkin_day,))
 
     if webhook_config and webhook_config.get("enabled"):
         webhook_url = webhook_config["url"]
