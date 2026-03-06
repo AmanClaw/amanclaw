@@ -1,0 +1,299 @@
+"""Tests for skill execution — shell, files, and skill registry."""
+
+import os
+import tempfile
+import pytest
+from pathlib import Path
+from amanclaw.skills import execute, get_tool_definitions, get_skill_list, REGISTRY
+from amanclaw.skills.shell import run_command
+from amanclaw.skills.files import read_file, write_file, list_files, configure as configure_files
+
+
+# --- Skill Registry ---
+
+class TestSkillRegistry:
+    def test_skills_registered(self):
+        expected = {"run_command", "read_file", "write_file", "list_files",
+                    "system_status", "save_fact", "get_facts",
+                    "set_reminder", "list_reminders", "cancel_reminder"}
+        assert expected.issubset(set(REGISTRY.keys()))
+
+    def test_tool_definitions_format(self):
+        tools = get_tool_definitions()
+        assert len(tools) > 0
+        for tool in tools:
+            assert "name" in tool
+            assert "description" in tool
+            assert "input_schema" in tool
+            assert tool["input_schema"]["type"] == "object"
+
+    def test_skill_list_readable(self):
+        text = get_skill_list()
+        assert "run_command" in text
+        assert "read_file" in text
+
+    def test_unknown_skill(self):
+        result = execute("nonexistent_skill", {})
+        assert "Unknown skill" in result
+
+
+# --- Shell Skill ---
+
+class TestShellSkill:
+    def test_allowed_command(self):
+        result = run_command("whoami")
+        assert result and result.strip()
+
+    def test_blocked_command(self):
+        result = run_command("rm -rf /")
+        assert "not allowed" in result
+
+    def test_dangerous_chars_pipe(self):
+        result = run_command("ls | grep test")
+        assert "dangerous characters" in result
+
+    def test_dangerous_chars_semicolon(self):
+        result = run_command("ls; rm -rf /")
+        assert "dangerous characters" in result
+
+    def test_dangerous_chars_backtick(self):
+        result = run_command("echo `whoami`")
+        assert "dangerous characters" in result
+
+    def test_dangerous_chars_dollar(self):
+        result = run_command("echo $HOME")
+        assert "dangerous characters" in result
+
+    def test_dangerous_chars_redirect(self):
+        result = run_command("ls > /tmp/out")
+        assert "dangerous characters" in result
+
+    def test_empty_command(self):
+        result = run_command("")
+        assert "Empty command" in result or "Invalid" in result
+
+    def test_path_traversal_passwd(self):
+        result = run_command("cat ../../etc/passwd")
+        assert "blocked" in result.lower() or "not allowed" in result.lower()
+
+    def test_ls_runs(self):
+        result = run_command("ls /tmp")
+        assert result  # Should return something
+
+    def test_date_runs(self):
+        result = run_command("date")
+        assert result and len(result) > 0
+
+
+# --- File Skill ---
+
+class TestFileSkill:
+    @pytest.fixture(autouse=True)
+    def setup_workspace(self, tmp_path):
+        """Use a temp directory as workspace for tests."""
+        configure_files(workspace_dir=str(tmp_path))
+        self.workspace = tmp_path
+
+    def test_write_and_read(self):
+        result = write_file("test.txt", "hello world")
+        assert "11 characters" in result
+
+        content = read_file("test.txt")
+        assert content == "hello world"
+
+    def test_read_nonexistent(self):
+        result = read_file("nope.txt")
+        assert "not found" in result.lower()
+
+    def test_write_nested(self):
+        result = write_file("sub/dir/file.txt", "nested content")
+        assert "nested content" in read_file("sub/dir/file.txt")
+
+    def test_list_files(self):
+        write_file("a.txt", "aaa")
+        write_file("b.txt", "bbb")
+        result = list_files(".")
+        assert "a.txt" in result
+        assert "b.txt" in result
+
+    def test_list_empty_dir(self):
+        (self.workspace / "empty").mkdir()
+        result = list_files("empty")
+        assert "empty" in result.lower()
+
+    def test_path_escape(self):
+        result = read_file("../../etc/passwd")
+        assert "escapes workspace" in result.lower() or "not found" in result.lower()
+
+    def test_write_path_escape(self):
+        result = write_file("../../evil.txt", "bad")
+        assert "escapes workspace" in result.lower()
+
+    def test_large_file_blocked(self):
+        big_file = self.workspace / "big.txt"
+        big_file.write_text("x" * 200_000)
+        result = read_file("big.txt")
+        assert "too large" in result.lower()
+
+    def test_read_output_capped(self):
+        large = "x" * 10_000
+        write_file("large.txt", large)
+        content = read_file("large.txt")
+        assert len(content) <= 5000
+
+
+# --- Memory Tests ---
+
+class TestMemory:
+    @pytest.fixture
+    def memory(self):
+        from amanclaw.memory import Memory
+        m = Memory(":memory:")
+        yield m
+        m.close()
+
+    def test_save_and_get_history(self, memory):
+        memory.save_exchange("user1", "telegram", "hello", "hi there")
+        history = memory.get_history("user1")
+        assert len(history) == 2
+        assert history[0]["role"] == "user"
+        assert history[0]["content"] == "hello"
+        assert history[1]["role"] == "assistant"
+        assert history[1]["content"] == "hi there"
+
+    def test_history_limit(self, memory):
+        for i in range(30):
+            memory.save_message("user1", "telegram", "user", f"msg {i}")
+        history = memory.get_history("user1", last_n=10)
+        assert len(history) == 10
+
+    def test_clear_history(self, memory):
+        memory.save_exchange("user1", "telegram", "hello", "hi")
+        memory.clear_history("user1")
+        history = memory.get_history("user1")
+        assert len(history) == 0
+
+    def test_user_isolation(self, memory):
+        memory.save_exchange("user1", "telegram", "hello", "hi")
+        memory.save_exchange("user2", "telegram", "hey", "yo")
+        assert len(memory.get_history("user1")) == 2
+        assert len(memory.get_history("user2")) == 2
+
+    def test_save_and_get_facts(self, memory):
+        memory.save_fact("user1", "name", "Alice")
+        memory.save_fact("user1", "language", "Python")
+        facts = memory.get_facts("user1")
+        assert facts == {"name": "Alice", "language": "Python"}
+
+    def test_fact_upsert(self, memory):
+        memory.save_fact("user1", "name", "Alice")
+        memory.save_fact("user1", "name", "Bob")
+        facts = memory.get_facts("user1")
+        assert facts["name"] == "Bob"
+
+    def test_facts_user_isolation(self, memory):
+        memory.save_fact("user1", "name", "Alice")
+        memory.save_fact("user2", "name", "Bob")
+        assert memory.get_facts("user1")["name"] == "Alice"
+        assert memory.get_facts("user2")["name"] == "Bob"
+
+    def test_stats(self, memory):
+        memory.save_exchange("user1", "telegram", "hello", "hi")
+        memory.save_fact("user1", "name", "Alice")
+        stats = memory.get_stats()
+        assert stats["total_messages"] == 2
+        assert stats["total_facts"] == 1
+        assert stats["unique_users"] == 1
+
+    def test_add_and_get_reminders(self, memory):
+        memory.add_reminder("user1", "telegram", "12345", "Check oven", "2020-01-01 00:00:00")
+        due = memory.get_due_reminders()
+        assert len(due) == 1
+        assert due[0]["message"] == "Check oven"
+        assert due[0]["chat_id"] == "12345"
+
+    def test_mark_reminder_delivered(self, memory):
+        memory.add_reminder("user1", "telegram", "12345", "Test", "2020-01-01 00:00:00")
+        due = memory.get_due_reminders()
+        memory.mark_reminder_delivered(due[0]["id"])
+        assert len(memory.get_due_reminders()) == 0
+
+    def test_user_reminders(self, memory):
+        memory.add_reminder("user1", "telegram", "12345", "First", "2030-01-01 00:00:00")
+        memory.add_reminder("user1", "telegram", "12345", "Second", "2030-01-02 00:00:00")
+        reminders = memory.get_user_reminders("user1")
+        assert len(reminders) == 2
+
+    def test_delete_reminder(self, memory):
+        memory.add_reminder("user1", "telegram", "12345", "Delete me", "2030-01-01 00:00:00")
+        reminders = memory.get_user_reminders("user1")
+        assert memory.delete_reminder(reminders[0]["id"], "user1")
+        assert len(memory.get_user_reminders("user1")) == 0
+
+    def test_delete_wrong_user(self, memory):
+        memory.add_reminder("user1", "telegram", "12345", "Protected", "2030-01-01 00:00:00")
+        reminders = memory.get_user_reminders("user1")
+        assert not memory.delete_reminder(reminders[0]["id"], "user2")
+
+    def test_export_history(self, memory):
+        memory.save_exchange("user1", "telegram", "hello", "hi there")
+        export = memory.export_history("user1")
+        assert "USER: hello" in export
+        assert "ASSISTANT: hi there" in export
+
+    def test_export_empty(self, memory):
+        assert memory.export_history("user1") == "No conversation history."
+
+
+# --- User Management Tests ---
+
+class TestUserManagement:
+    @pytest.fixture
+    def memory(self):
+        from amanclaw.memory import Memory
+        m = Memory(":memory:")
+        yield m
+        m.close()
+
+    def test_register_new_user(self, memory):
+        assert memory.register_user("user1", "telegram", "johndoe", "John", "Doe")
+        user = memory.get_user("user1")
+        assert user["username"] == "johndoe"
+        assert user["first_name"] == "John"
+        assert user["status"] == "pending"
+
+    def test_register_duplicate(self, memory):
+        assert memory.register_user("user1", "telegram")
+        assert not memory.register_user("user1", "telegram")
+
+    def test_user_status_flow(self, memory):
+        memory.register_user("user1", "telegram")
+        assert memory.get_user_status("user1") == "pending"
+        memory.approve_user("user1")
+        assert memory.get_user_status("user1") == "approved"
+
+    def test_block_user(self, memory):
+        memory.register_user("user1", "telegram")
+        memory.block_user("user1")
+        assert memory.get_user_status("user1") == "blocked"
+
+    def test_approve_only_pending(self, memory):
+        memory.register_user("user1", "telegram")
+        memory.block_user("user1")
+        assert not memory.approve_user("user1")
+
+    def test_unknown_user_status(self, memory):
+        assert memory.get_user_status("nonexistent") is None
+
+    def test_list_users(self, memory):
+        memory.register_user("user1", "telegram", "alice")
+        memory.register_user("user2", "telegram", "bob")
+        memory.approve_user("user1")
+        all_users = memory.list_users()
+        assert len(all_users) == 2
+        pending = memory.list_users(status="pending")
+        assert len(pending) == 1
+        assert pending[0]["username"] == "bob"
+        approved = memory.list_users(status="approved")
+        assert len(approved) == 1
+        assert approved[0]["username"] == "alice"

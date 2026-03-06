@@ -1,0 +1,32 @@
+services:
+  amanclaw:
+    build: .
+    container_name: amanclaw
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      # Persist database outside container
+      - ./data:/data
+      # Mount config (read-only)
+      - ./config.yaml:/app/config.yaml:ro
+      # Workspace for file skill
+      - amanclaw-workspace:/home/amanclaw/amanclaw-workspace
+    environment:
+      - MEMORY_DB_PATH=/data/memory.db
+    # Drop all capabilities, add back only what's needed
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=64m
+    # Limit resources
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+
+volumes:
+  amanclaw-workspace:

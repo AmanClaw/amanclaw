@@ -1,0 +1,43 @@
+[Unit]
+Description=AmanClaw Telegram Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=amanclaw
+Group=amanclaw
+WorkingDirectory=/opt/amanclaw
+ExecStart=/opt/amanclaw/.venv/bin/python -m amanclaw
+Restart=on-failure
+RestartSec=10
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+# Load secrets from env file
+EnvironmentFile=/opt/amanclaw/.env
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+
+# Allow writes only to data dir and workspace
+ReadWritePaths=/opt/amanclaw/data /home/amanclaw/amanclaw-workspace
+
+# Resource limits
+MemoryMax=512M
+CPUQuota=100%
+
+[Install]
+WantedBy=multi-user.target

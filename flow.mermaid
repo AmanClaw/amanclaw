@@ -1,0 +1,18 @@
+graph TD
+    YOU["You\n(Telegram)"] -->|"message"| BOT["bot.py"]
+    BOT -->|"is this my user?"| AUTH{"Auth\nCheck"}
+    AUTH -->|"No"| DROP["Ignore"]
+    AUTH -->|"Yes"| SANITIZE["Sanitize\nInput"]
+    SANITIZE --> LLM["Claude API\n(with tools)"]
+    LLM -->|"needs a skill"| SKILL["Run Skill\n(timeout + allowlist)"]
+    LLM -->|"just text"| REPLY["Reply on\nTelegram"]
+    SKILL -->|"result"| LLM2["Claude API\n(with result)"]
+    LLM2 --> REPLY
+    LLM --> MEMORY["SQLite\nMemory"]
+    MEMORY -.->|"history"| LLM
+
+    style AUTH fill:#fee2e2,stroke:#dc2626
+    style SKILL fill:#d1fae5,stroke:#059669
+    style MEMORY fill:#dbeafe,stroke:#2563eb
+    style LLM fill:#f3e8ff,stroke:#7c3aed
+    style LLM2 fill:#f3e8ff,stroke:#7c3aed

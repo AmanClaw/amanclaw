@@ -1,0 +1,48 @@
+# AmanClaw — Configuration
+# Copy to config.yaml and customize:  cp config.example.yaml config.yaml
+#
+# SECRETS (bot token, API keys) go in .env, NOT here.
+# See .env.example for details.
+
+# LLM settings — requires an OpenAI-compatible API server
+# Works with: vLLM, Ollama, LM Studio, LocalAI, text-generation-webui, etc.
+llm:
+  base_url: "http://localhost:8001/v1"   # or set LLM_BASE_URL env var
+  model: "Qwen/Qwen3-VL-30B-A3B-Instruct"
+  # api_key: loaded from LLM_API_KEY env var
+  max_tokens: 4096
+  temperature: 0.7
+
+# Admin user IDs — can approve/block users and always have access.
+# Use /myid command to find your Telegram ID.
+admin_users:
+  telegram: []       # e.g. [123456789]
+
+rate_limit_per_minute: 20
+
+memory_db: memory.db   # or set MEMORY_DB_PATH env var
+
+# Skill settings
+skills:
+  shell_allowed_commands:
+    - ls
+    - cat
+    - head
+    - tail
+    - wc
+    - grep
+    - find
+    - which
+    - df
+    - du
+    - free
+    - uptime
+    - date
+    - ps
+    - whoami
+    - hostname
+    - pwd
+    - tree
+  shell_working_dir: "~"
+  workspace_dir: "~/amanclaw-workspace"
+  skill_timeout_seconds: 30
