@@ -34,5 +34,9 @@ Thumbs.db
 # Data directory (Docker volumes)
 data/
 
+# Node.js (WhatsApp bridge)
+node_modules/
+bridge/whatsapp/auth_state/
+
 # Logs
 *.log

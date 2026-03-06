@@ -13,6 +13,7 @@ services:
       - amanclaw-workspace:/home/amanclaw/amanclaw-workspace
     environment:
       - MEMORY_DB_PATH=/data/memory.db
+      - WA_BRIDGE_URL=http://whatsapp-bridge:3001
     # Drop all capabilities, add back only what's needed
     cap_drop:
       - ALL
@@ -27,6 +28,33 @@ services:
         limits:
           memory: 512M
           cpus: "1.0"
+    depends_on:
+      whatsapp-bridge:
+        condition: service_started
+        required: false
+
+  # WhatsApp bridge (optional — enable whatsapp in config.yaml to use)
+  whatsapp-bridge:
+    build: bridge/whatsapp
+    container_name: whatsapp-bridge
+    restart: unless-stopped
+    profiles: ["whatsapp"]
+    environment:
+      - BRIDGE_PORT=3001
+      - PYTHON_CALLBACK_URL=http://amanclaw:3002/whatsapp/incoming
+      - WA_AUTH_DIR=/data/auth_state
+    volumes:
+      - wa-auth:/data/auth_state
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
 
 volumes:
   amanclaw-workspace:
+  wa-auth:

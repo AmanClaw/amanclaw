@@ -15,8 +15,10 @@ llm:
 
 # Admin user IDs — can approve/block users and always have access.
 # Use /myid command to find your Telegram ID.
+# For WhatsApp, use the phone number (e.g. "60123456789").
 admin_users:
   telegram: []       # e.g. [123456789]
+  whatsapp: []       # e.g. ["60123456789"]
 
 rate_limit_per_minute: 20
 
@@ -46,6 +48,15 @@ skills:
   shell_working_dir: "~"
   workspace_dir: "~/amanclaw-workspace"
   skill_timeout_seconds: 30
+
+# WhatsApp (optional — requires the Baileys bridge)
+# See bridge/whatsapp/README.md for setup instructions.
+# whatsapp:
+#   enabled: false
+#   bridge_url: "http://localhost:3001"  # or set WA_BRIDGE_URL env var
+#   port: 3002                           # callback server port
+#   listen: "0.0.0.0"
+#   ignore_groups: true                  # ignore group messages
 
 # Optional environment variables for extra skills:
 #   BRAVE_API_KEY — enables the web_search skill (get one at https://api.search.brave.com/)

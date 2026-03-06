@@ -41,6 +41,7 @@ from amanclaw.skills.remember import configure as configure_remember, set_curren
 from amanclaw.skills.reminder import configure as configure_reminder, set_context as set_reminder_context
 from amanclaw.skills.scheduled import configure as configure_scheduled, set_context as set_scheduled_context
 from amanclaw.skills.documents import configure as configure_documents
+from amanclaw.whatsapp import WhatsAppAdapter
 
 
 class JsonFormatter(logging.Formatter):
@@ -122,6 +123,7 @@ auth: Auth = None
 rate_limiter: RateLimiter = None
 memory: Memory = None
 llm: LLM = None
+whatsapp: WhatsAppAdapter = None
 
 
 # --- Helpers ---
@@ -697,13 +699,16 @@ async def check_reminders(context: ContextTypes.DEFAULT_TYPE):
     due = memory.get_due_reminders()
     for r in due:
         try:
-            await context.bot.send_message(
-                chat_id=int(r["chat_id"]),
-                text=f"⏰ *Reminder:* {r['message']}",
-                parse_mode=ParseMode.MARKDOWN,
-            )
+            if r["platform"] == "whatsapp" and whatsapp:
+                await whatsapp.deliver_reminder(r["chat_id"], r["message"])
+            else:
+                await context.bot.send_message(
+                    chat_id=int(r["chat_id"]),
+                    text=f"*Reminder:* {r['message']}",
+                    parse_mode=ParseMode.MARKDOWN,
+                )
             memory.mark_reminder_delivered(r["id"])
-            logger.info(f"Delivered reminder #{r['id']} to user {r['user_id']}")
+            logger.info(f"Delivered reminder #{r['id']} to {r['platform']} user {r['user_id']}")
         except Exception as e:
             logger.error(f"Failed to deliver reminder #{r['id']}: {e}")
 
@@ -715,11 +720,14 @@ async def check_schedules(context: ContextTypes.DEFAULT_TYPE):
     due = memory.get_due_schedules()
     for s in due:
         try:
-            await context.bot.send_message(
-                chat_id=int(s["chat_id"]),
-                text=f"*Scheduled:* {s['message']}",
-                parse_mode=ParseMode.MARKDOWN,
-            )
+            if s["platform"] == "whatsapp" and whatsapp:
+                await whatsapp.deliver_schedule(s["chat_id"], s["message"])
+            else:
+                await context.bot.send_message(
+                    chat_id=int(s["chat_id"]),
+                    text=f"*Scheduled:* {s['message']}",
+                    parse_mode=ParseMode.MARKDOWN,
+                )
             memory.mark_schedule_run(s["id"])
         except Exception as e:
             logger.error(f"Failed to deliver schedule #{s['id']}: {e}")
@@ -728,7 +736,14 @@ async def check_schedules(context: ContextTypes.DEFAULT_TYPE):
 # --- Bot Menu ---
 
 async def post_init(application):
-    """Set bot commands menu after initialization."""
+    """Set bot commands menu and start WhatsApp adapter after initialization."""
+    # Start WhatsApp adapter if configured
+    if whatsapp:
+        try:
+            await whatsapp.start()
+        except Exception as e:
+            logger.error(f"Failed to start WhatsApp adapter: {e}")
+
     commands = [
         BotCommand("start", "Welcome & quick actions"),
         BotCommand("skills", "List available skills"),
@@ -745,6 +760,8 @@ async def post_init(application):
 
 async def post_shutdown(application):
     """Clean up resources on shutdown."""
+    if whatsapp:
+        await whatsapp.stop()
     if memory:
         memory.close()
     if llm:
@@ -788,7 +805,7 @@ async def prune_job(context: ContextTypes.DEFAULT_TYPE):
 # --- Main ---
 
 def main():
-    global config, auth, rate_limiter, memory, llm
+    global config, auth, rate_limiter, memory, llm, whatsapp
 
     logger.info("Starting AmanClaw...")
 
@@ -824,6 +841,12 @@ def main():
     configure_remember(memory=memory)
     configure_reminder(memory=memory)
     configure_scheduled(memory=memory)
+
+    # --- WhatsApp (optional) ---
+    wa_config = config.get("whatsapp", {})
+    if wa_config.get("enabled"):
+        whatsapp = WhatsAppAdapter(config, auth, rate_limiter, memory, llm)
+        logger.info("WhatsApp adapter configured (will start with bot)")
 
     # Get Telegram token
     token = config.get("telegram", {}).get("bot_token") or os.environ.get("TELEGRAM_BOT_TOKEN")
