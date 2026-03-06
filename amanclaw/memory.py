@@ -19,6 +19,9 @@ class Memory:
         self._init_tables()
         logger.info(f"Memory initialized at {db_path}")
 
+        # Auto-migrate facts to knowledge if needed
+        self._maybe_migrate_facts()
+
     def _init_tables(self):
         self.conn.executescript("""
             CREATE TABLE IF NOT EXISTS messages (
@@ -474,6 +477,15 @@ class Memory:
             (schedule_id, str(user_id))
         )
         self.conn.commit()
+
+    def _maybe_migrate_facts(self):
+        """Check if facts need migration to knowledge table."""
+        fact_count = self.conn.execute("SELECT COUNT(*) FROM facts").fetchone()[0]
+        if fact_count == 0:
+            return
+        knowledge_count = self.conn.execute("SELECT COUNT(*) FROM knowledge WHERE source = 'migrated'").fetchone()[0]
+        if knowledge_count == 0 and fact_count > 0:
+            self.migrate_facts_to_knowledge()
 
     def close(self):
         self.conn.close()

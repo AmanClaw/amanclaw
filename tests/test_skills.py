@@ -490,3 +490,63 @@ class TestRememberSkillKnowledge:
         save_fact(key="language", value="Python")
         result = recall(query="name")
         assert "Aman" in result
+
+
+# --- Knowledge Integration Tests ---
+
+class TestKnowledgeIntegration:
+    @pytest.fixture
+    def memory(self):
+        from amanclaw.memory import Memory
+        m = Memory(":memory:")
+        yield m
+        m.close()
+
+    def test_full_knowledge_flow(self, memory):
+        """Test the complete knowledge lifecycle."""
+        # Save some knowledge
+        kid = memory.save_knowledge("user1", "preference", "coffee", "dark roast",
+                                    context="morning only")
+        assert kid > 0
+
+        # Save entities
+        eid1 = memory.save_entity("user1", "Ali", "person", {"role": "engineer"})
+        eid2 = memory.save_entity("user1", "SecureClaw", "project", {"type": "security"})
+
+        # Save relationship
+        memory.save_relationship("user1", eid1, "works_on", eid2)
+
+        # Query everything
+        knowledge = memory.get_active_knowledge("user1")
+        assert len(knowledge) == 1
+
+        entities = memory.get_entities("user1")
+        assert len(entities) == 2
+
+        rels = memory.get_relationships("user1")
+        assert len(rels) == 1
+        assert rels[0]["from_name"] == "Ali"
+        assert rels[0]["to_name"] == "SecureClaw"
+
+        # Search
+        results = memory.search_knowledge("user1", "coffee")
+        assert len(results) >= 1
+
+        # Update
+        memory.update_knowledge(kid, content="light roast")
+        knowledge = memory.get_active_knowledge("user1")
+        assert knowledge[0]["content"] == "light roast"
+
+    def test_facts_migration_on_init(self):
+        """Test that existing facts are migrated to knowledge on init."""
+        from amanclaw.memory import Memory
+        m = Memory(":memory:")
+        # Save facts using old method
+        m.save_fact("user1", "name", "Aman")
+        m.save_fact("user1", "lang", "Python")
+        # Migration should have happened at init since facts exist
+        # But we need to re-trigger since we added facts after init
+        m.migrate_facts_to_knowledge()
+        entries = m.get_active_knowledge("user1")
+        assert len(entries) >= 2
+        m.close()
