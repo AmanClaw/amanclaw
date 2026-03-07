@@ -152,4 +152,4 @@ def execute(tool_name: str, tool_input: dict, user_id: str = None) -> str:
 
 
 # Import built-in skills so they auto-register
-from amanclaw.skills import shell, files, system_info, remember, reminder, documents, scheduled, prayer_times, web_fetch, mcp_manage
+from amanclaw.skills import shell, files, system_info, remember, reminder, documents, scheduled, prayer_times, web_fetch, web_search, mcp_manage

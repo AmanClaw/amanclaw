@@ -6,7 +6,9 @@ RUN groupadd --gid 1000 amanclaw && \
 
 # System deps only — no build tools in final image
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends tini ffmpeg && \
+    apt-get install -y --no-install-recommends tini ffmpeg curl && \
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -22,6 +24,9 @@ COPY config.example.yaml ./config.example.yaml
 
 # Install the actual package
 RUN pip install --no-cache-dir .
+
+# Pre-install Anthropic MCP fetch server so npx doesn't download every time
+RUN npx -y @anthropic/server-fetch --help 2>/dev/null || true
 
 # Create workspace and data directories owned by app user
 RUN mkdir -p /data /home/amanclaw/amanclaw-workspace && \

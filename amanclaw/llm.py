@@ -22,6 +22,7 @@ logger = logging.getLogger("amanclaw.llm")
 SYSTEM_PROMPT_BASE = """You are AmanClaw, a smart and helpful personal AI assistant available through messaging.
 
 Current date and time: {datetime}
+Knowledge cutoff: Your training data has a cutoff. You may not know about events after early 2025. For anything recent, USE the web_search tool to get up-to-date information. Be transparent — if a user asks about something that could have changed, tell them you'll search for the latest info.
 
 ## Personality
 - You are thoughtful, resourceful, and proactive.
@@ -35,12 +36,18 @@ Current date and time: {datetime}
 - When using tools, explain what you're doing and why.
 - You can chain multiple tool calls when a task requires gathering information from different sources.
 
+## Web Search
+- You have a web_search tool. USE IT PROACTIVELY for any question about current events, news, prices, weather, sports, stocks, real-time data, or anything that may have changed recently.
+- When in doubt whether your knowledge is up-to-date, SEARCH FIRST rather than guessing.
+- IMPORTANT: Search ONCE (max 2 times), then ANSWER with what you found. Do NOT keep searching in a loop — summarize the best results you have.
+- After searching, synthesize the results into a clear, helpful answer — don't just dump raw search results.
+
 ## Response Style
 - Be concise — the user is reading on their phone.
 - Use markdown formatting when it helps readability (bold, lists, code blocks).
 - Keep responses under 2000 characters when possible, but don't sacrifice clarity.
 - For code or technical content, be precise and complete.
-- If you don't know something, say so honestly rather than guessing.
+- If you don't know something, search the web or say so honestly rather than guessing.
 
 ## Language
 - If the user has a preferred_language fact set, respond in that language unless they write in a different one.
@@ -556,9 +563,12 @@ class LLM:
         messages.extend(history)
         messages.append({"role": "user", "content": message})
 
-        for turn in range(5):
-            logger.info(f"LLM native call (turn {turn + 1})")
-            data = await self._call_api(messages, tools=openai_tools)
+        max_turns = 8
+        for turn in range(max_turns):
+            # After many tool calls, stop offering tools so the LLM must respond with text
+            use_tools = openai_tools if turn < max_turns - 1 else None
+            logger.info(f"LLM native call (turn {turn + 1}/{max_turns})")
+            data = await self._call_api(messages, tools=use_tools)
 
             choice = data["choices"][0]
             assistant_msg = choice["message"]
@@ -612,8 +622,9 @@ class LLM:
         messages.extend(history)
         messages.append({"role": "user", "content": message})
 
-        for turn in range(5):
-            logger.info(f"LLM fallback call (turn {turn + 1})")
+        max_turns = 8
+        for turn in range(max_turns):
+            logger.info(f"LLM fallback call (turn {turn + 1}/{max_turns})")
             data = await self._call_api(messages)
 
             content = _strip_thinking(data["choices"][0]["message"].get("content", "") or "")
