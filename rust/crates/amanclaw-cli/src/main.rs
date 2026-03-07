@@ -56,17 +56,15 @@ async fn main() -> Result<()> {
     let engine = Engine::new(config).await?;
 
     // Graceful shutdown on Ctrl+C
-    let shutdown = tokio::signal::ctrl_c();
     tokio::select! {
         result = engine.run() => {
             result.context("Engine exited with error")?;
         }
-        _ = shutdown => {
+        _ = tokio::signal::ctrl_c() => {
             tracing::info!("Shutdown signal received");
         }
     }
 
-    engine.shutdown().await?;
     tracing::info!("AmanClaw stopped.");
     Ok(())
 }
