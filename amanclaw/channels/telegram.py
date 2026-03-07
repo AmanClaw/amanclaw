@@ -821,8 +821,7 @@ class TelegramAdapter(ChannelAdapter):
             target_id = query.data.replace("adm_approve_", "")
             if self.memory.approve_user(target_id):
                 await query.edit_message_text(
-                    query.message.text + "\n\n*Approved*",
-                    parse_mode=ParseMode.MARKDOWN,
+                    query.message.text + "\n\n✅ Approved",
                 )
                 await self._send_approval_welcome(context, target_id)
             else:
@@ -836,8 +835,7 @@ class TelegramAdapter(ChannelAdapter):
             target_id = query.data.replace("adm_block_", "")
             if self.memory.block_user(target_id):
                 await query.edit_message_text(
-                    query.message.text + "\n\n*Blocked*",
-                    parse_mode=ParseMode.MARKDOWN,
+                    query.message.text + "\n\n🚫 Blocked",
                 )
             else:
                 await query.answer("User already processed.", show_alert=True)
