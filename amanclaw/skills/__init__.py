@@ -10,6 +10,16 @@ from typing import Any, Callable
 
 logger = logging.getLogger("amanclaw.skills")
 
+# Optional MCP manager (set during bot startup)
+_mcp_manager = None
+
+
+def set_mcp_manager(manager):
+    """Set the MCP manager instance for tool integration."""
+    global _mcp_manager
+    _mcp_manager = manager
+
+
 # Global skill registry
 REGISTRY: dict[str, dict] = {}
 
@@ -38,7 +48,7 @@ def skill(name: str, description: str, parameters: dict, timeout: int = 30):
 
 
 def get_tool_definitions() -> list[dict]:
-    """Get all skills as Claude tool definitions."""
+    """Get all skills (built-in + MCP) as Claude tool definitions."""
     tools = []
     for name, info in REGISTRY.items():
         tools.append({
@@ -53,6 +63,9 @@ def get_tool_definitions() -> list[dict]:
                 ],
             },
         })
+    # Merge MCP tools
+    if _mcp_manager:
+        tools.extend(_mcp_manager.get_tool_definitions())
     return tools
 
 
@@ -68,7 +81,28 @@ def execute(tool_name: str, tool_input: dict) -> str:
     """
     Execute a skill by name with timeout protection.
     Returns the result as a string.
+    Delegates to MCP manager for MCP tools.
     """
+    # Check MCP first for prefixed tools
+    if _mcp_manager and _mcp_manager.has_tool(tool_name):
+        # MCP tools are async — run in event loop
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            # We're already in an async context - create a future
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                result = pool.submit(
+                    asyncio.run, _mcp_manager.execute(tool_name, tool_input)
+                ).result(timeout=30)
+            return result
+        else:
+            return asyncio.run(_mcp_manager.execute(tool_name, tool_input))
+
     if tool_name not in REGISTRY:
         return f"Error: Unknown skill '{tool_name}'"
 
