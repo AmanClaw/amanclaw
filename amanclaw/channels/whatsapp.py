@@ -143,7 +143,9 @@ class WhatsAppAdapter(ChannelAdapter):
                 logger.info(f"Skipping group message (not mentioned): {text[:50]}")
                 return web.json_response({"ok": True, "skipped": "not_mentioned"})
 
-        user_id = phone or jid.split("@")[0]
+        # In groups, use group JID as user_id for isolated memory per group
+        # In DMs, use phone number as user_id for personal memory
+        user_id = jid if is_group else (phone or jid.split("@")[0])
 
         logger.info(f"WhatsApp message from {user_id} ({name}): {text[:80]}")
 
