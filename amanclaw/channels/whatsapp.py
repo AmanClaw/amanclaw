@@ -131,8 +131,10 @@ class WhatsAppAdapter(ChannelAdapter):
 
         message_id = data.get("message_id")
 
-        if not jid or not text:
-            return web.json_response({"error": "Missing jid or text"}, status=400)
+        media = data.get("media")
+
+        if not jid or (not text and not media):
+            return web.json_response({"error": "Missing jid or text/media"}, status=400)
 
         logger.info(f"Incoming: jid={jid} is_group={is_group} bot_mentioned={data.get('bot_mentioned')} mentioned_jids={data.get('mentioned_jids')} bot_jid={data.get('bot_jid')} bot_lid={data.get('bot_lid')}")
 
@@ -149,9 +151,32 @@ class WhatsAppAdapter(ChannelAdapter):
 
         logger.info(f"WhatsApp message from {user_id} ({name}): {text[:80]}")
 
+        # Decode media if present
+        image_data = None
+        doc_text = None
+        if media:
+            import base64
+            media_type = media.get("type")
+            media_bytes = base64.b64decode(media.get("data", ""))
+            mimetype = media.get("mimetype", "")
+            filename = media.get("filename", "")
+
+            if media_type == "image" or media_type == "sticker":
+                image_data = media_bytes
+                logger.info(f"Received image ({len(media_bytes)} bytes) from {user_id}")
+            elif media_type == "document":
+                doc_text = self._extract_document_text(media_bytes, mimetype, filename)
+                if doc_text:
+                    logger.info(f"Extracted {len(doc_text)} chars from document: {filename}")
+                else:
+                    logger.warning(f"Could not extract text from document: {filename} ({mimetype})")
+
         # Process in background so we don't block the bridge
         quote_id = message_id if is_group else None
-        asyncio.create_task(self._process_message(user_id, jid, name, text, is_group, quote_id))
+        asyncio.create_task(self._process_message(
+            user_id, jid, name, text or "", is_group, quote_id,
+            image_data=image_data, doc_text=doc_text,
+        ))
 
         return web.json_response({"ok": True})
 
@@ -178,7 +203,33 @@ class WhatsAppAdapter(ChannelAdapter):
         text = re.sub(r'~~(.+?)~~', r'~\1~', text)
         return text
 
-    async def _process_message(self, user_id: str, jid: str, name: str, text: str, is_group: bool = False, quote_id: str | None = None):
+    @staticmethod
+    def _extract_document_text(data: bytes, mimetype: str, filename: str) -> str | None:
+        """Extract text content from a document."""
+        try:
+            if mimetype == "application/pdf" or filename.lower().endswith(".pdf"):
+                try:
+                    import fitz  # PyMuPDF
+                    doc = fitz.open(stream=data, filetype="pdf")
+                    text = "\n".join(page.get_text() for page in doc)
+                    doc.close()
+                    return text.strip() if text.strip() else None
+                except ImportError:
+                    logger.warning("PyMuPDF not installed — cannot read PDFs. Install with: pip install PyMuPDF")
+                    return None
+            elif mimetype in (
+                "text/plain", "text/csv", "text/markdown",
+                "application/json", "application/xml",
+            ) or filename.lower().endswith((".txt", ".csv", ".md", ".json", ".xml", ".log")):
+                return data.decode("utf-8", errors="replace").strip() or None
+            else:
+                logger.info(f"Unsupported document type: {mimetype} ({filename})")
+                return None
+        except Exception as e:
+            logger.error(f"Document extraction failed: {e}")
+            return None
+
+    async def _process_message(self, user_id: str, jid: str, name: str, text: str, is_group: bool = False, quote_id: str | None = None, image_data: bytes | None = None, doc_text: str | None = None):
         """Process a WhatsApp message through the MessageProcessor pipeline."""
         try:
             import re
@@ -187,6 +238,12 @@ class WhatsAppAdapter(ChannelAdapter):
             if not clean_text:
                 clean_text = text
 
+            # If document text was extracted, append it to the message
+            if doc_text:
+                doc_preview = doc_text[:3000]
+                prefix = clean_text + "\n\n" if clean_text else ""
+                clean_text = f"{prefix}[Attached document content]:\n{doc_preview}"
+
             incoming = IncomingMessage(
                 user_id=user_id,
                 chat_id=jid,
@@ -194,6 +251,7 @@ class WhatsAppAdapter(ChannelAdapter):
                 text=clean_text,
                 first_name=name or None,
                 is_group=is_group,
+                image_data=image_data,
             )
 
             result = await self.processor.process(incoming)

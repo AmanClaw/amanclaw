@@ -4,11 +4,6 @@
  * Connects to WhatsApp via Baileys (WhatsApp Web multi-device protocol).
  * Exposes a REST API for the Python bot to send messages.
  * Forwards incoming messages to the Python bot via HTTP callback.
- *
- * Env vars:
- *   BRIDGE_PORT          — HTTP port for REST API (default: 3001)
- *   PYTHON_CALLBACK_URL  — where to POST incoming messages (default: http://localhost:3002/whatsapp/incoming)
- *   WA_AUTH_DIR          — directory to persist auth state (default: ./auth_state)
  */
 
 import {
@@ -17,6 +12,7 @@ import {
   DisconnectReason,
   fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
+  downloadMediaMessage,
 } from "@whiskeysockets/baileys";
 import express from "express";
 import pino from "pino";
@@ -70,6 +66,9 @@ async function connectWhatsApp() {
       console.log(
         `WhatsApp connected: ${user?.name || user?.id || "unknown"}`
       );
+      // Log bot identity for debugging mention matching
+      console.log(`Bot JID: ${user?.id}`);
+      if (user?.lid) console.log(`Bot LID: ${user.lid}`);
     }
 
     if (connection === "close") {
@@ -97,8 +96,9 @@ async function connectWhatsApp() {
     if (type !== "notify") return;
 
     for (const msg of messages) {
-      // Skip our own messages, status broadcasts, and protocol messages
-      if (msg.key.fromMe) continue;
+      // In groups, allow fromMe so the bot owner can interact; in DMs skip to avoid echo
+      const isGroupMsg = msg.key.remoteJid?.endsWith("@g.us");
+      if (msg.key.fromMe && !isGroupMsg) continue;
       if (msg.key.remoteJid === "status@broadcast") continue;
       if (!msg.message) continue;
 
@@ -106,31 +106,123 @@ async function connectWhatsApp() {
       const isGroup = jid.endsWith("@g.us");
 
       // Extract text from various message types
+      const extMsg = msg.message.extendedTextMessage;
+      const imageMsg = msg.message.imageMessage;
+      const docMsg = msg.message.documentMessage || msg.message.documentWithCaptionMessage?.message?.documentMessage;
+      const audioMsg = msg.message.audioMessage;
+      const videoMsg = msg.message.videoMessage;
+      const stickerMsg = msg.message.stickerMessage;
+
       const text =
         msg.message.conversation ||
-        msg.message.extendedTextMessage?.text ||
-        msg.message.imageMessage?.caption ||
+        extMsg?.text ||
+        imageMsg?.caption ||
+        docMsg?.caption ||
+        videoMsg?.caption ||
         null;
 
-      if (!text) continue; // Skip non-text for now
+      // Determine if this message has media
+      const mediaMsg = imageMsg || docMsg || audioMsg || videoMsg || stickerMsg;
 
-      // Extract phone number from JID (remove @s.whatsapp.net)
-      const phoneNumber = jid.replace("@s.whatsapp.net", "").replace("@g.us", "");
+      // Skip if no text AND no media
+      if (!text && !mediaMsg) continue;
 
       // Get sender info
       const pushName = msg.pushName || "";
+
+      // In groups, participant is the sender; in DMs, it's the remoteJid
+      const participant = msg.key.participant || jid;
+      const phoneNumber = participant
+        .replace("@s.whatsapp.net", "")
+        .replace("@lid", "")
+        .replace("@g.us", "");
+
+      // Extract mentioned JIDs (from @mentions in the message)
+      const mentionedJids = extMsg?.contextInfo?.mentionedJid || imageMsg?.contextInfo?.mentionedJid || [];
+
+      // Build bot identity info for mention matching
+      const botUser = sock.user || {};
+      const botJid = botUser.id || "";
+      const botLid = botUser.lid || "";
+      const botNumber = botJid.split(":")[0].split("@")[0];
+      const botLidNumber = botLid ? botLid.split(":")[0].split("@")[0] : "";
+
+      // Check if bot is mentioned (match against both phone JID and LID)
+      let botMentioned = false;
+      for (const m of mentionedJids) {
+        const mentionNum = m.split(":")[0].split("@")[0];
+        if (
+          (botNumber && mentionNum === botNumber) ||
+          (botLidNumber && mentionNum === botLidNumber)
+        ) {
+          botMentioned = true;
+          break;
+        }
+      }
+
+      // Download media if present
+      let mediaBase64 = null;
+      let mediaType = null;
+      let mediaFilename = null;
+      let mediaMimetype = null;
+
+      if (mediaMsg) {
+        try {
+          const buffer = await downloadMediaMessage(msg, "buffer", {}, {
+            logger,
+            reuploadRequest: sock.updateMediaMessage,
+          });
+          mediaBase64 = buffer.toString("base64");
+
+          if (imageMsg) {
+            mediaType = "image";
+            mediaMimetype = imageMsg.mimetype || "image/jpeg";
+          } else if (docMsg) {
+            mediaType = "document";
+            mediaFilename = docMsg.fileName || "document";
+            mediaMimetype = docMsg.mimetype || "application/octet-stream";
+          } else if (audioMsg) {
+            mediaType = "audio";
+            mediaMimetype = audioMsg.mimetype || "audio/ogg";
+          } else if (videoMsg) {
+            mediaType = "video";
+            mediaMimetype = videoMsg.mimetype || "video/mp4";
+          } else if (stickerMsg) {
+            mediaType = "sticker";
+            mediaMimetype = stickerMsg.mimetype || "image/webp";
+          }
+
+          console.log(`Downloaded ${mediaType}: ${mediaFilename || mediaMimetype} (${buffer.length} bytes)`);
+        } catch (err) {
+          console.error(`Failed to download media: ${err.message}`);
+        }
+      }
 
       const payload = {
         from: phoneNumber,
         jid: jid,
         name: pushName,
-        text: text,
+        text: text || "",
         is_group: isGroup,
         message_id: msg.key.id,
+        bot_mentioned: botMentioned,
+        mentioned_jids: mentionedJids,
+        bot_jid: botJid,
+        bot_lid: botLid,
         timestamp: msg.messageTimestamp
           ? parseInt(msg.messageTimestamp.toString())
           : Math.floor(Date.now() / 1000),
       };
+
+      // Add media fields if present
+      if (mediaBase64) {
+        payload.media = {
+          type: mediaType,
+          data: mediaBase64,
+          mimetype: mediaMimetype,
+          filename: mediaFilename,
+        };
+      }
 
       // Forward to Python bot
       try {
@@ -138,7 +230,7 @@ async function connectWhatsApp() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(30000),
+          signal: AbortSignal.timeout(60000),
         });
       } catch (err) {
         console.error(`Failed to forward message to Python: ${err.message}`);
@@ -150,21 +242,21 @@ async function connectWhatsApp() {
 // --- REST API for Python ---
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
 
 // Health check
 app.get("/health", (_req, res) => {
   res.json({
     status: connectionState,
     user: sock?.user
-      ? { id: sock.user.id, name: sock.user.name }
+      ? { id: sock.user.id, name: sock.user.name, lid: sock.user.lid }
       : null,
   });
 });
 
-// Send a text message
+// Send a text message (supports quote_id for replying to a specific message)
 app.post("/send", async (req, res) => {
-  const { jid, text } = req.body;
+  const { jid, text, quote_id } = req.body;
 
   if (!jid || !text) {
     return res.status(400).json({ error: "Missing jid or text" });
@@ -175,14 +267,23 @@ app.post("/send", async (req, res) => {
   }
 
   try {
-    // Send with read receipts and typing indicator
     await sock.presenceSubscribe(jid);
     await sock.sendPresenceUpdate("composing", jid);
-
-    // Brief delay for natural feel
     await new Promise((r) => setTimeout(r, 500));
 
-    await sock.sendMessage(jid, { text });
+    const msgOptions = { text };
+
+    if (quote_id) {
+      msgOptions.quoted = {
+        key: {
+          remoteJid: jid,
+          id: quote_id,
+        },
+        message: {},
+      };
+    }
+
+    await sock.sendMessage(jid, msgOptions);
     await sock.sendPresenceUpdate("paused", jid);
 
     res.json({ ok: true });
@@ -192,7 +293,7 @@ app.post("/send", async (req, res) => {
   }
 });
 
-// Send message to a phone number (convenience — auto-adds @s.whatsapp.net)
+// Send message to a phone number (convenience)
 app.post("/send-to", async (req, res) => {
   const { phone, text } = req.body;
 
@@ -200,14 +301,9 @@ app.post("/send-to", async (req, res) => {
     return res.status(400).json({ error: "Missing phone or text" });
   }
 
-  // Normalize: strip +, spaces, dashes
   const clean = phone.replace(/[\s\-+]/g, "");
   const jid = clean.includes("@") ? clean : `${clean}@s.whatsapp.net`;
 
-  req.body.jid = jid;
-  req.body.text = text;
-
-  // Reuse /send handler
   if (connectionState !== "connected" || !sock) {
     return res.status(503).json({ error: "WhatsApp not connected" });
   }
@@ -233,6 +329,7 @@ app.get("/me", (_req, res) => {
   res.json({
     id: sock.user.id,
     name: sock.user.name,
+    lid: sock.user.lid,
     phone: sock.user.id.split(":")[0],
   });
 });

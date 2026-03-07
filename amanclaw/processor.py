@@ -88,10 +88,16 @@ class MessageProcessor:
         # --- Build context ---
         history, facts, summary, knowledge_context = await self._build_context(user_id, clean_text)
 
+        # --- Build LLM message (text or vision) ---
+        if msg.image_data:
+            llm_message = self.llm.build_vision_message(msg.image_data, caption=clean_text or None)
+        else:
+            llm_message = clean_text
+
         # --- LLM response ---
         try:
             response = await self.llm.respond(
-                clean_text, history, flagged=was_flagged,
+                llm_message, history, flagged=was_flagged,
                 facts=facts, summary=summary,
                 knowledge_context=knowledge_context,
             )
