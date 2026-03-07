@@ -134,10 +134,13 @@ class WhatsAppAdapter(ChannelAdapter):
         if not jid or not text:
             return web.json_response({"error": "Missing jid or text"}, status=400)
 
+        logger.info(f"Incoming: jid={jid} is_group={is_group} bot_mentioned={data.get('bot_mentioned')} mentioned_jids={data.get('mentioned_jids')} bot_jid={data.get('bot_jid')} bot_lid={data.get('bot_lid')}")
+
         # In groups, only respond when the bot is @mentioned
         if is_group:
             bot_mentioned = data.get("bot_mentioned", False)
             if not bot_mentioned:
+                logger.info(f"Skipping group message (not mentioned): {text[:50]}")
                 return web.json_response({"ok": True, "skipped": "not_mentioned"})
 
         user_id = phone or jid.split("@")[0]
