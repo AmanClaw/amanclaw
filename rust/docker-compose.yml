@@ -1,0 +1,19 @@
+services:
+  amanclaw:
+    build: .
+    container_name: amanclaw
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./config.yaml:/home/amanclaw/config.yaml:ro
+      - ./plugins:/home/amanclaw/plugins:ro
+      - ./data:/home/amanclaw/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=50M
+    mem_limit: 512m
+    cpus: "1.0"
