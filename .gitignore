@@ -43,3 +43,4 @@ bridge/whatsapp/auth_state/
 
 # Git worktrees
 .worktrees/
+.claude/worktrees/
