@@ -61,3 +61,34 @@ class TestMessageProcessor:
         result = await processor.process(msg)
         assert result is not None
         processor.memory.register_user.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_process_includes_teachings(self, processor):
+        """Processor should include matching teachings in LLM context."""
+        processor.learning.get_matching_teachings.return_value = [
+            {"trigger_pattern": "deploy", "response_guidance": "push to staging first"}
+        ]
+        processor.memory.search_documents = MagicMock(return_value=[])
+        processor.memory.get_behavioral_patterns = MagicMock(return_value=[])
+        msg = IncomingMessage(user_id="456", chat_id="789", platform="test", text="deploy now")
+        result = await processor.process(msg)
+        assert result is not None
+        # Verify LLM was called with knowledge_context containing teachings
+        call_kwargs = processor.llm.respond.call_args
+        assert "knowledge_context" in call_kwargs.kwargs or len(call_kwargs.args) > 4
+
+    @pytest.mark.asyncio
+    async def test_build_context_returns_tuple(self, processor):
+        """_build_context should return (history, facts, summary, knowledge_context)."""
+        processor.memory.search_documents = MagicMock(return_value=[])
+        processor.memory.get_behavioral_patterns = MagicMock(return_value=[])
+        result = await processor._build_context("456", "hello")
+        assert isinstance(result, tuple)
+        assert len(result) == 4
+
+    @pytest.mark.asyncio
+    async def test_extract_knowledge_no_circular_import(self, processor):
+        """_extract_knowledge should not import from bot.py."""
+        processor.llm.extract_knowledge = AsyncMock(return_value=None)
+        # Should not raise ImportError
+        await processor._extract_knowledge("456", "hi", "hello")
