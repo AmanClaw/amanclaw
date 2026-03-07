@@ -15,6 +15,7 @@ dependencies = [
     "psutil>=5.9,<7",
     "python-dotenv>=1.0,<2",
     "amanclaw-learning @ file:packages/amanclaw-learning",
+    "amanclaw-security @ file:packages/amanclaw-security",
 ]
 
 [project.optional-dependencies]
