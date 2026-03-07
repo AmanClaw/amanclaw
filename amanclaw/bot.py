@@ -1,60 +1,45 @@
 """
-AmanClaw — Main bot entry point.
+AmanClaw — Main bot entry point (orchestrator).
 
-Usage:
-    python -m amanclaw
-
-Features: Markdown rendering, photo/voice support, inline keyboards,
-          reminders, conversation export, persistent typing indicator.
+Initializes all components, creates adapters, manages lifecycle.
+Telegram-specific handlers live in channels/telegram.py.
 """
 
-import io
 import os
-import re
 import sys
-import json
 import yaml
 import asyncio
 import logging
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Load .env before anything else reads env vars
 load_dotenv()
 from datetime import datetime, time as datetime_time
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    MessageHandler,
-    CallbackQueryHandler,
-    ContextTypes,
-    filters,
-)
-from telegram.constants import ParseMode, ChatAction
-from telegram.helpers import escape_markdown
+from telegram import BotCommand
+from telegram.ext import ApplicationBuilder, ContextTypes
+from telegram.constants import ParseMode
 
-from amanclaw.security import Auth, RateLimiter, sanitize
+from amanclaw.security import Auth, RateLimiter
 from amanclaw.memory import Memory
 from amanclaw.llm import LLM
-from amanclaw.skills import get_skill_list
 from amanclaw.skills.shell import configure as configure_shell
 from amanclaw.skills.files import configure as configure_files
-from amanclaw.skills.remember import configure as configure_remember, set_current_user
-from amanclaw.skills.reminder import configure as configure_reminder, set_context as set_reminder_context
-from amanclaw.skills.scheduled import configure as configure_scheduled, set_context as set_scheduled_context
-from amanclaw.skills.documents import configure as configure_documents, set_learning_context as set_doc_learning_context
+from amanclaw.skills.remember import configure as configure_remember
+from amanclaw.skills.reminder import configure as configure_reminder
+from amanclaw.skills.scheduled import configure as configure_scheduled
+from amanclaw.skills.documents import configure as configure_documents
 from amanclaw.learning import LearningEngine
 from amanclaw.mcp_client import MCPManager
 from amanclaw.skills import set_mcp_manager, set_user_skill_manager
 from amanclaw.skills.user_skills import UserSkillManager
 from amanclaw.processor import MessageProcessor
+from amanclaw.channels.telegram import TelegramAdapter
 
 
 class JsonFormatter(logging.Formatter):
     """JSON log formatter for structured logging (Docker, log aggregators)."""
     def format(self, record):
-        import json as _json
+        import json
         log_data = {
             "ts": datetime.now().isoformat(),
             "level": record.levelname,
@@ -63,19 +48,18 @@ class JsonFormatter(logging.Formatter):
         }
         if record.exc_info and record.exc_info[0]:
             log_data["exception"] = self.formatException(record.exc_info)
-        return _json.dumps(log_data)
+        return json.dumps(log_data)
 
 
 def setup_logging():
     """Configure logging with console + optional rotating file output."""
     log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
-    log_file = os.environ.get("LOG_FILE")  # e.g. "amanclaw.log"
-    log_format = os.environ.get("LOG_FORMAT", "text")  # "text" or "json"
+    log_file = os.environ.get("LOG_FILE")
+    log_format = os.environ.get("LOG_FORMAT", "text")
 
     root = logging.getLogger()
     root.setLevel(getattr(logging, log_level, logging.INFO))
 
-    # Console handler
     console = logging.StreamHandler()
     if log_format == "json":
         console.setFormatter(JsonFormatter())
@@ -86,7 +70,6 @@ def setup_logging():
         ))
     root.addHandler(console)
 
-    # Optional rotating file handler
     if log_file:
         from logging.handlers import RotatingFileHandler
         file_handler = RotatingFileHandler(
@@ -98,1281 +81,40 @@ def setup_logging():
         ))
         root.addHandler(file_handler)
 
-    # Quieten noisy libraries
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("telegram").setLevel(logging.WARNING)
     logging.getLogger("aiohttp").setLevel(logging.WARNING)
 
 
-# Logging
 setup_logging()
 logger = logging.getLogger("amanclaw.bot")
 
 
-# --- Load Config ---
-
 def load_config(path: str = "config.yaml") -> dict:
-    config_path = Path(path)
+    config_path = Path(os.environ.get("CONFIG_PATH", path))
     if not config_path.exists():
-        logger.error(f"Config not found: {path}")
+        logger.error(f"Config not found: {config_path}")
         logger.error("Copy config.example.yaml to config.yaml and fill in your values.")
         sys.exit(1)
-
     with open(config_path) as f:
         return yaml.safe_load(f)
 
 
-# --- Globals (initialized in main) ---
-
+# --- Globals ---
 config: dict = {}
-auth: Auth = None
-rate_limiter: RateLimiter = None
 memory: Memory = None
 llm: LLM = None
-whatsapp: WhatsAppAdapter = None
+whatsapp = None
 learning_engine: LearningEngine = None
-mcp_manager = None  # Optional MCP client
+mcp_manager = None
 processor: MessageProcessor = None
+telegram_adapter: TelegramAdapter = None
 discord_adapter = None
 slack_adapter = None
 
-# Track /addskill conversation state per user
-_addskill_state: dict[str, dict] = {}
 
-
-# --- Helpers ---
-
-async def send_typing_periodically(context, chat_id: int, stop_event: asyncio.Event):
-    """Send typing indicator every 4 seconds until stop_event is set."""
-    while not stop_event.is_set():
-        try:
-            await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
-        except Exception:
-            break
-        try:
-            await asyncio.wait_for(stop_event.wait(), timeout=4.0)
-        except asyncio.TimeoutError:
-            continue
-
-
-async def reply_with_markdown(message, text: str):
-    """Try to send with Markdown, fall back to plain text if parsing fails."""
-    try:
-        await message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
-    except Exception:
-        # Markdown parsing failed — send as plain text
-        await message.reply_text(text)
-
-
-async def send_long_reply(message, response: str, with_actions: bool = False):
-    """Send a response, splitting if too long for Telegram's 4096 char limit."""
-    action_keyboard = None
-    if with_actions and len(response) > 100:
-        action_keyboard = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("Simpler", callback_data="act_simpler"),
-                InlineKeyboardButton("More detail", callback_data="act_detail"),
-                InlineKeyboardButton("Translate BM", callback_data="act_translate_bm"),
-            ]
-        ])
-
-    if len(response) <= 4096:
-        try:
-            await message.reply_text(response, parse_mode=ParseMode.MARKDOWN,
-                                     reply_markup=action_keyboard)
-        except Exception:
-            await message.reply_text(response, reply_markup=action_keyboard)
-    else:
-        chunks = [response[i:i+4000] for i in range(0, len(response), 4000)]
-        for i, chunk in enumerate(chunks):
-            markup = action_keyboard if i == len(chunks) - 1 else None
-            try:
-                await message.reply_text(chunk, parse_mode=ParseMode.MARKDOWN,
-                                         reply_markup=markup)
-            except Exception:
-                await message.reply_text(chunk, reply_markup=markup)
-
-
-def auth_check(user_id: str) -> bool:
-    return auth.is_authorized(user_id, "telegram")
-
-
-async def handle_registration(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    """Handle user registration flow. Returns True if user can proceed, False if blocked/pending."""
-    user = update.effective_user
-    user_id = str(user.id)
-    state = auth.get_user_state(user_id, "telegram")
-
-    if state == "admin" or state == "approved":
-        return True
-
-    if state == "blocked":
-        await update.message.reply_text(
-            "Sorry, your access has been denied. "
-            "Contact the admin if you think this is a mistake."
-        )
-        return False
-
-    if state == "pending":
-        await update.message.reply_text(
-            "Still waiting for admin approval. Hang tight — "
-            "you'll get a message as soon as you're in!\n\n"
-            "Send /start anytime to check your status."
-        )
-        return False
-
-    # New user — register and notify admins
-    memory.register_user(
-        user_id=user_id,
-        platform="telegram",
-        username=user.username,
-        first_name=user.first_name,
-        last_name=user.last_name,
-    )
-    await update.message.reply_text(
-        "Welcome to AmanClaw!\n\n"
-        "I'm a smart AI assistant that can remember things about you, "
-        "analyze photos, set reminders, and much more.\n\n"
-        "Your registration has been sent to an admin for approval. "
-        "You'll be notified as soon as you're approved — usually within minutes!\n\n"
-        "Send /start anytime to check your status."
-    )
-
-    # Notify all admins with inline approve/block buttons
-    admin_ids = config.get("admin_users", {}).get("telegram", [])
-    name = escape_markdown(user.first_name or user.username or user_id)
-    admin_keyboard = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("Approve", callback_data=f"adm_approve_{user_id}"),
-            InlineKeyboardButton("Block", callback_data=f"adm_block_{user_id}"),
-        ]
-    ])
-    for admin_id in admin_ids:
-        try:
-            await context.bot.send_message(
-                chat_id=int(admin_id),
-                text=(
-                    f"*New user registration:*\n\n"
-                    f"Name: {name}\n"
-                    f"Username: @{escape_markdown(user.username or 'none')}\n"
-                    f"User ID: `{user_id}`"
-                ),
-                parse_mode=ParseMode.MARKDOWN,
-                reply_markup=admin_keyboard,
-            )
-        except Exception as e:
-            logger.error(f"Failed to notify admin {admin_id}: {e}")
-
-    return False
-
-
-async def build_context(user_id: str, message_text: str = "") -> tuple[list, dict, str, str]:
-    """Build the smart context: history, facts, summary, knowledge context.
-    Auto-summarize if needed."""
-    history = memory.get_history(user_id)
-    facts = memory.get_facts(user_id)  # backward compat
-    summary = memory.get_latest_summary(user_id)
-
-    # Build knowledge graph context
-    knowledge_entries = memory.get_active_knowledge(user_id)
-    entities = memory.get_entities(user_id)
-    relationships = memory.get_relationships(user_id)
-
-    # Also search for relevant knowledge based on message
-    if message_text:
-        relevant = memory.search_knowledge(user_id, message_text, limit=5)
-        # Merge relevant results (deduplicate by ID)
-        existing_ids = {k["id"] for k in knowledge_entries}
-        for r in relevant:
-            if r["id"] not in existing_ids:
-                knowledge_entries.append(r)
-
-    from amanclaw.llm import format_knowledge_context
-    knowledge_context = format_knowledge_context(knowledge_entries, entities, relationships)
-
-    # Auto-summarize when conversation gets long
-    msg_count = memory.get_message_count(user_id)
-    summarized_count = memory.get_summarized_message_count(user_id)
-    unsummarized = msg_count - summarized_count
-    if unsummarized > 40:
-        old_msgs = memory.get_old_messages(user_id, before_last_n=20, limit=40)
-        if old_msgs:
-            new_summary = llm.summarize(old_msgs)
-            if new_summary:
-                if summary:
-                    new_summary = f"{summary}\n\n{new_summary}"
-                memory.save_summary(user_id, new_summary, len(old_msgs))
-                summary = new_summary
-                logger.info(f"Auto-summarized {len(old_msgs)} messages for user {user_id}")
-
-    # Add active teachings to context
-    if learning_engine:
-        teachings = learning_engine.get_matching_teachings(user_id, message_text)
-        if teachings:
-            teaching_text = "\n\n### User-taught rules\n"
-            for t in teachings:
-                teaching_text += f"- {t['trigger_pattern']}: {t['response_guidance']}\n"
-            knowledge_context += teaching_text
-
-        # Search ingested documents for relevant chunks
-        if message_text:
-            doc_results = memory.search_documents(user_id, message_text, limit=3)
-            if doc_results:
-                doc_text = "\n\n### From learned documents\n"
-                for d in doc_results:
-                    doc_text += f"[{d['source_name']}]: {d['content'][:300]}\n"
-                knowledge_context += doc_text
-
-        # Add behavioral patterns as hints
-        patterns = memory.get_behavioral_patterns(user_id, min_confidence=0.6)
-        if patterns:
-            pattern_text = "\n\n### Observed user preferences\n"
-            for p in patterns:
-                pattern_text += f"- {p['description']}\n"
-            knowledge_context += pattern_text
-
-    return history, facts, summary, knowledge_context
-
-
-async def extract_and_save_knowledge(user_id: str, user_msg: str, assistant_reply: str):
-    """Background task: extract knowledge, detect corrections and teachings."""
-    try:
-        # Detect corrections
-        if learning_engine and learning_engine.is_correction(user_msg):
-            logger.info(f"Correction detected from user {user_id}")
-            # The LLM extraction will handle the actual correction via 'updates'
-
-        # Detect teaching intent and save
-        if learning_engine and learning_engine.is_teaching(user_msg):
-            learning_engine.save_teaching(user_id, user_msg, assistant_reply, "conversation")
-            logger.info(f"Teaching detected from user {user_id}")
-
-        # Get existing knowledge for dedup context
-        existing = memory.get_active_knowledge(user_id)
-        existing_summary = "\n".join(
-            f"- [{e['category']}] {e['subject']}: {e['content']}" for e in existing[:20]
-        )
-
-        extracted = await llm.extract_knowledge(user_msg, assistant_reply, existing_summary)
-        if not extracted:
-            return
-
-        # Save knowledge entries
-        for k in extracted.get("knowledge", []):
-            memory.save_knowledge(
-                user_id,
-                category=k.get("category", "personal"),
-                subject=k.get("subject", ""),
-                content=k.get("content", ""),
-                context=k.get("context"),
-                valid_until=k.get("valid_until"),
-                source="conversation",
-            )
-
-        # Save entities
-        entity_name_to_id = {}
-        for e in extracted.get("entities", []):
-            eid = memory.save_entity(
-                user_id,
-                name=e.get("name", ""),
-                entity_type=e.get("type", "person"),
-                attributes=e.get("attributes", {}),
-            )
-            entity_name_to_id[e.get("name", "")] = eid
-
-        # Save relationships
-        for r in extracted.get("relationships", []):
-            from_name = r.get("from", "")
-            to_name = r.get("to", "")
-            from_id = entity_name_to_id.get(from_name)
-            to_id = entity_name_to_id.get(to_name)
-            if not from_id:
-                ent = memory.get_entity_by_name(user_id, from_name)
-                from_id = ent["id"] if ent else None
-            if not to_id:
-                ent = memory.get_entity_by_name(user_id, to_name)
-                to_id = ent["id"] if ent else None
-            if from_id and to_id:
-                memory.save_relationship(user_id, from_id, r.get("relation", "related_to"), to_id)
-
-        # Apply updates (corrections)
-        for u in extracted.get("updates", []):
-            kid = u.get("id")
-            if kid and u.get("content"):
-                # Log as correction
-                if learning_engine:
-                    old_entry = memory.conn.execute(
-                        "SELECT content FROM knowledge WHERE id = ?", (kid,)
-                    ).fetchone()
-                    if old_entry:
-                        learning_engine.process_correction(
-                            user_id, user_msg, kid, old_entry[0], u["content"]
-                        )
-                else:
-                    memory.update_knowledge(kid, content=u["content"])
-
-        count = len(extracted.get("knowledge", [])) + len(extracted.get("entities", []))
-        if count:
-            logger.info(f"Extracted {count} knowledge items for user {user_id}")
-
-    except Exception as e:
-        logger.warning(f"Background knowledge extraction failed for {user_id}: {e}")
-
-
-# --- Telegram Handlers ---
-
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle all incoming text messages."""
-    user = update.effective_user
-    user_id = str(user.id)
-    message_text = update.message.text
-
-    if not await handle_registration(update, context):
-        return
-
-    # Check if user is in /addskill flow
-    if user_id in _addskill_state:
-        await _handle_addskill_step(update, context, user_id, message_text)
-        return
-
-    if not rate_limiter.check(user_id):
-        await update.message.reply_text("Slow down — too many messages. Try again in a minute.")
-        return
-
-    # Include quoted message context if user replied to a message
-    reply = update.message.reply_to_message
-    if reply and reply.text:
-        quoted = reply.text[:500]
-        message_text = f"[Replying to: \"{quoted}\"]\n\n{message_text}"
-
-    clean_text, was_flagged = sanitize(message_text)
-    if was_flagged:
-        logger.warning(f"Flagged message from {user_id}: {message_text[:100]}")
-
-    # Set context for skills
-    set_current_user(user_id)
-    set_reminder_context(user_id, str(update.effective_chat.id))
-    set_scheduled_context(user_id, str(update.effective_chat.id))
-    set_doc_learning_context(user_id, learning_engine)
-
-    # Start typing indicator
-    stop_typing = asyncio.Event()
-    typing_task = asyncio.create_task(
-        send_typing_periodically(context, update.effective_chat.id, stop_typing)
-    )
-
-    try:
-        history, facts, summary, knowledge_context = await build_context(user_id, clean_text)
-        response = await llm.respond(clean_text, history, flagged=was_flagged,
-                                     facts=facts, summary=summary,
-                                     knowledge_context=knowledge_context,
-                                     user_id=user_id)
-    except Exception as e:
-        logger.error(f"LLM error: {e}")
-        response = "Something went wrong talking to the AI. Try again in a moment."
-    finally:
-        stop_typing.set()
-        await typing_task
-
-    memory.save_exchange(user_id, "telegram", message_text, response)
-
-    # Mark user as onboarded after first successful interaction
-    if not memory.get_facts(user_id).get("onboarded"):
-        memory.save_fact(user_id, "onboarded", "true")
-
-    # Background knowledge extraction (non-blocking)
-    asyncio.create_task(extract_and_save_knowledge(user_id, message_text, response))
-
-    # Track skill failures in response
-    if learning_engine and ("failed:" in response.lower() or "error:" in response.lower()):
-        learning_engine.log_failure(user_id, "llm_response", {"message": clean_text[:200]}, response[:500])
-
-    await send_long_reply(update.message, response, with_actions=True)
-
-    # Smart failure detection — suggest /addskill if bot lacks capability
-    _capability_fail_patterns = [
-        "can't access", "cannot access", "don't have access",
-        "no tool", "not available", "unable to fetch",
-        "can't fetch", "cannot fetch", "don't have a tool",
-        "no built-in", "don't have built-in",
-        "tidak dapat", "tidak boleh", "tiada akses",
-    ]
-    response_lower = response.lower()
-    if any(p in response_lower for p in _capability_fail_patterns):
-        await update.message.reply_text(
-            "Want me to learn how to do this? "
-            "You can add an API integration with /addskill",
-        )
-
-
-async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle photo messages — send to vision model for analysis."""
-    user = update.effective_user
-    user_id = str(user.id)
-
-    if not await handle_registration(update, context):
-        return
-
-    if not rate_limiter.check(user_id):
-        await update.message.reply_text("Slow down — too many messages. Try again in a minute.")
-        return
-
-    # Get the highest resolution photo
-    photo = update.message.photo[-1]
-    caption = update.message.caption or None
-
-    if caption:
-        clean_caption, was_flagged = sanitize(caption)
-    else:
-        clean_caption, was_flagged = None, False
-
-    set_current_user(user_id)
-    set_reminder_context(user_id, str(update.effective_chat.id))
-    set_scheduled_context(user_id, str(update.effective_chat.id))
-    set_doc_learning_context(user_id, learning_engine)
-
-    # Start typing indicator
-    stop_typing = asyncio.Event()
-    typing_task = asyncio.create_task(
-        send_typing_periodically(context, update.effective_chat.id, stop_typing)
-    )
-
-    try:
-        # Download the photo
-        file = await context.bot.get_file(photo.file_id)
-        image_bytes = await file.download_as_bytearray()
-
-        # Build vision message
-        vision_msg = llm.build_vision_message(bytes(image_bytes), clean_caption)
-
-        history, facts, summary, knowledge_context = await build_context(user_id)
-        response = await llm.respond(vision_msg, history, flagged=was_flagged,
-                                     facts=facts, summary=summary,
-                                     knowledge_context=knowledge_context,
-                                     user_id=user_id)
-    except Exception as e:
-        logger.error(f"Vision error: {e}")
-        response = "I couldn't process that image. Try again or send a text message instead."
-    finally:
-        stop_typing.set()
-        await typing_task
-
-    save_text = f"[Photo: {clean_caption or 'no caption'}]"
-    memory.save_exchange(user_id, "telegram", save_text, response)
-
-    asyncio.create_task(extract_and_save_knowledge(user_id, save_text, response))
-
-    await send_long_reply(update.message, response, with_actions=True)
-
-
-async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle voice messages — acknowledge and ask for text."""
-    user_id = str(update.effective_user.id)
-    if not auth_check(user_id):
-        return
-
-    await update.message.reply_text(
-        "I can't process voice messages yet. "
-        "Please type your message instead, or send a photo for image analysis."
-    )
-
-
-# --- Command Handlers ---
-
-async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /start command — triggers registration for new users."""
-    user_id = str(update.effective_user.id)
-
-    if not await handle_registration(update, context):
-        return
-
-    user = update.effective_user
-    facts = memory.get_facts(user_id)
-    is_onboarded = facts.get("onboarded") == "true"
-    name = escape_markdown(facts.get("name", user.first_name or "there"))
-
-    if is_onboarded:
-        # Returning user — show utility menu
-        keyboard = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("Clear History", callback_data="clear"),
-                InlineKeyboardButton("Export Chat", callback_data="export"),
-            ],
-        ])
-        await update.message.reply_text(
-            f"Hey {name}! AmanClaw is ready.\n\n"
-            "Just send me a message, photo, or voice note.",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=keyboard,
-        )
-    else:
-        # First time after approval — show welcome with try-me buttons
-        await send_approval_welcome(context, user_id)
-
-
-async def cmd_skills(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = str(update.effective_user.id)
-    if not auth_check(user_id):
-        return
-    await reply_with_markdown(update.message, f"*Available skills:*\n\n{get_skill_list()}")
-
-
-async def cmd_clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = str(update.effective_user.id)
-    if not auth_check(user_id):
-        return
-
-    keyboard = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("Yes, clear it", callback_data="confirm_clear"),
-            InlineKeyboardButton("Cancel", callback_data="cancel"),
-        ]
-    ])
-    await update.message.reply_text(
-        "Are you sure you want to clear your conversation history?",
-        reply_markup=keyboard,
-    )
-
-
-async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = str(update.effective_user.id)
-    if not auth_check(user_id):
-        return
-
-    stats = memory.get_stats()
-    facts = memory.get_facts(user_id)
-    reminders = memory.get_user_reminders(user_id)
-
-    text = (
-        "*AmanClaw Status*\n\n"
-        f"Messages: {stats['total_messages']}\n"
-        f"Facts: {stats['total_facts']}\n"
-        f"Summaries: {stats['total_summaries']}\n"
-        f"Your facts: {len(facts)}\n"
-        f"Pending reminders: {len(reminders)}\n"
-        f"Unique users: {stats['unique_users']}"
-    )
-    await reply_with_markdown(update.message, text)
-
-
-async def cmd_export(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Export conversation history as a text file."""
-    user_id = str(update.effective_user.id)
-    if not auth_check(user_id):
-        return
-
-    export_text = memory.export_history(user_id)
-    if export_text == "No conversation history.":
-        await update.message.reply_text("No conversation history to export.")
-        return
-
-    # Send as a document
-    buf = io.BytesIO(export_text.encode("utf-8"))
-    buf.name = f"amanclaw_chat_{user_id}_{datetime.now().strftime('%Y%m%d_%H%M')}.txt"
-    await update.message.reply_document(
-        document=buf,
-        caption="Here's your conversation history.",
-    )
-
-
-async def cmd_myid(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        f"Your Telegram user ID: `{update.effective_user.id}`",
-        parse_mode=ParseMode.MARKDOWN,
-    )
-
-
-async def cmd_approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Admin command: /approve <user_id>"""
-    admin_id = str(update.effective_user.id)
-    if not auth.is_admin(admin_id, "telegram"):
-        return
-
-    if not context.args:
-        await update.message.reply_text("Usage: /approve <user_id>")
-        return
-
-    target_id = context.args[0]
-    if memory.approve_user(target_id):
-        await update.message.reply_text(f"User `{target_id}` approved.", parse_mode=ParseMode.MARKDOWN)
-        await send_approval_welcome(context, target_id)
-    else:
-        user = memory.get_user(target_id)
-        if not user:
-            await update.message.reply_text(f"User `{target_id}` not found.", parse_mode=ParseMode.MARKDOWN)
-        else:
-            await update.message.reply_text(
-                f"User `{target_id}` is already {user['status']}.", parse_mode=ParseMode.MARKDOWN
-            )
-
-
-async def cmd_block(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Admin command: /block <user_id>"""
-    admin_id = str(update.effective_user.id)
-    if not auth.is_admin(admin_id, "telegram"):
-        return
-
-    if not context.args:
-        await update.message.reply_text("Usage: /block <user_id>")
-        return
-
-    target_id = context.args[0]
-    if memory.block_user(target_id):
-        await update.message.reply_text(f"User `{target_id}` blocked.", parse_mode=ParseMode.MARKDOWN)
-    else:
-        user = memory.get_user(target_id)
-        if not user:
-            await update.message.reply_text(f"User `{target_id}` not found.", parse_mode=ParseMode.MARKDOWN)
-        else:
-            await update.message.reply_text(
-                f"User `{target_id}` is already {user['status']}.", parse_mode=ParseMode.MARKDOWN
-            )
-
-
-async def cmd_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Admin command: /users [pending|approved|blocked]"""
-    admin_id = str(update.effective_user.id)
-    if not auth.is_admin(admin_id, "telegram"):
-        return
-
-    status_filter = context.args[0] if context.args else None
-    if status_filter and status_filter not in ("pending", "approved", "blocked"):
-        await update.message.reply_text("Usage: /users [pending|approved|blocked]")
-        return
-
-    users = memory.list_users(status=status_filter)
-    if not users:
-        label = f" ({status_filter})" if status_filter else ""
-        await update.message.reply_text(f"No users{label} found.")
-        return
-
-    lines = [f"*Users{(' - ' + status_filter) if status_filter else ''}:*\n"]
-    for u in users:
-        name = escape_markdown(u["first_name"] or u["username"] or "Unknown")
-        username = f"@{escape_markdown(u['username'])}" if u["username"] else "no username"
-        lines.append(f"- `{u['user_id']}` {name} ({username}) [{u['status']}]")
-
-    await reply_with_markdown(update.message, "\n".join(lines))
-
-
-async def cmd_teach(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /teach command — enter teaching mode."""
-    user_id = str(update.effective_user.id)
-    if not auth_check(user_id):
-        return
-    if not context.args:
-        await reply_with_markdown(update.message,
-            "*Teaching mode*\n\n"
-            "Teach me rules like:\n"
-            "`/teach when I say deploy, push to staging first`\n"
-            "`/teach always keep answers short about food`\n"
-            "`/teach if I ask about servers, check status first`\n\n"
-            "Or just tell me naturally in conversation:\n"
-            "\"Remember that when I say X, I mean Y\""
-        )
-        return
-    rule = " ".join(context.args)
-    set_current_user(user_id)
-    from amanclaw.skills.remember import teach
-    result = teach(rule=rule)
-    await reply_with_markdown(update.message, result)
-
-
-async def cmd_learned(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /learned command — show learning journal."""
-    user_id = str(update.effective_user.id)
-    if not auth_check(user_id):
-        return
-    days = int(context.args[0]) if context.args else 7
-    if learning_engine:
-        journal = learning_engine.get_learning_journal(user_id, days=days)
-    else:
-        journal = "Learning engine not initialized."
-    await send_long_reply(update.message, journal)
-
-
-async def cmd_forget(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /forget command — remove specific knowledge."""
-    user_id = str(update.effective_user.id)
-    if not auth_check(user_id):
-        return
-    if not context.args:
-        await update.message.reply_text("Usage: /forget <topic>\nExample: /forget coffee preference")
-        return
-    query = " ".join(context.args)
-    set_current_user(user_id)
-    from amanclaw.skills.remember import forget
-    result = forget(query=query)
-    await reply_with_markdown(update.message, result)
-
-
-# --- User Skill Management Commands ---
-
-async def cmd_myskills(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """List user's custom skills."""
-    user_id = str(update.effective_user.id)
-    if not await handle_registration(update, context):
-        return
-    skills = memory.get_user_skills(user_id)
-    own = [s for s in skills if s["user_id"] == user_id]
-    if not own:
-        await update.message.reply_text(
-            "You don't have any custom skills yet.\n"
-            "Use /addskill to create one!"
-        )
-        return
-    lines = ["Your Skills:\n"]
-    for s in own:
-        status = "private" if s["is_private"] else ("approved" if s["is_approved"] else "pending review")
-        lines.append(f"- {s['name']}: {s['description']} [{status}]")
-    await update.message.reply_text("\n".join(lines))
-
-
-async def cmd_delskill(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Delete a user skill."""
-    user_id = str(update.effective_user.id)
-    if not await handle_registration(update, context):
-        return
-    if not context.args:
-        await update.message.reply_text("Usage: /delskill <skill_name>")
-        return
-    name = context.args[0]
-    if memory.delete_user_skill(user_id, name):
-        await update.message.reply_text(f"Skill '{name}' deleted.")
-    else:
-        await update.message.reply_text(f"Skill '{name}' not found.")
-
-
-async def cmd_publish(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Submit a skill to the community marketplace."""
-    user_id = str(update.effective_user.id)
-    if not await handle_registration(update, context):
-        return
-    if not context.args:
-        await update.message.reply_text("Usage: /publish <skill_name>")
-        return
-    name = context.args[0]
-    if memory.publish_user_skill(user_id, name):
-        await update.message.reply_text(
-            f"Skill '{name}' submitted for review!\n"
-            "An admin will review it shortly."
-        )
-        # Notify admins
-        admin_ids = config.get("admin_users", {}).get("telegram", [])
-        skill = memory.get_user_skill_by_name(name, user_id)
-        keyboard = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("Approve", callback_data=f"appskill_{name}_{user_id}"),
-                InlineKeyboardButton("Reject", callback_data=f"rejskill_{name}_{user_id}"),
-            ]
-        ])
-        for admin_id in admin_ids:
-            try:
-                await context.bot.send_message(
-                    chat_id=int(admin_id),
-                    text=(
-                        f"Skill submitted for marketplace:\n\n"
-                        f"Name: {name}\n"
-                        f"By: {user_id}\n"
-                        f"Description: {skill['description']}\n"
-                        f"URL: {skill['url_template']}\n"
-                        f"Method: {skill['method']}"
-                    ),
-                    reply_markup=keyboard,
-                )
-            except Exception:
-                pass
-    else:
-        await update.message.reply_text(f"Skill '{name}' not found or already published.")
-
-
-async def cmd_marketplace(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Browse community skills."""
-    user_id = str(update.effective_user.id)
-    if not await handle_registration(update, context):
-        return
-    skills = memory.get_marketplace_skills()
-    if not skills:
-        await update.message.reply_text("No community skills available yet. Be the first — use /addskill!")
-        return
-    lines = ["Community Marketplace:\n"]
-    for s in skills:
-        lines.append(f"- {s['name']}: {s['description']}")
-    lines.append("\nAll marketplace skills are automatically available to you!")
-    await update.message.reply_text("\n".join(lines))
-
-
-# --- Inline Keyboard Callback ---
-
-async def send_approval_welcome(context: ContextTypes.DEFAULT_TYPE, user_id: str):
-    """Send the post-approval welcome message with try-me buttons."""
-    welcome_keyboard = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("Tell me your name", callback_data="try_name"),
-            InlineKeyboardButton("Analyze a photo", callback_data="try_photo"),
-        ],
-        [
-            InlineKeyboardButton("Set a reminder", callback_data="try_reminder"),
-            InlineKeyboardButton("How do I teach you?", callback_data="try_teach"),
-        ],
-        [
-            InlineKeyboardButton("Set language", callback_data="onboard_lang"),
-        ],
-    ])
-    try:
-        await context.bot.send_message(
-            chat_id=int(user_id),
-            text=(
-                "You're approved! Welcome to AmanClaw.\n\n"
-                "I'm your personal AI assistant. Here's what I can do:\n\n"
-                "I remember things about you across conversations\n"
-                "Send me a photo and I'll analyze it\n"
-                "I can set reminders for you\n"
-                "Teach me custom rules and I'll follow them\n\n"
-                "Try one of these to get started, or just say hi!"
-            ),
-            reply_markup=welcome_keyboard,
-        )
-    except Exception as e:
-        logger.error(f"Failed to send welcome to {user_id}: {e}")
-
-
-# --- /addskill conversational flow (LLM-assisted) ---
-
-ADDSKILL_LLM_PROMPT = """You are helping create an API skill integration.
-Based on the user's description, generate a complete skill config as JSON.
-
-Rules:
-- Find a suitable FREE public API if the user doesn't provide a URL
-- Use {param} placeholders in URLs for dynamic parameters
-- Keep the name short, lowercase, with underscores
-- If an API key is typically needed, set needs_api_key to true
-- For well-known services, use known free APIs like:
-  - Weather: wttr.in (https://wttr.in/{city}?format=j1)
-  - Currency: open.er-api.com
-  - IP info: ipapi.co
-  - Jokes: official-joke-api.appspot.com
-  - Time: worldtimeapi.org
-  - Random facts: uselessfacts.jsph.pl
-
-Return ONLY valid JSON (no markdown fences, no explanation):
-{"name": "skill_name", "description": "what it does", "url_template": "https://...", "method": "GET", "parameters": {"param_name": {"type": "string", "description": "what this param is"}}, "needs_api_key": false, "headers": {}, "query_params": {}}"""
-
-
-async def cmd_addskill(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /addskill — start the skill creation flow."""
-    user_id = str(update.effective_user.id)
-    if not await handle_registration(update, context):
-        return
-
-    # Check for inline description: /addskill get weather for a city
-    args_text = " ".join(context.args) if context.args else ""
-    if args_text.strip():
-        _addskill_state[user_id] = {"step": "generating"}
-        await update.message.reply_text("Generating skill config...")
-        await _generate_skill_from_description(update, user_id, args_text.strip())
-        return
-
-    _addskill_state[user_id] = {"step": "describe"}
-    await update.message.reply_text(
-        "Let's create a new skill!\n\n"
-        "Just describe what you want:\n"
-        "• \"Get weather for any city\"\n"
-        "• \"Convert currencies\"\n"
-        "• \"Get a random joke\"\n"
-        "• \"Shorten URLs\"\n\n"
-        "I'll find a free API and set it up for you automatically.\n\n"
-        "Or do it inline: `/addskill get weather for a city`\n\n"
-        "Send /cancel to stop.",
-        parse_mode=ParseMode.MARKDOWN,
-    )
-
-
-async def _generate_skill_from_description(update, user_id: str, description: str):
-    """Use LLM to generate a skill config from a natural language description."""
-    try:
-        result = await llm._call_api([
-            {"role": "system", "content": ADDSKILL_LLM_PROMPT},
-            {"role": "user", "content": description},
-        ])
-        raw = result["choices"][0]["message"]["content"]
-        # Strip markdown fences if present
-        raw = re.sub(r'^```(?:json)?\s*', '', raw.strip())
-        raw = re.sub(r'\s*```$', '', raw.strip())
-        # Strip <think> blocks if present
-        raw = re.sub(r'<think>.*?</think>', '', raw, flags=re.DOTALL).strip()
-        skill_config = json.loads(raw)
-    except (json.JSONDecodeError, KeyError, IndexError) as e:
-        logger.warning(f"LLM skill generation failed: {e}")
-        _addskill_state.pop(user_id, None)
-        msg = update.message if hasattr(update, 'message') and update.message else update
-        await msg.reply_text(
-            "Couldn't auto-generate the skill. Try being more specific.\n"
-            "Example: `/addskill get weather forecast for a city using wttr.in`",
-            parse_mode=ParseMode.MARKDOWN,
-        )
-        return
-    except Exception as e:
-        logger.error(f"LLM skill generation error: {e}")
-        _addskill_state.pop(user_id, None)
-        msg = update.message if hasattr(update, 'message') and update.message else update
-        await msg.reply_text(f"Error generating skill: {e}")
-        return
-
-    # Validate and sanitize name
-    name = skill_config.get("name", "").lower().replace(" ", "_").replace("-", "_")
-    name = re.sub(r'[^a-z0-9_]', '', name)
-    if not name or len(name) < 2:
-        name = re.sub(r'[^a-z0-9_]', '', description.lower().split()[0])[:20] or "custom"
-    name = name[:30]
-    from amanclaw.skills import REGISTRY
-    if name in REGISTRY:
-        name = f"my_{name}"
-
-    state = {
-        "step": "confirm",
-        "name": name,
-        "description": skill_config.get("description", description),
-        "url_template": skill_config.get("url_template", ""),
-        "method": skill_config.get("method", "GET"),
-        "parameters": skill_config.get("parameters", {}),
-        "headers": skill_config.get("headers", {}),
-        "query_params": skill_config.get("query_params", {}),
-        "needs_api_key": skill_config.get("needs_api_key", False),
-        "api_key": None,
-    }
-    _addskill_state[user_id] = state
-    await _show_addskill_confirmation(update, state)
-
-
-async def _handle_addskill_step(update: Update, context: ContextTypes.DEFAULT_TYPE,
-                                 user_id: str, text: str):
-    """Handle each step of the /addskill conversation."""
-    if text.strip().lower() == "/cancel":
-        del _addskill_state[user_id]
-        await update.message.reply_text("Skill creation cancelled.")
-        return
-
-    state = _addskill_state[user_id]
-    step = state["step"]
-
-    if step == "describe":
-        state["step"] = "generating"
-        await update.message.reply_text("Generating skill config...")
-        await _generate_skill_from_description(update, user_id, text.strip())
-
-    elif step == "apikey_input":
-        state["api_key"] = text.strip()
-        state["step"] = "confirm"
-        await _show_addskill_confirmation(update, state)
-
-    elif step == "edit":
-        # User wants to tweak — regenerate with feedback
-        await update.message.reply_text("Regenerating with your feedback...")
-        original_desc = state.get("description", "")
-        await _generate_skill_from_description(
-            update, user_id, f"{original_desc}. {text.strip()}"
-        )
-
-
-async def _show_addskill_confirmation(update_or_query, state: dict):
-    params_list = ", ".join(state.get("parameters", {}).keys()) or "none"
-    needs_key = state.get("needs_api_key", False)
-    has_key = bool(state.get("api_key"))
-    if needs_key and not has_key:
-        api_key_status = "required (not set yet)"
-    elif has_key:
-        api_key_status = "set"
-    else:
-        api_key_status = "not needed"
-
-    summary = (
-        f"*Skill Preview:*\n\n"
-        f"*Name:* `{state['name']}`\n"
-        f"*Description:* {state['description']}\n"
-        f"*URL:* `{state['url_template']}`\n"
-        f"*Method:* {state.get('method', 'GET')}\n"
-        f"*Parameters:* {params_list}\n"
-        f"*API Key:* {api_key_status}"
-    )
-    buttons = []
-    if needs_key and not has_key:
-        buttons.append([
-            InlineKeyboardButton("Set API Key", callback_data="addskill_haskey"),
-            InlineKeyboardButton("Skip (no key)", callback_data="addskill_nokey"),
-        ])
-    buttons.append([
-        InlineKeyboardButton("Create", callback_data="addskill_confirm"),
-        InlineKeyboardButton("Edit", callback_data="addskill_edit"),
-        InlineKeyboardButton("Cancel", callback_data="addskill_cancel"),
-    ])
-    keyboard = InlineKeyboardMarkup(buttons)
-    msg = update_or_query.message if hasattr(update_or_query, 'message') and update_or_query.message else update_or_query
-    await msg.reply_text(summary, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN)
-
-
-
-async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle inline keyboard button presses."""
-    query = update.callback_query
-    await query.answer()
-
-    user_id = str(query.from_user.id)
-
-    # --- Admin approval callbacks (no auth_check — admins act on other users) ---
-    if query.data.startswith("adm_approve_"):
-        if not auth.is_admin(user_id, "telegram"):
-            await query.answer("Not authorized.", show_alert=True)
-            return
-        target_id = query.data.replace("adm_approve_", "")
-        if memory.approve_user(target_id):
-            await query.edit_message_text(
-                query.message.text + "\n\n*Approved*",
-                parse_mode=ParseMode.MARKDOWN,
-            )
-            await send_approval_welcome(context, target_id)
-        else:
-            await query.answer("User already processed.", show_alert=True)
-        return
-
-    if query.data.startswith("adm_block_"):
-        if not auth.is_admin(user_id, "telegram"):
-            await query.answer("Not authorized.", show_alert=True)
-            return
-        target_id = query.data.replace("adm_block_", "")
-        if memory.block_user(target_id):
-            await query.edit_message_text(
-                query.message.text + "\n\n*Blocked*",
-                parse_mode=ParseMode.MARKDOWN,
-            )
-        else:
-            await query.answer("User already processed.", show_alert=True)
-        return
-
-    # --- Try-me onboarding callbacks ---
-    if query.data == "try_name":
-        await query.edit_message_text(
-            "Just send me a message telling me your name!\n\n"
-            "For example: \"My name is Sarah\" or \"Call me Alex\"\n\n"
-            "I'll remember it for all our future conversations."
-        )
-        return
-
-    if query.data == "try_photo":
-        await query.edit_message_text(
-            "Send me any photo and I'll analyze it!\n\n"
-            "I can describe what's in it, read text from images, "
-            "identify objects, and answer questions about it.\n\n"
-            "Try it now — just send a photo from your gallery."
-        )
-        return
-
-    if query.data == "try_reminder":
-        await query.edit_message_text(
-            "Just ask me to remind you of something!\n\n"
-            "For example:\n"
-            "\"Remind me to call the dentist in 2 hours\"\n"
-            "\"Remind me about the meeting at 3pm tomorrow\"\n\n"
-            "I'll send you a message when it's time."
-        )
-        return
-
-    if query.data == "try_teach":
-        await query.edit_message_text(
-            "You can teach me custom rules!\n\n"
-            "Use /teach followed by your rule. For example:\n"
-            "/teach Always reply in bullet points\n"
-            "/teach When I say 'brief', keep answers under 2 sentences\n\n"
-            "Use /learned to see what I've learned from you."
-        )
-        return
-
-    # --- Addskill flow callbacks ---
-    if query.data == "addskill_edit":
-        if user_id in _addskill_state:
-            _addskill_state[user_id]["step"] = "edit"
-            await query.edit_message_text(
-                "What would you like to change? Just tell me:\n\n"
-                "Examples:\n"
-                "• \"Use a different API\"\n"
-                "• \"Change the name to my_weather\"\n"
-                "• \"Add a language parameter\"\n"
-                "• \"Use POST instead of GET\"\n\n"
-                "Or describe the whole skill differently."
-            )
-        return
-
-    if query.data == "addskill_nokey":
-        if user_id in _addskill_state:
-            _addskill_state[user_id]["api_key"] = None
-            _addskill_state[user_id]["step"] = "confirm"
-            await query.edit_message_text("No API key needed.")
-            await _show_addskill_confirmation(query, _addskill_state[user_id])
-        return
-
-    if query.data == "addskill_haskey":
-        if user_id in _addskill_state:
-            _addskill_state[user_id]["step"] = "apikey_input"
-            await query.edit_message_text(
-                "Send me the API key. I'll store it securely and never show it again."
-            )
-        return
-
-    if query.data == "addskill_confirm":
-        if user_id in _addskill_state:
-            state = _addskill_state.pop(user_id)
-            skill_data = {
-                "name": state["name"],
-                "description": state["description"],
-                "url_template": state["url_template"],
-                "method": state.get("method", "GET"),
-                "parameters": state.get("parameters", {}),
-                "api_key_encrypted": state.get("api_key"),
-                "is_private": True,
-            }
-            memory.save_user_skill(user_id, skill_data)
-            await query.edit_message_text(
-                f"Skill '{state['name']}' created!\n\n"
-                f"Try it now — just ask me something that uses it.\n\n"
-                f"Commands:\n"
-                f"/myskills — view your skills\n"
-                f"/publish {state['name']} — submit to community marketplace\n"
-                f"/delskill {state['name']} — delete this skill"
-            )
-        return
-
-    if query.data == "addskill_cancel":
-        if user_id in _addskill_state:
-            del _addskill_state[user_id]
-        await query.edit_message_text("Skill creation cancelled.")
-        return
-
-    # --- Skill marketplace admin callbacks ---
-    if query.data.startswith("appskill_"):
-        if not auth.is_admin(user_id, "telegram"):
-            await query.answer("Not authorized.", show_alert=True)
-            return
-        parts = query.data.replace("appskill_", "").rsplit("_", 1)
-        skill_name, creator_id = parts[0], parts[1]
-        skill = memory.get_user_skill_by_name(skill_name, creator_id)
-        if skill and memory.approve_user_skill(skill["id"]):
-            await query.edit_message_text(
-                query.message.text + "\n\nApproved for marketplace"
-            )
-        return
-
-    if query.data.startswith("rejskill_"):
-        if not auth.is_admin(user_id, "telegram"):
-            await query.answer("Not authorized.", show_alert=True)
-            return
-        parts = query.data.replace("rejskill_", "").rsplit("_", 1)
-        skill_name, creator_id = parts[0], parts[1]
-        memory.delete_user_skill(creator_id, skill_name)
-        await query.edit_message_text(
-            query.message.text + "\n\nRejected and removed"
-        )
-        return
-
-    if not auth_check(user_id):
-        return
-
-    if query.data == "skills":
-        await query.edit_message_text(
-            f"*Available skills:*\n\n{get_skill_list()}",
-            parse_mode=ParseMode.MARKDOWN,
-        )
-    elif query.data == "status":
-        stats = memory.get_stats()
-        facts = memory.get_facts(user_id)
-        reminders = memory.get_user_reminders(user_id)
-        await query.edit_message_text(
-            f"*AmanClaw Status*\n\n"
-            f"Messages: {stats['total_messages']}\n"
-            f"Facts: {stats['total_facts']}\n"
-            f"Your facts: {len(facts)}\n"
-            f"Pending reminders: {len(reminders)}",
-            parse_mode=ParseMode.MARKDOWN,
-        )
-    elif query.data == "confirm_clear":
-        memory.clear_history(user_id)
-        await query.edit_message_text("Conversation history cleared.")
-    elif query.data == "cancel":
-        await query.edit_message_text("Cancelled.")
-    elif query.data == "export":
-        export_text = memory.export_history(user_id)
-        if export_text == "No conversation history.":
-            await query.edit_message_text("No conversation history to export.")
-        else:
-            await query.edit_message_text("Exporting your chat history...")
-            buf = io.BytesIO(export_text.encode("utf-8"))
-            buf.name = f"amanclaw_chat_{user_id}_{datetime.now().strftime('%Y%m%d_%H%M')}.txt"
-            await context.bot.send_document(
-                chat_id=query.message.chat_id,
-                document=buf,
-                caption="Here's your conversation history.",
-            )
-    # --- Onboarding callbacks ---
-    elif query.data == "onboard_name":
-        await query.edit_message_text(
-            "Just send me a message like:\n\n"
-            "\"My name is [your name]\"\n\n"
-            "I'll remember it for future conversations!"
-        )
-    elif query.data == "onboard_lang":
-        lang_keyboard = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("English", callback_data="setlang_en"),
-                InlineKeyboardButton("Bahasa Melayu", callback_data="setlang_ms"),
-            ],
-            [
-                InlineKeyboardButton("Auto-detect", callback_data="setlang_auto"),
-            ],
-        ])
-        await query.edit_message_text(
-            "Choose your preferred language:",
-            reply_markup=lang_keyboard,
-        )
-    elif query.data.startswith("setlang_"):
-        lang_code = query.data.replace("setlang_", "")
-        lang_names = {"en": "English", "ms": "Bahasa Melayu", "auto": "Auto-detect"}
-        lang_name = lang_names.get(lang_code, lang_code)
-        memory.save_fact(user_id, "preferred_language", lang_name)
-        await query.edit_message_text(f"Language set to *{lang_name}*. Let's start chatting!", parse_mode=ParseMode.MARKDOWN)
-    # --- Response action callbacks ---
-    elif query.data.startswith("act_"):
-        original_text = query.message.text
-        if not original_text:
-            await query.answer("No text to work with.")
-            return
-
-        action = query.data.replace("act_", "")
-        prompts = {
-            "simpler": f"Explain this more simply and briefly:\n\n{original_text}",
-            "detail": f"Expand on this with more detail and examples:\n\n{original_text}",
-            "translate_bm": f"Translate this to Bahasa Melayu:\n\n{original_text}",
-        }
-        prompt = prompts.get(action)
-        if not prompt:
-            return
-
-        await query.answer("Working on it...")
-        await context.bot.send_chat_action(chat_id=query.message.chat_id, action=ChatAction.TYPING)
-
-        try:
-            response = await llm.respond(prompt, [], facts=memory.get_facts(user_id), user_id=user_id)
-        except Exception:
-            response = "Sorry, something went wrong. Try again."
-
-        memory.save_exchange(user_id, "telegram", f"[{action}]", response)
-        await context.bot.send_message(
-            chat_id=query.message.chat_id,
-            text=response,
-            parse_mode=ParseMode.MARKDOWN,
-        )
-
-
-# --- Reminder Checker ---
+# --- Jobs ---
 
 async def check_reminders(context: ContextTypes.DEFAULT_TYPE):
     """Periodic job to check and deliver due reminders."""
@@ -1393,8 +135,6 @@ async def check_reminders(context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Failed to deliver reminder #{r['id']}: {e}")
 
 
-# --- Schedule Checker ---
-
 async def check_schedules(context: ContextTypes.DEFAULT_TYPE):
     """Periodic job to check and deliver due scheduled tasks."""
     due = memory.get_due_schedules()
@@ -1413,11 +153,62 @@ async def check_schedules(context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Failed to deliver schedule #{s['id']}: {e}")
 
 
-# --- Bot Menu ---
+async def prune_job(context: ContextTypes.DEFAULT_TYPE):
+    """Daily cleanup of old messages, delivered reminders, and expired knowledge."""
+    msgs = memory.prune_all_users(keep_last=200)
+    reminders = memory.prune_delivered_reminders(older_than_days=30)
+    expired = memory.expire_old_knowledge()
+    if msgs or reminders or expired:
+        logger.info(f"Pruned {msgs} old messages, {reminders} delivered reminders, {expired} expired knowledge")
+
+
+async def checkin_job(context: ContextTypes.DEFAULT_TYPE):
+    """Weekly job to send proactive check-in messages."""
+    if not learning_engine:
+        return
+    users = memory.list_users(status="approved")
+    admin_ids = [str(uid) for uid in config.get("admin_users", {}).get("telegram", [])]
+    all_user_ids = set(u["user_id"] for u in users) | set(admin_ids)
+    for user_id in all_user_ids:
+        candidates = learning_engine.get_checkin_candidates(user_id, min_age_days=14)
+        if not candidates:
+            continue
+        msg = learning_engine.format_checkin_message(candidates)
+        if not msg:
+            continue
+        try:
+            await context.bot.send_message(
+                chat_id=int(user_id),
+                text=msg,
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            logger.info(f"Sent proactive check-in to user {user_id}")
+        except Exception as e:
+            logger.debug(f"Failed to send check-in to {user_id}: {e}")
+
+
+async def error_handler(update, context: ContextTypes.DEFAULT_TYPE):
+    """Log errors and notify admins."""
+    logger.error(f"Update {update} caused error: {context.error}", exc_info=context.error)
+    admin_ids = config.get("admin_users", {}).get("telegram", [])
+    error_text = f"Bot error:\n{type(context.error).__name__}: {context.error}"
+    if update and hasattr(update, 'effective_user') and update.effective_user:
+        error_text = f"User: {update.effective_user.id}\n{error_text}"
+    for admin_id in admin_ids:
+        try:
+            await context.bot.send_message(
+                chat_id=int(admin_id),
+                text=f"*AmanClaw Error*\n\n`{error_text[:1000]}`",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+        except Exception:
+            pass
+
+
+# --- Lifecycle ---
 
 async def post_init(application):
-    """Set bot commands menu and start WhatsApp adapter after initialization."""
-    # Start WhatsApp adapter if configured
+    """Set bot commands menu and start adapters after initialization."""
     if whatsapp:
         try:
             await whatsapp.start()
@@ -1456,86 +247,25 @@ async def post_shutdown(application):
     logger.info("AmanClaw shut down cleanly.")
 
 
-# --- Error Handler ---
-
-async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Log errors and notify admins."""
-    logger.error(f"Update {update} caused error: {context.error}", exc_info=context.error)
-
-    # Notify admins
-    admin_ids = config.get("admin_users", {}).get("telegram", [])
-    error_text = f"Bot error:\n{type(context.error).__name__}: {context.error}"
-    if update and update.effective_user:
-        error_text = f"User: {update.effective_user.id}\n{error_text}"
-
-    for admin_id in admin_ids:
-        try:
-            await context.bot.send_message(
-                chat_id=int(admin_id),
-                text=f"*AmanClaw Error*\n\n`{error_text[:1000]}`",
-                parse_mode=ParseMode.MARKDOWN,
-            )
-        except Exception:
-            pass
-
-
-# --- Pruning Job ---
-
-async def prune_job(context: ContextTypes.DEFAULT_TYPE):
-    """Daily cleanup of old messages, delivered reminders, and expired knowledge."""
-    msgs = memory.prune_all_users(keep_last=200)
-    reminders = memory.prune_delivered_reminders(older_than_days=30)
-    expired = memory.expire_old_knowledge()
-    if msgs or reminders or expired:
-        logger.info(f"Pruned {msgs} old messages, {reminders} delivered reminders, {expired} expired knowledge")
-
-
-async def checkin_job(context: ContextTypes.DEFAULT_TYPE):
-    """Weekly job to send proactive check-in messages."""
-    if not learning_engine:
-        return
-    # Get all active users
-    users = memory.list_users(status="approved")
-    admin_ids = [str(uid) for uid in config.get("admin_users", {}).get("telegram", [])]
-    all_user_ids = set(u["user_id"] for u in users) | set(admin_ids)
-
-    for user_id in all_user_ids:
-        candidates = learning_engine.get_checkin_candidates(user_id, min_age_days=14)
-        if not candidates:
-            continue
-        msg = learning_engine.format_checkin_message(candidates)
-        if not msg:
-            continue
-        try:
-            await context.bot.send_message(
-                chat_id=int(user_id),
-                text=msg,
-                parse_mode=ParseMode.MARKDOWN,
-            )
-            logger.info(f"Sent proactive check-in to user {user_id}")
-        except Exception as e:
-            logger.debug(f"Failed to send check-in to {user_id}: {e}")
-
-
 # --- Main ---
 
 def main():
-    global config, auth, rate_limiter, memory, llm, whatsapp, learning_engine, mcp_manager
+    global config, memory, llm, whatsapp, learning_engine, mcp_manager
+    global processor, telegram_adapter, discord_adapter, slack_adapter
 
     logger.info("Starting AmanClaw...")
 
-    # Load config
     config = load_config()
     webhook_config = config.get("webhook")
 
-    # Initialize components — env vars override config values
+    # Initialize components
     db_path = os.environ.get("MEMORY_DB_PATH") or config.get("memory_db", "memory.db")
     memory = Memory(db_path)
     auth = Auth(config, memory=memory)
     rate_limiter = RateLimiter(config.get("rate_limit_per_minute", 20))
     llm = LLM(config.get("llm", {}))
 
-    # Initialize user skill manager
+    # User skill manager
     user_skill_mgr = UserSkillManager(memory)
     set_user_skill_manager(user_skill_mgr)
     logger.info("User skill manager initialized")
@@ -1549,7 +279,7 @@ def main():
             "Add your user ID to config.yaml under admin_users."
         )
 
-    # Configure skills from config
+    # Configure skills
     skills_config = config.get("skills", {})
     if skills_config.get("shell_allowed_commands"):
         configure_shell(allowed_commands=skills_config["shell_allowed_commands"])
@@ -1562,6 +292,7 @@ def main():
     configure_reminder(memory=memory)
     configure_scheduled(memory=memory)
 
+    # Learning engine
     learning_config = config.get("learning", {})
     if learning_config.get("enabled", True):
         learning_engine = LearningEngine(memory)
@@ -1569,87 +300,60 @@ def main():
         set_learning_engine(learning_engine)
         logger.info("Learning engine initialized")
 
-    # --- MCP Client ---
+    # MCP Client
     mcp_manager = MCPManager(config)
     if config.get("mcp_servers"):
         asyncio.get_event_loop().run_until_complete(mcp_manager.start())
     set_mcp_manager(mcp_manager)
     logger.info("MCP client initialized")
 
-    # --- Message Processor ---
-    global processor
+    # Message Processor
     processor = MessageProcessor(config, auth, rate_limiter, memory, llm, learning_engine)
 
-    # --- WhatsApp (optional) ---
+    # --- Channel Adapters ---
+
+    # WhatsApp (optional)
     wa_config = config.get("whatsapp", {})
     if wa_config.get("enabled"):
-        from amanclaw.channels.whatsapp import WhatsAppAdapter as WAAdapter
-        whatsapp = WAAdapter(config, processor)
+        from amanclaw.channels.whatsapp import WhatsAppAdapter
+        whatsapp = WhatsAppAdapter(config, processor)
         logger.info("WhatsApp adapter configured (will start with bot)")
 
-    # --- Discord (optional) ---
-    global discord_adapter
+    # Discord (optional)
     if config.get("discord", {}).get("enabled", False):
         from amanclaw.channels.discord import DiscordAdapter
         discord_adapter = DiscordAdapter(config, processor)
-        import asyncio
         asyncio.get_event_loop().run_until_complete(discord_adapter.start())
         logger.info("Discord adapter started")
 
-    # --- Slack (optional) ---
-    global slack_adapter
+    # Slack (optional)
     if config.get("slack", {}).get("enabled", False):
         from amanclaw.channels.slack import SlackAdapter
         slack_adapter = SlackAdapter(config, processor)
-        import asyncio
         asyncio.get_event_loop().run_until_complete(slack_adapter.start())
         logger.info("Slack adapter started")
 
-    # Get Telegram token
+    # Telegram
     token = config.get("telegram", {}).get("bot_token") or os.environ.get("TELEGRAM_BOT_TOKEN")
     if not token:
         logger.error("Telegram bot token not found in config.yaml or TELEGRAM_BOT_TOKEN env var.")
         sys.exit(1)
 
-    # Build Telegram bot
+    telegram_adapter = TelegramAdapter(config, processor, memory, llm, learning_engine)
+
     app = ApplicationBuilder().token(token).post_init(post_init).post_shutdown(post_shutdown).build()
 
-    # Register handlers
-    app.add_handler(CommandHandler("start", cmd_start))
-    app.add_handler(CommandHandler("skills", cmd_skills))
-    app.add_handler(CommandHandler("clear", cmd_clear))
-    app.add_handler(CommandHandler("status", cmd_status))
-    app.add_handler(CommandHandler("export", cmd_export))
-    app.add_handler(CommandHandler("myid", cmd_myid))
-    app.add_handler(CommandHandler("approve", cmd_approve))
-    app.add_handler(CommandHandler("block", cmd_block))
-    app.add_handler(CommandHandler("users", cmd_users))
-    app.add_handler(CommandHandler("teach", cmd_teach))
-    app.add_handler(CommandHandler("learned", cmd_learned))
-    app.add_handler(CommandHandler("forget", cmd_forget))
-    app.add_handler(CommandHandler("addskill", cmd_addskill))
-    app.add_handler(CommandHandler("myskills", cmd_myskills))
-    app.add_handler(CommandHandler("delskill", cmd_delskill))
-    app.add_handler(CommandHandler("publish", cmd_publish))
-    app.add_handler(CommandHandler("marketplace", cmd_marketplace))
-    app.add_handler(CallbackQueryHandler(handle_callback))
-    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-    app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_voice))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    # Register Telegram handlers
+    telegram_adapter.register_handlers(app)
 
     # Error handler
     app.add_error_handler(error_handler)
 
-    # Schedule reminder checker every 30 seconds
+    # Schedule jobs
     app.job_queue.run_repeating(check_reminders, interval=30, first=5)
-
-    # Schedule recurring task checker every 60 seconds
     app.job_queue.run_repeating(check_schedules, interval=60, first=15)
-
-    # Schedule daily pruning at 3:00 AM
     app.job_queue.run_daily(prune_job, time=datetime_time(hour=3, minute=0))
 
-    # Schedule weekly proactive check-in
     if learning_config.get("proactive_checkins", True):
         checkin_day = learning_config.get("checkin_day", 6)
         checkin_hour = learning_config.get("checkin_hour", 10)
@@ -1661,21 +365,20 @@ def main():
         listen = webhook_config.get("listen", "0.0.0.0")
         port = webhook_config.get("port", 8443)
         secret_token = os.environ.get("WEBHOOK_SECRET") or webhook_config.get("secret_token")
-
         logger.info(f"Starting webhook mode on {listen}:{port}")
         app.run_webhook(
             listen=listen,
             port=port,
-            url_path=f"webhook/{token[:10]}",  # Use part of token as path for obscurity
+            url_path=f"webhook/{token[:10]}",
             webhook_url=f"{webhook_url}/webhook/{token[:10]}",
             secret_token=secret_token,
-            allowed_updates=Update.ALL_TYPES,
+            allowed_updates=["message", "callback_query"],
         )
     else:
         logger.info("Starting polling mode")
-        app.run_polling(allowed_updates=Update.ALL_TYPES)
+        app.run_polling(allowed_updates=["message", "callback_query"])
 
-    # Cleanup after run_polling returns (shutdown)
+    # Cleanup after run_polling returns
     if mcp_manager:
         asyncio.get_event_loop().run_until_complete(mcp_manager.stop())
     if memory:
