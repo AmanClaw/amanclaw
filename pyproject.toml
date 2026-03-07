@@ -19,6 +19,7 @@ dependencies = [
 [project.optional-dependencies]
 pdf = ["pypdf>=4.0,<5"]
 discord = ["discord.py>=2.3"]
+slack = ["slack-bolt>=1.18", "slack-sdk>=3.27"]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
