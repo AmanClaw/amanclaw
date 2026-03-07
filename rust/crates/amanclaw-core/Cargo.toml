@@ -1,0 +1,13 @@
+[package]
+name = "amanclaw-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+amanclaw-traits = { path = "../amanclaw-traits" }
+tokio = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
