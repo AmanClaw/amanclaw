@@ -59,16 +59,20 @@ class WhatsAppAdapter(ChannelAdapter):
         jid = msg.chat_id if "@" in msg.chat_id else f"{msg.chat_id}@s.whatsapp.net"
         await self._send_text(jid, msg.text)
 
-    async def _send_text(self, jid: str, text: str):
+    async def _send_text(self, jid: str, text: str, quote_id: str | None = None):
         """Send a text message via the Baileys bridge."""
         session = self._get_session()
         chunks = self._split_message(text)
 
-        for chunk in chunks:
+        for i, chunk in enumerate(chunks):
             try:
+                payload = {"jid": jid, "text": chunk}
+                # Only quote the original message on the first chunk
+                if i == 0 and quote_id:
+                    payload["quote_id"] = quote_id
                 async with session.post(
                     f"{self.bridge_url}/send",
-                    json={"jid": jid, "text": chunk},
+                    json=payload,
                     timeout=aiohttp.ClientTimeout(total=30),
                 ) as resp:
                     if resp.status != 200:
@@ -131,30 +135,51 @@ class WhatsAppAdapter(ChannelAdapter):
         if is_group and self.ignore_groups:
             return web.json_response({"ok": True, "skipped": "group"})
 
+        # In groups, only respond when the bot is mentioned
+        mentioned_jids = data.get("mentioned_jids", [])
+        bot_jid = data.get("bot_jid", "")
+        message_id = data.get("message_id")
+        if is_group and not self.ignore_groups:
+            bot_number = bot_jid.split(":")[0].split("@")[0] if bot_jid else ""
+            is_mentioned = any(
+                bot_number and bot_number in jid for jid in mentioned_jids
+            )
+            if not is_mentioned:
+                return web.json_response({"ok": True, "skipped": "not_mentioned"})
+
         user_id = phone or jid.split("@")[0]
 
         logger.info(f"WhatsApp message from {user_id} ({name}): {text[:80]}")
 
         # Process in background so we don't block the bridge
-        asyncio.create_task(self._process_message(user_id, jid, name, text, is_group))
+        quote_id = message_id if is_group else None
+        asyncio.create_task(self._process_message(user_id, jid, name, text, is_group, quote_id))
 
         return web.json_response({"ok": True})
 
-    async def _process_message(self, user_id: str, jid: str, name: str, text: str, is_group: bool = False):
+    async def _process_message(self, user_id: str, jid: str, name: str, text: str, is_group: bool = False, quote_id: str | None = None):
         """Process a WhatsApp message through the MessageProcessor pipeline."""
         try:
+            # Strip the @mention from the text so the LLM gets a clean message
+            clean_text = text
+            if is_group and quote_id:
+                import re
+                clean_text = re.sub(r'@\d+', '', text).strip()
+                if not clean_text:
+                    clean_text = text
+
             incoming = IncomingMessage(
                 user_id=user_id,
                 chat_id=jid,
                 platform="whatsapp",
-                text=text,
+                text=clean_text,
                 first_name=name or None,
                 is_group=is_group,
             )
 
             result = await self.processor.process(incoming)
             if result:
-                await self._send_text(jid, result.text)
+                await self._send_text(jid, result.text, quote_id=quote_id)
 
         except Exception as e:
             logger.error(f"Error processing WhatsApp message from {user_id}: {e}", exc_info=True)
