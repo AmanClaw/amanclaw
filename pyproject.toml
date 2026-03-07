@@ -20,6 +20,8 @@ dependencies = [
 [project.optional-dependencies]
 mcp = ["mcp>=1.0"]
 pdf = ["pypdf>=4.0,<5"]
+discord = ["discord.py>=2.3"]
+slack = ["slack-bolt>=1.18", "slack-sdk>=3.27"]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
@@ -34,3 +36,4 @@ include = ["amanclaw*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"

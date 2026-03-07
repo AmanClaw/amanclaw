@@ -67,6 +67,20 @@ learning:
 #   listen: "0.0.0.0"
 #   ignore_groups: true                  # ignore group messages
 
+# --- Discord (optional) ---
+discord:
+  enabled: false
+  # token loaded from DISCORD_BOT_TOKEN env var
+  allowed_channels: []
+  command_prefix: "!"
+
+# --- Slack (optional) ---
+slack:
+  enabled: false
+  # tokens loaded from SLACK_BOT_TOKEN and SLACK_APP_TOKEN env vars
+  socket_mode: true
+  allowed_channels: []
+
 # Optional environment variables for extra skills:
 #   BRAVE_API_KEY — enables the web_search skill (get one at https://api.search.brave.com/)
 

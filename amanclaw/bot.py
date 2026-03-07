@@ -45,6 +45,7 @@ from amanclaw.learning import LearningEngine
 from amanclaw.whatsapp import WhatsAppAdapter
 from amanclaw.mcp_client import MCPManager
 from amanclaw.skills import set_mcp_manager
+from amanclaw.processor import MessageProcessor
 
 
 class JsonFormatter(logging.Formatter):
@@ -129,6 +130,9 @@ llm: LLM = None
 whatsapp: WhatsAppAdapter = None
 learning_engine: LearningEngine = None
 mcp_manager = None  # Optional MCP client
+processor: MessageProcessor = None
+discord_adapter = None
+slack_adapter = None
 
 
 # --- Helpers ---
@@ -965,6 +969,10 @@ async def post_shutdown(application):
     """Clean up resources on shutdown."""
     if whatsapp:
         await whatsapp.stop()
+    if discord_adapter:
+        await discord_adapter.stop()
+    if slack_adapter:
+        await slack_adapter.stop()
     if memory:
         memory.close()
     if llm:
@@ -1087,11 +1095,33 @@ def main():
         set_mcp_manager(mcp_manager)
         logger.info("MCP client started")
 
+    # --- Message Processor ---
+    global processor
+    processor = MessageProcessor(config, auth, rate_limiter, memory, llm, learning_engine)
+
     # --- WhatsApp (optional) ---
     wa_config = config.get("whatsapp", {})
     if wa_config.get("enabled"):
         whatsapp = WhatsAppAdapter(config, auth, rate_limiter, memory, llm)
         logger.info("WhatsApp adapter configured (will start with bot)")
+
+    # --- Discord (optional) ---
+    global discord_adapter
+    if config.get("discord", {}).get("enabled", False):
+        from amanclaw.channels.discord import DiscordAdapter
+        discord_adapter = DiscordAdapter(config, processor)
+        import asyncio
+        asyncio.get_event_loop().run_until_complete(discord_adapter.start())
+        logger.info("Discord adapter started")
+
+    # --- Slack (optional) ---
+    global slack_adapter
+    if config.get("slack", {}).get("enabled", False):
+        from amanclaw.channels.slack import SlackAdapter
+        slack_adapter = SlackAdapter(config, processor)
+        import asyncio
+        asyncio.get_event_loop().run_until_complete(slack_adapter.start())
+        logger.info("Slack adapter started")
 
     # Get Telegram token
     token = config.get("telegram", {}).get("bot_token") or os.environ.get("TELEGRAM_BOT_TOKEN")
