@@ -13,6 +13,7 @@ WORKDIR /app
 
 # Install Python deps first (layer caching)
 COPY pyproject.toml ./
+COPY packages/ ./packages/
 RUN pip install --no-cache-dir . 2>/dev/null || true
 
 # Copy application code
