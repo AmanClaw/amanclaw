@@ -56,6 +56,8 @@ impl Engine {
     }
 
     pub async fn run(mut self) -> Result<()> {
+        // Drop our sender so the channel closes when all external senders are dropped
+        drop(self.tx);
         tracing::info!("Engine running");
         while let Some(msg) = self.rx.recv().await {
             match self.pipeline.process(msg).await {
