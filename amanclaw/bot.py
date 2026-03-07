@@ -30,6 +30,7 @@ from telegram.ext import (
     filters,
 )
 from telegram.constants import ParseMode, ChatAction
+from telegram.helpers import escape_markdown
 
 from amanclaw.security import Auth, RateLimiter, sanitize
 from amanclaw.memory import Memory
@@ -227,7 +228,7 @@ async def handle_registration(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     # Notify all admins
     admin_ids = config.get("admin_users", {}).get("telegram", [])
-    name = user.first_name or user.username or user_id
+    name = escape_markdown(user.first_name or user.username or user_id)
     for admin_id in admin_ids:
         try:
             await context.bot.send_message(
@@ -235,7 +236,7 @@ async def handle_registration(update: Update, context: ContextTypes.DEFAULT_TYPE
                 text=(
                     f"*New user registration:*\n\n"
                     f"Name: {name}\n"
-                    f"Username: @{user.username or 'none'}\n"
+                    f"Username: @{escape_markdown(user.username or 'none')}\n"
                     f"User ID: `{user_id}`\n\n"
                     f"Use `/approve {user_id}` to approve or `/block {user_id}` to block."
                 ),
@@ -543,7 +544,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user = update.effective_user
     facts = memory.get_facts(user_id)
-    name = facts.get("name", user.first_name or "there")
+    name = escape_markdown(facts.get("name", user.first_name or "there"))
 
     keyboard = InlineKeyboardMarkup([
         [
@@ -732,8 +733,8 @@ async def cmd_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     lines = [f"*Users{(' - ' + status_filter) if status_filter else ''}:*\n"]
     for u in users:
-        name = u["first_name"] or u["username"] or "Unknown"
-        username = f"@{u['username']}" if u["username"] else "no username"
+        name = escape_markdown(u["first_name"] or u["username"] or "Unknown")
+        username = f"@{escape_markdown(u['username'])}" if u["username"] else "no username"
         lines.append(f"- `{u['user_id']}` {name} ({username}) [{u['status']}]")
 
     await reply_with_markdown(update.message, "\n".join(lines))
