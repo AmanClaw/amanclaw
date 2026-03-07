@@ -12,6 +12,7 @@ import io
 import os
 import re
 import sys
+import json
 import yaml
 import asyncio
 import logging
@@ -938,7 +939,27 @@ async def send_approval_welcome(context: ContextTypes.DEFAULT_TYPE, user_id: str
         logger.error(f"Failed to send welcome to {user_id}: {e}")
 
 
-# --- /addskill conversational flow ---
+# --- /addskill conversational flow (LLM-assisted) ---
+
+ADDSKILL_LLM_PROMPT = """You are helping create an API skill integration.
+Based on the user's description, generate a complete skill config as JSON.
+
+Rules:
+- Find a suitable FREE public API if the user doesn't provide a URL
+- Use {param} placeholders in URLs for dynamic parameters
+- Keep the name short, lowercase, with underscores
+- If an API key is typically needed, set needs_api_key to true
+- For well-known services, use known free APIs like:
+  - Weather: wttr.in (https://wttr.in/{city}?format=j1)
+  - Currency: open.er-api.com
+  - IP info: ipapi.co
+  - Jokes: official-joke-api.appspot.com
+  - Time: worldtimeapi.org
+  - Random facts: uselessfacts.jsph.pl
+
+Return ONLY valid JSON (no markdown fences, no explanation):
+{"name": "skill_name", "description": "what it does", "url_template": "https://...", "method": "GET", "parameters": {"param_name": {"type": "string", "description": "what this param is"}}, "needs_api_key": false, "headers": {}, "query_params": {}}"""
+
 
 async def cmd_addskill(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /addskill — start the skill creation flow."""
@@ -946,14 +967,84 @@ async def cmd_addskill(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await handle_registration(update, context):
         return
 
+    # Check for inline description: /addskill get weather for a city
+    args_text = " ".join(context.args) if context.args else ""
+    if args_text.strip():
+        _addskill_state[user_id] = {"step": "generating"}
+        await update.message.reply_text("Generating skill config...")
+        await _generate_skill_from_description(update, user_id, args_text.strip())
+        return
+
     _addskill_state[user_id] = {"step": "describe"}
     await update.message.reply_text(
         "Let's create a new skill!\n\n"
-        "First, describe what you want in one sentence.\n"
-        "For example: \"Get weather info for any city\" or "
-        "\"Convert currencies\"\n\n"
-        "Send /cancel to stop at any time."
+        "Just describe what you want:\n"
+        "• \"Get weather for any city\"\n"
+        "• \"Convert currencies\"\n"
+        "• \"Get a random joke\"\n"
+        "• \"Shorten URLs\"\n\n"
+        "I'll find a free API and set it up for you automatically.\n\n"
+        "Or do it inline: `/addskill get weather for a city`\n\n"
+        "Send /cancel to stop.",
+        parse_mode=ParseMode.MARKDOWN,
     )
+
+
+async def _generate_skill_from_description(update, user_id: str, description: str):
+    """Use LLM to generate a skill config from a natural language description."""
+    try:
+        result = await llm._call_api([
+            {"role": "system", "content": ADDSKILL_LLM_PROMPT},
+            {"role": "user", "content": description},
+        ])
+        raw = result["choices"][0]["message"]["content"]
+        # Strip markdown fences if present
+        raw = re.sub(r'^```(?:json)?\s*', '', raw.strip())
+        raw = re.sub(r'\s*```$', '', raw.strip())
+        # Strip <think> blocks if present
+        raw = re.sub(r'<think>.*?</think>', '', raw, flags=re.DOTALL).strip()
+        skill_config = json.loads(raw)
+    except (json.JSONDecodeError, KeyError, IndexError) as e:
+        logger.warning(f"LLM skill generation failed: {e}")
+        _addskill_state.pop(user_id, None)
+        msg = update.message if hasattr(update, 'message') and update.message else update
+        await msg.reply_text(
+            "Couldn't auto-generate the skill. Try being more specific.\n"
+            "Example: `/addskill get weather forecast for a city using wttr.in`",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    except Exception as e:
+        logger.error(f"LLM skill generation error: {e}")
+        _addskill_state.pop(user_id, None)
+        msg = update.message if hasattr(update, 'message') and update.message else update
+        await msg.reply_text(f"Error generating skill: {e}")
+        return
+
+    # Validate and sanitize name
+    name = skill_config.get("name", "").lower().replace(" ", "_").replace("-", "_")
+    name = re.sub(r'[^a-z0-9_]', '', name)
+    if not name or len(name) < 2:
+        name = re.sub(r'[^a-z0-9_]', '', description.lower().split()[0])[:20] or "custom"
+    name = name[:30]
+    from amanclaw.skills import REGISTRY
+    if name in REGISTRY:
+        name = f"my_{name}"
+
+    state = {
+        "step": "confirm",
+        "name": name,
+        "description": skill_config.get("description", description),
+        "url_template": skill_config.get("url_template", ""),
+        "method": skill_config.get("method", "GET"),
+        "parameters": skill_config.get("parameters", {}),
+        "headers": skill_config.get("headers", {}),
+        "query_params": skill_config.get("query_params", {}),
+        "needs_api_key": skill_config.get("needs_api_key", False),
+        "api_key": None,
+    }
+    _addskill_state[user_id] = state
+    await _show_addskill_confirmation(update, state)
 
 
 async def _handle_addskill_step(update: Update, context: ContextTypes.DEFAULT_TYPE,
@@ -968,124 +1059,59 @@ async def _handle_addskill_step(update: Update, context: ContextTypes.DEFAULT_TY
     step = state["step"]
 
     if step == "describe":
-        state["description"] = text.strip()
-        state["step"] = "name"
-        await update.message.reply_text(
-            f"Got it: \"{text.strip()}\"\n\n"
-            "What should this skill be called? Use a short name "
-            "(lowercase, no spaces, e.g. \"weather\", \"currency\", \"news\")"
-        )
-
-    elif step == "name":
-        name = text.strip().lower().replace(" ", "_")
-        if not re.match(r'^[a-z][a-z0-9_]{1,30}$', name):
-            await update.message.reply_text(
-                "Name must be lowercase letters/numbers/underscores, 2-31 chars. Try again."
-            )
-            return
-        from amanclaw.skills import REGISTRY
-        if name in REGISTRY or f"uskill_{name}" in REGISTRY:
-            await update.message.reply_text(
-                f"'{name}' conflicts with a built-in skill. Choose a different name."
-            )
-            return
-        state["name"] = name
-        state["step"] = "url"
-        await update.message.reply_text(
-            "Now provide the API URL.\n\n"
-            "Use {param} for dynamic parts. Examples:\n"
-            "- https://api.example.com/weather?city={city}\n"
-            "- https://api.example.com/v1/{endpoint}\n\n"
-            "If you have API documentation, just paste the URL and I'll parse it."
-        )
-
-    elif step == "url":
-        url = text.strip()
-        if not url.startswith("http://") and not url.startswith("https://"):
-            await update.message.reply_text("URL must start with http:// or https://. Try again.")
-            return
-        state["url_template"] = url
-        params_found = re.findall(r'\{(\w+)\}', url)
-        state["auto_params"] = params_found
-        state["step"] = "method"
-
-        keyboard = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("GET", callback_data="addskill_method_GET"),
-                InlineKeyboardButton("POST", callback_data="addskill_method_POST"),
-            ]
-        ])
-        await update.message.reply_text(
-            f"URL: {url}\n"
-            f"Parameters detected: {', '.join(params_found) if params_found else 'none'}\n\n"
-            "What HTTP method does this API use?",
-            reply_markup=keyboard,
-        )
-
-    elif step == "params":
-        if text.strip().lower() in ("ok", "none", "skip"):
-            state["parameters"] = {p: {"type": "string", "description": p}
-                                   for p in state.get("auto_params", []) if p != "api_key"}
-        else:
-            try:
-                params = {}
-                for line in text.strip().split("\n"):
-                    if ":" in line:
-                        pname, pdesc = line.split(":", 1)
-                        params[pname.strip()] = {
-                            "type": "string",
-                            "description": pdesc.strip(),
-                        }
-                for p in state.get("auto_params", []):
-                    if p not in params and p != "api_key":
-                        params[p] = {"type": "string", "description": p}
-                state["parameters"] = params
-            except Exception:
-                state["parameters"] = {p: {"type": "string", "description": p}
-                                       for p in state.get("auto_params", []) if p != "api_key"}
-
-        state["step"] = "apikey"
-        keyboard = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("No API key needed", callback_data="addskill_nokey"),
-                InlineKeyboardButton("Yes, I have a key", callback_data="addskill_haskey"),
-            ]
-        ])
-        await update.message.reply_text(
-            "Does this API require an API key?",
-            reply_markup=keyboard,
-        )
+        state["step"] = "generating"
+        await update.message.reply_text("Generating skill config...")
+        await _generate_skill_from_description(update, user_id, text.strip())
 
     elif step == "apikey_input":
         state["api_key"] = text.strip()
         state["step"] = "confirm"
         await _show_addskill_confirmation(update, state)
 
-    elif step == "response_format":
-        state["response_format"] = text.strip()
-        state["step"] = "confirm"
-        await _show_addskill_confirmation(update, state)
+    elif step == "edit":
+        # User wants to tweak — regenerate with feedback
+        await update.message.reply_text("Regenerating with your feedback...")
+        original_desc = state.get("description", "")
+        await _generate_skill_from_description(
+            update, user_id, f"{original_desc}. {text.strip()}"
+        )
 
 
 async def _show_addskill_confirmation(update_or_query, state: dict):
-    """Show the skill summary for confirmation."""
+    params_list = ", ".join(state.get("parameters", {}).keys()) or "none"
+    needs_key = state.get("needs_api_key", False)
+    has_key = bool(state.get("api_key"))
+    if needs_key and not has_key:
+        api_key_status = "required (not set yet)"
+    elif has_key:
+        api_key_status = "set"
+    else:
+        api_key_status = "not needed"
+
     summary = (
-        f"Skill Summary:\n\n"
-        f"Name: {state['name']}\n"
-        f"Description: {state['description']}\n"
-        f"URL: {state['url_template']}\n"
-        f"Method: {state.get('method', 'GET')}\n"
-        f"Parameters: {', '.join(state.get('parameters', {}).keys()) or 'none'}\n"
-        f"API Key: {'yes (stored securely)' if state.get('api_key') else 'none'}"
+        f"*Skill Preview:*\n\n"
+        f"*Name:* `{state['name']}`\n"
+        f"*Description:* {state['description']}\n"
+        f"*URL:* `{state['url_template']}`\n"
+        f"*Method:* {state.get('method', 'GET')}\n"
+        f"*Parameters:* {params_list}\n"
+        f"*API Key:* {api_key_status}"
     )
-    keyboard = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("Create Skill", callback_data="addskill_confirm"),
-            InlineKeyboardButton("Cancel", callback_data="addskill_cancel"),
-        ]
+    buttons = []
+    if needs_key and not has_key:
+        buttons.append([
+            InlineKeyboardButton("Set API Key", callback_data="addskill_haskey"),
+            InlineKeyboardButton("Skip (no key)", callback_data="addskill_nokey"),
+        ])
+    buttons.append([
+        InlineKeyboardButton("Create", callback_data="addskill_confirm"),
+        InlineKeyboardButton("Edit", callback_data="addskill_edit"),
+        InlineKeyboardButton("Cancel", callback_data="addskill_cancel"),
     ])
+    keyboard = InlineKeyboardMarkup(buttons)
     msg = update_or_query.message if hasattr(update_or_query, 'message') and update_or_query.message else update_or_query
-    await msg.reply_text(summary, reply_markup=keyboard)
+    await msg.reply_text(summary, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN)
+
 
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1164,27 +1190,18 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # --- Addskill flow callbacks ---
-    if query.data.startswith("addskill_method_"):
-        method = query.data.replace("addskill_method_", "")
+    if query.data == "addskill_edit":
         if user_id in _addskill_state:
-            _addskill_state[user_id]["method"] = method
-            _addskill_state[user_id]["step"] = "params"
-            params = _addskill_state[user_id].get("auto_params", [])
-            if params:
-                await query.edit_message_text(
-                    f"Method: {method}\n\n"
-                    f"I found these parameters: {', '.join(params)}\n\n"
-                    "Describe each parameter (one per line):\n"
-                    "param_name: description\n\n"
-                    "Or just send 'ok' to use the defaults."
-                )
-            else:
-                await query.edit_message_text(
-                    f"Method: {method}\n\n"
-                    "List the parameters this API needs (one per line):\n"
-                    "param_name: description\n\n"
-                    "Or send 'none' if no parameters needed."
-                )
+            _addskill_state[user_id]["step"] = "edit"
+            await query.edit_message_text(
+                "What would you like to change? Just tell me:\n\n"
+                "Examples:\n"
+                "• \"Use a different API\"\n"
+                "• \"Change the name to my_weather\"\n"
+                "• \"Add a language parameter\"\n"
+                "• \"Use POST instead of GET\"\n\n"
+                "Or describe the whole skill differently."
+            )
         return
 
     if query.data == "addskill_nokey":
