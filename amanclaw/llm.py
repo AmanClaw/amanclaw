@@ -205,6 +205,29 @@ def _convert_tools_to_openai_format(tools: list[dict]) -> list[dict]:
     ]
 
 
+# Regex to strip thinking/reasoning blocks from LLM output
+# Pattern 1: <think>...</think> or <thinking>...</thinking> (proper tags)
+THINK_TAGGED_PATTERN = re.compile(r'<(?:think|thinking)>.*?</(?:think|thinking)>\s*', re.DOTALL | re.IGNORECASE)
+# Pattern 2: Everything before a standalone </think> tag (model outputs reasoning
+# as plain text then closes with </think> without an opening tag)
+THINK_BEFORE_CLOSE_PATTERN = re.compile(r'^.*?</(?:think|thinking)>\s*', re.DOTALL | re.IGNORECASE)
+# Pattern 3: Unclosed <think> tag (takes everything from <think> to end)
+THINK_UNCLOSED_PATTERN = re.compile(r'<(?:think|thinking)>.*', re.DOTALL | re.IGNORECASE)
+
+
+def _strip_thinking(text: str) -> str:
+    """Remove thinking/reasoning blocks from LLM output."""
+    if not text:
+        return text
+    # First strip properly tagged think blocks: <think>...</think>
+    text = THINK_TAGGED_PATTERN.sub("", text)
+    # Strip everything before a closing </think> tag (no opening tag)
+    text = THINK_BEFORE_CLOSE_PATTERN.sub("", text)
+    # Strip unclosed <think> blocks
+    text = THINK_UNCLOSED_PATTERN.sub("", text)
+    return text.strip()
+
+
 # Regex to find tool call blocks in LLM output
 TOOL_CALL_PATTERN = re.compile(
     r'```tool\s*\n?\s*(\{.*?\})\s*\n?\s*```',
@@ -429,7 +452,7 @@ class LLM:
 
     async def respond(self, message, history: list[dict], flagged: bool = False,
                       facts: dict = None, summary: str = None,
-                      knowledge_context: str = None) -> str:
+                      knowledge_context: str = None, user_id: str = None) -> str:
         """Respond to a message. `message` can be a string or a list (for vision)."""
         if flagged:
             flag_note = (
@@ -445,9 +468,9 @@ class LLM:
         await self._ensure_tool_mode_detected()
 
         if self.native_tools:
-            return await self._respond_native(message, history, facts, summary, knowledge_context)
+            return await self._respond_native(message, history, facts, summary, knowledge_context, user_id=user_id)
         else:
-            return await self._respond_fallback(message, history, facts, summary, knowledge_context)
+            return await self._respond_fallback(message, history, facts, summary, knowledge_context, user_id=user_id)
 
     # ------------------------------------------------------------------ #
     #  Vision support                                                     #
@@ -523,8 +546,9 @@ class LLM:
             return None
 
     async def _respond_native(self, message, history: list[dict], facts: dict = None,
-                              summary: str = None, knowledge_context: str = None) -> str:
-        our_tools = get_tool_definitions()
+                              summary: str = None, knowledge_context: str = None,
+                              user_id: str = None) -> str:
+        our_tools = get_tool_definitions(user_id=user_id)
         openai_tools = _convert_tools_to_openai_format(our_tools) if our_tools else None
 
         system = self._build_system_prompt(SYSTEM_PROMPT_NATIVE, facts, summary, knowledge_context)
@@ -539,9 +563,14 @@ class LLM:
             choice = data["choices"][0]
             assistant_msg = choice["message"]
             tool_calls = assistant_msg.get("tool_calls") or []
+            raw_content = assistant_msg.get("content", "") or ""
+
+            # Debug: log first 200 chars of raw response to catch think tags
+            if raw_content and ("<think" in raw_content.lower() or "</think" in raw_content.lower()):
+                logger.debug(f"Raw LLM response contains think tags: {raw_content[:300]}")
 
             if not tool_calls:
-                return assistant_msg.get("content", "") or "(no response)"
+                return _strip_thinking(raw_content) or "(no response)"
 
             messages.append(assistant_msg)
 
@@ -553,7 +582,7 @@ class LLM:
                     tool_input = {}
 
                 logger.info(f"Tool call: {func['name']}({tool_input})")
-                result = sanitize_skill_output(execute(func["name"], tool_input))
+                result = sanitize_skill_output(execute(func["name"], tool_input, user_id=user_id))
 
                 messages.append({
                     "role": "tool",
@@ -569,8 +598,9 @@ class LLM:
 
     async def _respond_fallback(self, message, history: list[dict],
                                 facts: dict = None, summary: str = None,
-                                knowledge_context: str = None) -> str:
-        our_tools = get_tool_definitions()
+                                knowledge_context: str = None,
+                                user_id: str = None) -> str:
+        our_tools = get_tool_definitions(user_id=user_id)
 
         # Build fallback prompt — use placeholders for skill_list/tool_details
         # but leave {datetime} for _build_system_prompt
@@ -586,7 +616,7 @@ class LLM:
             logger.info(f"LLM fallback call (turn {turn + 1})")
             data = await self._call_api(messages)
 
-            content = data["choices"][0]["message"].get("content", "") or ""
+            content = _strip_thinking(data["choices"][0]["message"].get("content", "") or "")
 
             # Check if the LLM wants to call a tool
             tool_call = _parse_fallback_tool_call(content)
@@ -602,7 +632,7 @@ class LLM:
             preamble = _strip_tool_block(content)
 
             # Execute
-            result = sanitize_skill_output(execute(tool_name, tool_args))
+            result = sanitize_skill_output(execute(tool_name, tool_args, user_id=user_id))
 
             # Add to conversation: assistant's message, then tool result as user message
             messages.append({"role": "assistant", "content": content})

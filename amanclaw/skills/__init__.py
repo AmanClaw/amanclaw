@@ -13,11 +13,20 @@ logger = logging.getLogger("amanclaw.skills")
 # Optional MCP manager (set during bot startup)
 _mcp_manager = None
 
+# Optional user skill manager (set during bot startup)
+_user_skill_manager = None
+
 
 def set_mcp_manager(manager):
     """Set the MCP manager instance for tool integration."""
     global _mcp_manager
     _mcp_manager = manager
+
+
+def set_user_skill_manager(manager):
+    """Set the UserSkillManager instance."""
+    global _user_skill_manager
+    _user_skill_manager = manager
 
 
 # Global skill registry
@@ -47,8 +56,8 @@ def skill(name: str, description: str, parameters: dict, timeout: int = 30):
     return decorator
 
 
-def get_tool_definitions() -> list[dict]:
-    """Get all skills (built-in + MCP) as Claude tool definitions."""
+def get_tool_definitions(user_id: str = None) -> list[dict]:
+    """Get all skills (built-in + MCP + user) as tool definitions."""
     tools = []
     for name, info in REGISTRY.items():
         tools.append({
@@ -66,6 +75,9 @@ def get_tool_definitions() -> list[dict]:
     # Merge MCP tools
     if _mcp_manager:
         tools.extend(_mcp_manager.get_tool_definitions())
+    # Merge user skills
+    if _user_skill_manager and user_id:
+        tools.extend(_user_skill_manager.get_tool_definitions(user_id))
     return tools
 
 
@@ -77,13 +89,17 @@ def get_skill_list() -> str:
     return "\n".join(lines)
 
 
-def execute(tool_name: str, tool_input: dict) -> str:
+def execute(tool_name: str, tool_input: dict, user_id: str = None) -> str:
     """
     Execute a skill by name with timeout protection.
     Returns the result as a string.
     Delegates to MCP manager for MCP tools.
     """
-    # Check MCP first for prefixed tools
+    # Check user skills first
+    if _user_skill_manager and _user_skill_manager.has_skill(tool_name):
+        return _user_skill_manager.execute(tool_name, tool_input, user_id or "")
+
+    # Check MCP for prefixed tools
     if _mcp_manager and _mcp_manager.has_tool(tool_name):
         # MCP tools are async — run in event loop
         import asyncio
@@ -136,4 +152,4 @@ def execute(tool_name: str, tool_input: dict) -> str:
 
 
 # Import built-in skills so they auto-register
-from amanclaw.skills import shell, files, system_info, remember, reminder, documents, scheduled
+from amanclaw.skills import shell, files, system_info, remember, reminder, documents, scheduled, prayer_times

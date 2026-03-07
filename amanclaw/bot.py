@@ -10,6 +10,7 @@ Features: Markdown rendering, photo/voice support, inline keyboards,
 
 import io
 import os
+import re
 import sys
 import yaml
 import asyncio
@@ -45,7 +46,8 @@ from amanclaw.skills.documents import configure as configure_documents, set_lear
 from amanclaw.learning import LearningEngine
 from amanclaw.whatsapp import WhatsAppAdapter
 from amanclaw.mcp_client import MCPManager
-from amanclaw.skills import set_mcp_manager
+from amanclaw.skills import set_mcp_manager, set_user_skill_manager
+from amanclaw.skills.user_skills import UserSkillManager
 from amanclaw.processor import MessageProcessor
 
 
@@ -135,6 +137,9 @@ processor: MessageProcessor = None
 discord_adapter = None
 slack_adapter = None
 
+# Track /addskill conversation state per user
+_addskill_state: dict[str, dict] = {}
+
 
 # --- Helpers ---
 
@@ -203,12 +208,17 @@ async def handle_registration(update: Update, context: ContextTypes.DEFAULT_TYPE
         return True
 
     if state == "blocked":
+        await update.message.reply_text(
+            "Sorry, your access has been denied. "
+            "Contact the admin if you think this is a mistake."
+        )
         return False
 
     if state == "pending":
         await update.message.reply_text(
-            "Your registration is pending approval. "
-            "An admin will review your request shortly."
+            "Still waiting for admin approval. Hang tight — "
+            "you'll get a message as soon as you're in!\n\n"
+            "Send /start anytime to check your status."
         )
         return False
 
@@ -221,14 +231,23 @@ async def handle_registration(update: Update, context: ContextTypes.DEFAULT_TYPE
         last_name=user.last_name,
     )
     await update.message.reply_text(
-        f"Welcome! You've been registered.\n\n"
-        "An admin needs to approve your access before you can start chatting. "
-        "Please wait for approval."
+        "Welcome to AmanClaw!\n\n"
+        "I'm a smart AI assistant that can remember things about you, "
+        "analyze photos, set reminders, and much more.\n\n"
+        "Your registration has been sent to an admin for approval. "
+        "You'll be notified as soon as you're approved — usually within minutes!\n\n"
+        "Send /start anytime to check your status."
     )
 
-    # Notify all admins
+    # Notify all admins with inline approve/block buttons
     admin_ids = config.get("admin_users", {}).get("telegram", [])
     name = escape_markdown(user.first_name or user.username or user_id)
+    admin_keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("Approve", callback_data=f"adm_approve_{user_id}"),
+            InlineKeyboardButton("Block", callback_data=f"adm_block_{user_id}"),
+        ]
+    ])
     for admin_id in admin_ids:
         try:
             await context.bot.send_message(
@@ -237,10 +256,10 @@ async def handle_registration(update: Update, context: ContextTypes.DEFAULT_TYPE
                     f"*New user registration:*\n\n"
                     f"Name: {name}\n"
                     f"Username: @{escape_markdown(user.username or 'none')}\n"
-                    f"User ID: `{user_id}`\n\n"
-                    f"Use `/approve {user_id}` to approve or `/block {user_id}` to block."
+                    f"User ID: `{user_id}`"
                 ),
                 parse_mode=ParseMode.MARKDOWN,
+                reply_markup=admin_keyboard,
             )
         except Exception as e:
             logger.error(f"Failed to notify admin {admin_id}: {e}")
@@ -412,6 +431,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await handle_registration(update, context):
         return
 
+    # Check if user is in /addskill flow
+    if user_id in _addskill_state:
+        await _handle_addskill_step(update, context, user_id, message_text)
+        return
+
     if not rate_limiter.check(user_id):
         await update.message.reply_text("Slow down — too many messages. Try again in a minute.")
         return
@@ -442,7 +466,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         history, facts, summary, knowledge_context = await build_context(user_id, clean_text)
         response = await llm.respond(clean_text, history, flagged=was_flagged,
                                      facts=facts, summary=summary,
-                                     knowledge_context=knowledge_context)
+                                     knowledge_context=knowledge_context,
+                                     user_id=user_id)
     except Exception as e:
         logger.error(f"LLM error: {e}")
         response = "Something went wrong talking to the AI. Try again in a moment."
@@ -452,6 +477,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     memory.save_exchange(user_id, "telegram", message_text, response)
 
+    # Mark user as onboarded after first successful interaction
+    if not memory.get_facts(user_id).get("onboarded"):
+        memory.save_fact(user_id, "onboarded", "true")
+
     # Background knowledge extraction (non-blocking)
     asyncio.create_task(extract_and_save_knowledge(user_id, message_text, response))
 
@@ -460,6 +489,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         learning_engine.log_failure(user_id, "llm_response", {"message": clean_text[:200]}, response[:500])
 
     await send_long_reply(update.message, response, with_actions=True)
+
+    # Smart failure detection — suggest /addskill if bot lacks capability
+    _capability_fail_patterns = [
+        "can't access", "cannot access", "don't have access",
+        "no tool", "not available", "unable to fetch",
+        "can't fetch", "cannot fetch", "don't have a tool",
+        "no built-in", "don't have built-in",
+        "tidak dapat", "tidak boleh", "tiada akses",
+    ]
+    response_lower = response.lower()
+    if any(p in response_lower for p in _capability_fail_patterns):
+        await update.message.reply_text(
+            "Want me to learn how to do this? "
+            "You can add an API integration with /addskill",
+        )
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -505,7 +549,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         history, facts, summary, knowledge_context = await build_context(user_id)
         response = await llm.respond(vision_msg, history, flagged=was_flagged,
                                      facts=facts, summary=summary,
-                                     knowledge_context=knowledge_context)
+                                     knowledge_context=knowledge_context,
+                                     user_id=user_id)
     except Exception as e:
         logger.error(f"Vision error: {e}")
         response = "I couldn't process that image. Try again or send a text message instead."
@@ -544,31 +589,26 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user = update.effective_user
     facts = memory.get_facts(user_id)
+    is_onboarded = facts.get("onboarded") == "true"
     name = escape_markdown(facts.get("name", user.first_name or "there"))
 
-    keyboard = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("Skills", callback_data="skills"),
-            InlineKeyboardButton("Status", callback_data="status"),
-        ],
-        [
-            InlineKeyboardButton("Clear History", callback_data="clear"),
-            InlineKeyboardButton("Export Chat", callback_data="export"),
-        ],
-    ])
-
-    await update.message.reply_text(
-        f"Hey {name}! AmanClaw is ready.\n\n"
-        "Just send me a message, photo, or use the buttons below.\n\n"
-        "*Commands:*\n"
-        "/skills — available skills\n"
-        "/clear — clear conversation history\n"
-        "/status — memory stats\n"
-        "/export — export conversation\n"
-        "/myid — your Telegram user ID",
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=keyboard,
-    )
+    if is_onboarded:
+        # Returning user — show utility menu
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("Clear History", callback_data="clear"),
+                InlineKeyboardButton("Export Chat", callback_data="export"),
+            ],
+        ])
+        await update.message.reply_text(
+            f"Hey {name}! AmanClaw is ready.\n\n"
+            "Just send me a message, photo, or voice note.",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=keyboard,
+        )
+    else:
+        # First time after approval — show welcome with try-me buttons
+        await send_approval_welcome(context, user_id)
 
 
 async def cmd_skills(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -656,31 +696,7 @@ async def cmd_approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target_id = context.args[0]
     if memory.approve_user(target_id):
         await update.message.reply_text(f"User `{target_id}` approved.", parse_mode=ParseMode.MARKDOWN)
-        # Send onboarding message to the user
-        try:
-            onboard_keyboard = InlineKeyboardMarkup([
-                [
-                    InlineKeyboardButton("Set my name", callback_data="onboard_name"),
-                    InlineKeyboardButton("Set language", callback_data="onboard_lang"),
-                ],
-                [
-                    InlineKeyboardButton("What can you do?", callback_data="skills"),
-                ],
-            ])
-            await context.bot.send_message(
-                chat_id=int(target_id),
-                text=(
-                    "Your access has been approved! Welcome to AmanClaw.\n\n"
-                    "Let's get you set up. You can:\n"
-                    "- Tell me your name so I remember you\n"
-                    "- Choose your preferred language\n"
-                    "- Or just start chatting right away!\n\n"
-                    "Use the buttons below to get started."
-                ),
-                reply_markup=onboard_keyboard,
-            )
-        except Exception:
-            pass
+        await send_approval_welcome(context, target_id)
     else:
         user = memory.get_user(target_id)
         if not user:
@@ -791,7 +807,286 @@ async def cmd_forget(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await reply_with_markdown(update.message, result)
 
 
+# --- User Skill Management Commands ---
+
+async def cmd_myskills(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """List user's custom skills."""
+    user_id = str(update.effective_user.id)
+    if not await handle_registration(update, context):
+        return
+    skills = memory.get_user_skills(user_id)
+    own = [s for s in skills if s["user_id"] == user_id]
+    if not own:
+        await update.message.reply_text(
+            "You don't have any custom skills yet.\n"
+            "Use /addskill to create one!"
+        )
+        return
+    lines = ["Your Skills:\n"]
+    for s in own:
+        status = "private" if s["is_private"] else ("approved" if s["is_approved"] else "pending review")
+        lines.append(f"- {s['name']}: {s['description']} [{status}]")
+    await update.message.reply_text("\n".join(lines))
+
+
+async def cmd_delskill(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Delete a user skill."""
+    user_id = str(update.effective_user.id)
+    if not await handle_registration(update, context):
+        return
+    if not context.args:
+        await update.message.reply_text("Usage: /delskill <skill_name>")
+        return
+    name = context.args[0]
+    if memory.delete_user_skill(user_id, name):
+        await update.message.reply_text(f"Skill '{name}' deleted.")
+    else:
+        await update.message.reply_text(f"Skill '{name}' not found.")
+
+
+async def cmd_publish(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Submit a skill to the community marketplace."""
+    user_id = str(update.effective_user.id)
+    if not await handle_registration(update, context):
+        return
+    if not context.args:
+        await update.message.reply_text("Usage: /publish <skill_name>")
+        return
+    name = context.args[0]
+    if memory.publish_user_skill(user_id, name):
+        await update.message.reply_text(
+            f"Skill '{name}' submitted for review!\n"
+            "An admin will review it shortly."
+        )
+        # Notify admins
+        admin_ids = config.get("admin_users", {}).get("telegram", [])
+        skill = memory.get_user_skill_by_name(name, user_id)
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("Approve", callback_data=f"appskill_{name}_{user_id}"),
+                InlineKeyboardButton("Reject", callback_data=f"rejskill_{name}_{user_id}"),
+            ]
+        ])
+        for admin_id in admin_ids:
+            try:
+                await context.bot.send_message(
+                    chat_id=int(admin_id),
+                    text=(
+                        f"Skill submitted for marketplace:\n\n"
+                        f"Name: {name}\n"
+                        f"By: {user_id}\n"
+                        f"Description: {skill['description']}\n"
+                        f"URL: {skill['url_template']}\n"
+                        f"Method: {skill['method']}"
+                    ),
+                    reply_markup=keyboard,
+                )
+            except Exception:
+                pass
+    else:
+        await update.message.reply_text(f"Skill '{name}' not found or already published.")
+
+
+async def cmd_marketplace(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Browse community skills."""
+    user_id = str(update.effective_user.id)
+    if not await handle_registration(update, context):
+        return
+    skills = memory.get_marketplace_skills()
+    if not skills:
+        await update.message.reply_text("No community skills available yet. Be the first — use /addskill!")
+        return
+    lines = ["Community Marketplace:\n"]
+    for s in skills:
+        lines.append(f"- {s['name']}: {s['description']}")
+    lines.append("\nAll marketplace skills are automatically available to you!")
+    await update.message.reply_text("\n".join(lines))
+
+
 # --- Inline Keyboard Callback ---
+
+async def send_approval_welcome(context: ContextTypes.DEFAULT_TYPE, user_id: str):
+    """Send the post-approval welcome message with try-me buttons."""
+    welcome_keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("Tell me your name", callback_data="try_name"),
+            InlineKeyboardButton("Analyze a photo", callback_data="try_photo"),
+        ],
+        [
+            InlineKeyboardButton("Set a reminder", callback_data="try_reminder"),
+            InlineKeyboardButton("How do I teach you?", callback_data="try_teach"),
+        ],
+        [
+            InlineKeyboardButton("Set language", callback_data="onboard_lang"),
+        ],
+    ])
+    try:
+        await context.bot.send_message(
+            chat_id=int(user_id),
+            text=(
+                "You're approved! Welcome to AmanClaw.\n\n"
+                "I'm your personal AI assistant. Here's what I can do:\n\n"
+                "I remember things about you across conversations\n"
+                "Send me a photo and I'll analyze it\n"
+                "I can set reminders for you\n"
+                "Teach me custom rules and I'll follow them\n\n"
+                "Try one of these to get started, or just say hi!"
+            ),
+            reply_markup=welcome_keyboard,
+        )
+    except Exception as e:
+        logger.error(f"Failed to send welcome to {user_id}: {e}")
+
+
+# --- /addskill conversational flow ---
+
+async def cmd_addskill(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /addskill — start the skill creation flow."""
+    user_id = str(update.effective_user.id)
+    if not await handle_registration(update, context):
+        return
+
+    _addskill_state[user_id] = {"step": "describe"}
+    await update.message.reply_text(
+        "Let's create a new skill!\n\n"
+        "First, describe what you want in one sentence.\n"
+        "For example: \"Get weather info for any city\" or "
+        "\"Convert currencies\"\n\n"
+        "Send /cancel to stop at any time."
+    )
+
+
+async def _handle_addskill_step(update: Update, context: ContextTypes.DEFAULT_TYPE,
+                                 user_id: str, text: str):
+    """Handle each step of the /addskill conversation."""
+    if text.strip().lower() == "/cancel":
+        del _addskill_state[user_id]
+        await update.message.reply_text("Skill creation cancelled.")
+        return
+
+    state = _addskill_state[user_id]
+    step = state["step"]
+
+    if step == "describe":
+        state["description"] = text.strip()
+        state["step"] = "name"
+        await update.message.reply_text(
+            f"Got it: \"{text.strip()}\"\n\n"
+            "What should this skill be called? Use a short name "
+            "(lowercase, no spaces, e.g. \"weather\", \"currency\", \"news\")"
+        )
+
+    elif step == "name":
+        name = text.strip().lower().replace(" ", "_")
+        if not re.match(r'^[a-z][a-z0-9_]{1,30}$', name):
+            await update.message.reply_text(
+                "Name must be lowercase letters/numbers/underscores, 2-31 chars. Try again."
+            )
+            return
+        from amanclaw.skills import REGISTRY
+        if name in REGISTRY or f"uskill_{name}" in REGISTRY:
+            await update.message.reply_text(
+                f"'{name}' conflicts with a built-in skill. Choose a different name."
+            )
+            return
+        state["name"] = name
+        state["step"] = "url"
+        await update.message.reply_text(
+            "Now provide the API URL.\n\n"
+            "Use {param} for dynamic parts. Examples:\n"
+            "- https://api.example.com/weather?city={city}\n"
+            "- https://api.example.com/v1/{endpoint}\n\n"
+            "If you have API documentation, just paste the URL and I'll parse it."
+        )
+
+    elif step == "url":
+        url = text.strip()
+        if not url.startswith("http://") and not url.startswith("https://"):
+            await update.message.reply_text("URL must start with http:// or https://. Try again.")
+            return
+        state["url_template"] = url
+        params_found = re.findall(r'\{(\w+)\}', url)
+        state["auto_params"] = params_found
+        state["step"] = "method"
+
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("GET", callback_data="addskill_method_GET"),
+                InlineKeyboardButton("POST", callback_data="addskill_method_POST"),
+            ]
+        ])
+        await update.message.reply_text(
+            f"URL: {url}\n"
+            f"Parameters detected: {', '.join(params_found) if params_found else 'none'}\n\n"
+            "What HTTP method does this API use?",
+            reply_markup=keyboard,
+        )
+
+    elif step == "params":
+        if text.strip().lower() in ("ok", "none", "skip"):
+            state["parameters"] = {p: {"type": "string", "description": p}
+                                   for p in state.get("auto_params", []) if p != "api_key"}
+        else:
+            try:
+                params = {}
+                for line in text.strip().split("\n"):
+                    if ":" in line:
+                        pname, pdesc = line.split(":", 1)
+                        params[pname.strip()] = {
+                            "type": "string",
+                            "description": pdesc.strip(),
+                        }
+                for p in state.get("auto_params", []):
+                    if p not in params and p != "api_key":
+                        params[p] = {"type": "string", "description": p}
+                state["parameters"] = params
+            except Exception:
+                state["parameters"] = {p: {"type": "string", "description": p}
+                                       for p in state.get("auto_params", []) if p != "api_key"}
+
+        state["step"] = "apikey"
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("No API key needed", callback_data="addskill_nokey"),
+                InlineKeyboardButton("Yes, I have a key", callback_data="addskill_haskey"),
+            ]
+        ])
+        await update.message.reply_text(
+            "Does this API require an API key?",
+            reply_markup=keyboard,
+        )
+
+    elif step == "apikey_input":
+        state["api_key"] = text.strip()
+        state["step"] = "confirm"
+        await _show_addskill_confirmation(update, state)
+
+    elif step == "response_format":
+        state["response_format"] = text.strip()
+        state["step"] = "confirm"
+        await _show_addskill_confirmation(update, state)
+
+
+async def _show_addskill_confirmation(update_or_query, state: dict):
+    """Show the skill summary for confirmation."""
+    summary = (
+        f"Skill Summary:\n\n"
+        f"Name: {state['name']}\n"
+        f"Description: {state['description']}\n"
+        f"URL: {state['url_template']}\n"
+        f"Method: {state.get('method', 'GET')}\n"
+        f"Parameters: {', '.join(state.get('parameters', {}).keys()) or 'none'}\n"
+        f"API Key: {'yes (stored securely)' if state.get('api_key') else 'none'}"
+    )
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("Create Skill", callback_data="addskill_confirm"),
+            InlineKeyboardButton("Cancel", callback_data="addskill_cancel"),
+        ]
+    ])
+    msg = update_or_query.message if hasattr(update_or_query, 'message') and update_or_query.message else update_or_query
+    await msg.reply_text(summary, reply_markup=keyboard)
+
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle inline keyboard button presses."""
@@ -799,6 +1094,170 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     user_id = str(query.from_user.id)
+
+    # --- Admin approval callbacks (no auth_check — admins act on other users) ---
+    if query.data.startswith("adm_approve_"):
+        if not auth.is_admin(user_id, "telegram"):
+            await query.answer("Not authorized.", show_alert=True)
+            return
+        target_id = query.data.replace("adm_approve_", "")
+        if memory.approve_user(target_id):
+            await query.edit_message_text(
+                query.message.text + "\n\n*Approved*",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            await send_approval_welcome(context, target_id)
+        else:
+            await query.answer("User already processed.", show_alert=True)
+        return
+
+    if query.data.startswith("adm_block_"):
+        if not auth.is_admin(user_id, "telegram"):
+            await query.answer("Not authorized.", show_alert=True)
+            return
+        target_id = query.data.replace("adm_block_", "")
+        if memory.block_user(target_id):
+            await query.edit_message_text(
+                query.message.text + "\n\n*Blocked*",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+        else:
+            await query.answer("User already processed.", show_alert=True)
+        return
+
+    # --- Try-me onboarding callbacks ---
+    if query.data == "try_name":
+        await query.edit_message_text(
+            "Just send me a message telling me your name!\n\n"
+            "For example: \"My name is Sarah\" or \"Call me Alex\"\n\n"
+            "I'll remember it for all our future conversations."
+        )
+        return
+
+    if query.data == "try_photo":
+        await query.edit_message_text(
+            "Send me any photo and I'll analyze it!\n\n"
+            "I can describe what's in it, read text from images, "
+            "identify objects, and answer questions about it.\n\n"
+            "Try it now — just send a photo from your gallery."
+        )
+        return
+
+    if query.data == "try_reminder":
+        await query.edit_message_text(
+            "Just ask me to remind you of something!\n\n"
+            "For example:\n"
+            "\"Remind me to call the dentist in 2 hours\"\n"
+            "\"Remind me about the meeting at 3pm tomorrow\"\n\n"
+            "I'll send you a message when it's time."
+        )
+        return
+
+    if query.data == "try_teach":
+        await query.edit_message_text(
+            "You can teach me custom rules!\n\n"
+            "Use /teach followed by your rule. For example:\n"
+            "/teach Always reply in bullet points\n"
+            "/teach When I say 'brief', keep answers under 2 sentences\n\n"
+            "Use /learned to see what I've learned from you."
+        )
+        return
+
+    # --- Addskill flow callbacks ---
+    if query.data.startswith("addskill_method_"):
+        method = query.data.replace("addskill_method_", "")
+        if user_id in _addskill_state:
+            _addskill_state[user_id]["method"] = method
+            _addskill_state[user_id]["step"] = "params"
+            params = _addskill_state[user_id].get("auto_params", [])
+            if params:
+                await query.edit_message_text(
+                    f"Method: {method}\n\n"
+                    f"I found these parameters: {', '.join(params)}\n\n"
+                    "Describe each parameter (one per line):\n"
+                    "param_name: description\n\n"
+                    "Or just send 'ok' to use the defaults."
+                )
+            else:
+                await query.edit_message_text(
+                    f"Method: {method}\n\n"
+                    "List the parameters this API needs (one per line):\n"
+                    "param_name: description\n\n"
+                    "Or send 'none' if no parameters needed."
+                )
+        return
+
+    if query.data == "addskill_nokey":
+        if user_id in _addskill_state:
+            _addskill_state[user_id]["api_key"] = None
+            _addskill_state[user_id]["step"] = "confirm"
+            await query.edit_message_text("No API key needed.")
+            await _show_addskill_confirmation(query, _addskill_state[user_id])
+        return
+
+    if query.data == "addskill_haskey":
+        if user_id in _addskill_state:
+            _addskill_state[user_id]["step"] = "apikey_input"
+            await query.edit_message_text(
+                "Send me the API key. I'll store it securely and never show it again."
+            )
+        return
+
+    if query.data == "addskill_confirm":
+        if user_id in _addskill_state:
+            state = _addskill_state.pop(user_id)
+            skill_data = {
+                "name": state["name"],
+                "description": state["description"],
+                "url_template": state["url_template"],
+                "method": state.get("method", "GET"),
+                "parameters": state.get("parameters", {}),
+                "api_key_encrypted": state.get("api_key"),
+                "is_private": True,
+            }
+            memory.save_user_skill(user_id, skill_data)
+            await query.edit_message_text(
+                f"Skill '{state['name']}' created!\n\n"
+                f"Try it now — just ask me something that uses it.\n\n"
+                f"Commands:\n"
+                f"/myskills — view your skills\n"
+                f"/publish {state['name']} — submit to community marketplace\n"
+                f"/delskill {state['name']} — delete this skill"
+            )
+        return
+
+    if query.data == "addskill_cancel":
+        if user_id in _addskill_state:
+            del _addskill_state[user_id]
+        await query.edit_message_text("Skill creation cancelled.")
+        return
+
+    # --- Skill marketplace admin callbacks ---
+    if query.data.startswith("appskill_"):
+        if not auth.is_admin(user_id, "telegram"):
+            await query.answer("Not authorized.", show_alert=True)
+            return
+        parts = query.data.replace("appskill_", "").rsplit("_", 1)
+        skill_name, creator_id = parts[0], parts[1]
+        skill = memory.get_user_skill_by_name(skill_name, creator_id)
+        if skill and memory.approve_user_skill(skill["id"]):
+            await query.edit_message_text(
+                query.message.text + "\n\nApproved for marketplace"
+            )
+        return
+
+    if query.data.startswith("rejskill_"):
+        if not auth.is_admin(user_id, "telegram"):
+            await query.answer("Not authorized.", show_alert=True)
+            return
+        parts = query.data.replace("rejskill_", "").rsplit("_", 1)
+        skill_name, creator_id = parts[0], parts[1]
+        memory.delete_user_skill(creator_id, skill_name)
+        await query.edit_message_text(
+            query.message.text + "\n\nRejected and removed"
+        )
+        return
+
     if not auth_check(user_id):
         return
 
@@ -885,7 +1344,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_chat_action(chat_id=query.message.chat_id, action=ChatAction.TYPING)
 
         try:
-            response = await llm.respond(prompt, [], facts=memory.get_facts(user_id))
+            response = await llm.respond(prompt, [], facts=memory.get_facts(user_id), user_id=user_id)
         except Exception:
             response = "Sorry, something went wrong. Try again."
 
@@ -1060,6 +1519,11 @@ def main():
     rate_limiter = RateLimiter(config.get("rate_limit_per_minute", 20))
     llm = LLM(config.get("llm", {}))
 
+    # Initialize user skill manager
+    user_skill_mgr = UserSkillManager(memory)
+    set_user_skill_manager(user_skill_mgr)
+    logger.info("User skill manager initialized")
+
     # Validate admin_users
     admin_users = config.get("admin_users", {})
     has_admins = any(ids for ids in admin_users.values() if ids)
@@ -1146,6 +1610,11 @@ def main():
     app.add_handler(CommandHandler("teach", cmd_teach))
     app.add_handler(CommandHandler("learned", cmd_learned))
     app.add_handler(CommandHandler("forget", cmd_forget))
+    app.add_handler(CommandHandler("addskill", cmd_addskill))
+    app.add_handler(CommandHandler("myskills", cmd_myskills))
+    app.add_handler(CommandHandler("delskill", cmd_delskill))
+    app.add_handler(CommandHandler("publish", cmd_publish))
+    app.add_handler(CommandHandler("marketplace", cmd_marketplace))
     app.add_handler(CallbackQueryHandler(handle_callback))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_voice))

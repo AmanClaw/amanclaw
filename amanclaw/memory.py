@@ -186,6 +186,32 @@ class Memory:
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS user_skills (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL,
+                url_template TEXT NOT NULL,
+                method TEXT DEFAULT 'GET',
+                headers JSON DEFAULT '{}',
+                query_params JSON DEFAULT '{}',
+                body_template JSON,
+                response_mapping JSON,
+                response_format TEXT,
+                parameters JSON NOT NULL DEFAULT '{}',
+                api_key_encrypted TEXT,
+                is_private INTEGER DEFAULT 1,
+                is_approved INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'active',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_user_skills_name
+                ON user_skills(user_id, name);
+
+            CREATE INDEX IF NOT EXISTS idx_user_skills_marketplace
+                ON user_skills(is_private, is_approved, status);
         """)
         self.conn.commit()
 
@@ -976,6 +1002,106 @@ class Memory:
             (pattern_id,)
         )
         self.conn.commit()
+
+    # --- User Skills ---
+
+    def save_user_skill(self, user_id: str, skill_data: dict) -> int:
+        """Save a user-created skill. Returns the skill ID."""
+        cur = self.conn.execute(
+            """INSERT OR REPLACE INTO user_skills
+               (user_id, name, description, url_template, method, headers,
+                query_params, body_template, response_mapping, response_format,
+                parameters, api_key_encrypted, is_private)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (user_id, skill_data["name"], skill_data["description"],
+             skill_data["url_template"], skill_data.get("method", "GET"),
+             json.dumps(skill_data.get("headers", {})),
+             json.dumps(skill_data.get("query_params", {})),
+             json.dumps(skill_data.get("body_template")),
+             json.dumps(skill_data.get("response_mapping")),
+             skill_data.get("response_format"),
+             json.dumps(skill_data.get("parameters", {})),
+             skill_data.get("api_key_encrypted"),
+             1 if skill_data.get("is_private", True) else 0),
+        )
+        self.conn.commit()
+        return cur.lastrowid
+
+    def get_user_skills(self, user_id: str) -> list[dict]:
+        """Get all active skills for a user (their own + approved marketplace skills)."""
+        rows = self.conn.execute(
+            """SELECT * FROM user_skills
+               WHERE status = 'active' AND (
+                   (user_id = ?) OR
+                   (is_private = 0 AND is_approved = 1)
+               )""",
+            (user_id,),
+        ).fetchall()
+        cols = [d[0] for d in self.conn.execute("SELECT * FROM user_skills LIMIT 0").description]
+        return [dict(zip(cols, r)) for r in rows]
+
+    def get_user_skill_by_name(self, name: str, user_id: str) -> dict | None:
+        """Get a specific skill by name, checking user's own + marketplace."""
+        row = self.conn.execute(
+            """SELECT * FROM user_skills
+               WHERE name = ? AND status = 'active' AND (
+                   (user_id = ?) OR
+                   (is_private = 0 AND is_approved = 1)
+               ) LIMIT 1""",
+            (name, user_id),
+        ).fetchone()
+        if not row:
+            return None
+        cols = [d[0] for d in self.conn.execute("SELECT * FROM user_skills LIMIT 0").description]
+        return dict(zip(cols, row))
+
+    def delete_user_skill(self, user_id: str, name: str) -> bool:
+        """Delete a user's skill."""
+        cur = self.conn.execute(
+            "DELETE FROM user_skills WHERE user_id = ? AND name = ?",
+            (user_id, name),
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def approve_user_skill(self, skill_id: int) -> bool:
+        """Admin: approve a skill for marketplace."""
+        cur = self.conn.execute(
+            "UPDATE user_skills SET is_approved = 1, is_private = 0 WHERE id = ?",
+            (skill_id,),
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def get_marketplace_skills(self) -> list[dict]:
+        """Get all approved marketplace skills."""
+        rows = self.conn.execute(
+            """SELECT id, name, description, user_id, created_at
+               FROM user_skills
+               WHERE is_private = 0 AND is_approved = 1 AND status = 'active'""",
+        ).fetchall()
+        return [{"id": r[0], "name": r[1], "description": r[2],
+                 "creator": r[3], "created_at": r[4]} for r in rows]
+
+    def get_pending_skills(self) -> list[dict]:
+        """Admin: get skills pending approval."""
+        rows = self.conn.execute(
+            """SELECT id, user_id, name, description, url_template, method, created_at
+               FROM user_skills
+               WHERE is_private = 0 AND is_approved = 0 AND status = 'active'""",
+        ).fetchall()
+        return [{"id": r[0], "user_id": r[1], "name": r[2], "description": r[3],
+                 "url_template": r[4], "method": r[5], "created_at": r[6]} for r in rows]
+
+    def publish_user_skill(self, user_id: str, name: str) -> bool:
+        """Mark a skill as submitted for marketplace review."""
+        cur = self.conn.execute(
+            """UPDATE user_skills SET is_private = 0, is_approved = 0
+               WHERE user_id = ? AND name = ? AND is_private = 1""",
+            (user_id, name),
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
 
     def update_behavioral_pattern(self, pattern_id: int, confidence: float = None,
                                   description: str = None, evidence: str = None):
