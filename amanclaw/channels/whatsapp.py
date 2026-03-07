@@ -136,13 +136,8 @@ class WhatsAppAdapter(ChannelAdapter):
 
         # In groups, only respond when the bot is @mentioned
         if is_group:
-            mentioned_jids = data.get("mentioned_jids", [])
-            bot_jid = data.get("bot_jid", "")
-            bot_number = bot_jid.split(":")[0].split("@")[0] if bot_jid else ""
-            is_mentioned = bot_number and any(
-                bot_number in m for m in mentioned_jids
-            )
-            if not is_mentioned:
+            bot_mentioned = data.get("bot_mentioned", False)
+            if not bot_mentioned:
                 return web.json_response({"ok": True, "skipped": "not_mentioned"})
 
         user_id = phone or jid.split("@")[0]
