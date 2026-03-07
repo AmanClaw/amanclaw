@@ -78,3 +78,11 @@ learning:
 #   listen: "0.0.0.0"
 #   port: 8443
 #   # secret_token: loaded from WEBHOOK_SECRET env var
+
+# --- MCP Servers (optional) ---
+# mcp_servers:
+#   filesystem:
+#     command: "npx"
+#     args: ["-y", "@modelcontextprotocol/server-filesystem", "/home/user/docs"]
+#   my-api:
+#     url: "http://localhost:8080/sse"

@@ -43,6 +43,8 @@ from amanclaw.skills.scheduled import configure as configure_scheduled, set_cont
 from amanclaw.skills.documents import configure as configure_documents, set_learning_context as set_doc_learning_context
 from amanclaw.learning import LearningEngine
 from amanclaw.whatsapp import WhatsAppAdapter
+from amanclaw.mcp_client import MCPManager
+from amanclaw.skills import set_mcp_manager
 
 
 class JsonFormatter(logging.Formatter):
@@ -126,6 +128,7 @@ memory: Memory = None
 llm: LLM = None
 whatsapp: WhatsAppAdapter = None
 learning_engine: LearningEngine = None
+mcp_manager = None  # Optional MCP client
 
 
 # --- Helpers ---
@@ -1033,7 +1036,7 @@ async def checkin_job(context: ContextTypes.DEFAULT_TYPE):
 # --- Main ---
 
 def main():
-    global config, auth, rate_limiter, memory, llm, whatsapp, learning_engine
+    global config, auth, rate_limiter, memory, llm, whatsapp, learning_engine, mcp_manager
 
     logger.info("Starting AmanClaw...")
 
@@ -1076,6 +1079,13 @@ def main():
         from amanclaw.skills.remember import set_learning_engine
         set_learning_engine(learning_engine)
         logger.info("Learning engine initialized")
+
+    # --- MCP Client (optional) ---
+    if config.get("mcp_servers"):
+        mcp_manager = MCPManager(config)
+        asyncio.get_event_loop().run_until_complete(mcp_manager.start())
+        set_mcp_manager(mcp_manager)
+        logger.info("MCP client started")
 
     # --- WhatsApp (optional) ---
     wa_config = config.get("whatsapp", {})
@@ -1149,6 +1159,8 @@ def main():
         app.run_polling(allowed_updates=Update.ALL_TYPES)
 
     # Cleanup after run_polling returns (shutdown)
+    if mcp_manager:
+        asyncio.get_event_loop().run_until_complete(mcp_manager.stop())
     if memory:
         memory.close()
 
