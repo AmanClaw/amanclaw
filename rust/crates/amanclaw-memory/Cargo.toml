@@ -1,0 +1,14 @@
+[package]
+name = "amanclaw-memory"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+amanclaw-traits = { path = "../amanclaw-traits" }
+sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
+tokio = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+chrono = { version = "0.4", features = ["serde"] }
