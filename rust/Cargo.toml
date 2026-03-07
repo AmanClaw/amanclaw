@@ -8,6 +8,7 @@ members = [
     "crates/amanclaw-memory",
     "crates/amanclaw-llm",
     "crates/amanclaw-wasm-runtime",
+    "crates/amanclaw-plugin-sdk",
 ]
 
 [workspace.package]

@@ -1,0 +1,53 @@
+package amanclaw:skill;
+
+interface types {
+    record skill-metadata {
+        name: string,
+        description: string,
+        timeout-ms: u32,
+        version: string,
+    }
+
+    record skill-input {
+        name: string,
+        args: string,
+        user-id: string,
+        platform: string,
+    }
+
+    record skill-result {
+        success: bool,
+        output: string,
+        error: option<string>,
+    }
+
+    record http-request {
+        url: string,
+        method: string,
+        headers: list<tuple<string, string>>,
+        body: option<string>,
+    }
+
+    record http-response {
+        status: u16,
+        body: string,
+    }
+}
+
+interface host {
+    use types.{http-request, http-response};
+
+    http-fetch: func(req: http-request) -> result<http-response, string>;
+    log: func(level: string, message: string);
+    get-config: func(key: string) -> option<string>;
+    get-secret: func(key: string) -> option<string>;
+}
+
+world skill {
+    import host;
+    use types.{skill-metadata, skill-input, skill-result};
+
+    export metadata: func() -> skill-metadata;
+    export execute: func(input: skill-input) -> skill-result;
+    export parameters: func() -> string;
+}
