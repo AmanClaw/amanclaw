@@ -18,6 +18,7 @@ dependencies = [
 
 [project.optional-dependencies]
 pdf = ["pypdf>=4.0,<5"]
+discord = ["discord.py>=2.3"]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
