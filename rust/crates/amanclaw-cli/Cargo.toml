@@ -9,8 +9,10 @@ path = "src/main.rs"
 
 [dependencies]
 amanclaw-core = { path = "../amanclaw-core" }
+amanclaw-traits = { path = "../amanclaw-traits" }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 serde_yaml = { workspace = true }
 anyhow = { workspace = true }
+dotenvy = "0.15"

@@ -16,7 +16,9 @@ name = "amanclaw-cli"
 version = "0.1.0"
 dependencies = [
  "amanclaw-core",
+ "amanclaw-traits",
  "anyhow",
+ "dotenvy",
  "serde_yaml",
  "tokio",
  "tracing",
@@ -40,8 +42,12 @@ dependencies = [
 name = "amanclaw-traits"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "async-trait",
  "serde",
  "serde_json",
+ "serde_yaml",
+ "tokio",
 ]
 
 [[package]]
@@ -49,6 +55,17 @@ name = "anyhow"
 version = "1.0.102"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
+
+[[package]]
+name = "async-trait"
+version = "0.1.89"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9035ad2d096bed7955a320ee7e2230574d28fd3c3a0f186cbea1ff3c7eed5dbb"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "bitflags"
@@ -67,6 +84,12 @@ name = "cfg-if"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
+
+[[package]]
+name = "dotenvy"
+version = "0.15.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1aaf95b3e5c8f23aa320147307562d361db0ae0d51242340f558153b4eb2439b"
 
 [[package]]
 name = "equivalent"
