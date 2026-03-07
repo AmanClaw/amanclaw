@@ -10,6 +10,8 @@ members = [
     "crates/amanclaw-wasm-runtime",
     "crates/amanclaw-plugin-sdk",
     "plugins/skill-sysinfo",
+    "plugins/skill-websearch",
+    "plugins/skill-shell",
 ]
 
 [workspace.package]
