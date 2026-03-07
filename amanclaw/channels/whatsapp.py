@@ -129,20 +129,18 @@ class WhatsAppAdapter(ChannelAdapter):
         name = data.get("name", "")
         is_group = data.get("is_group", False)
 
+        message_id = data.get("message_id")
+
         if not jid or not text:
             return web.json_response({"error": "Missing jid or text"}, status=400)
 
-        if is_group and self.ignore_groups:
-            return web.json_response({"ok": True, "skipped": "group"})
-
-        # In groups, only respond when the bot is mentioned
-        mentioned_jids = data.get("mentioned_jids", [])
-        bot_jid = data.get("bot_jid", "")
-        message_id = data.get("message_id")
-        if is_group and not self.ignore_groups:
+        # In groups, only respond when the bot is @mentioned
+        if is_group:
+            mentioned_jids = data.get("mentioned_jids", [])
+            bot_jid = data.get("bot_jid", "")
             bot_number = bot_jid.split(":")[0].split("@")[0] if bot_jid else ""
-            is_mentioned = any(
-                bot_number and bot_number in jid for jid in mentioned_jids
+            is_mentioned = bot_number and any(
+                bot_number in m for m in mentioned_jids
             )
             if not is_mentioned:
                 return web.json_response({"ok": True, "skipped": "not_mentioned"})
@@ -157,16 +155,37 @@ class WhatsAppAdapter(ChannelAdapter):
 
         return web.json_response({"ok": True})
 
+    @staticmethod
+    def _markdown_to_whatsapp(text: str) -> str:
+        """Convert common Markdown formatting to WhatsApp formatting.
+
+        Markdown -> WhatsApp:
+          **bold** or __bold__  -> *bold*
+          *italic* or _italic_  -> _italic_  (already compatible)
+          ~~strike~~            -> ~strike~
+          ### Heading           -> *Heading*
+          ## Heading            -> *Heading*
+          # Heading             -> *Heading*
+        """
+        import re
+        # Headers -> bold (must be before bold conversion)
+        text = re.sub(r'^#{1,3}\s+(.+)$', r'*\1*', text, flags=re.MULTILINE)
+        # **bold** -> *bold*
+        text = re.sub(r'\*\*(.+?)\*\*', r'*\1*', text)
+        # __bold__ -> *bold*
+        text = re.sub(r'__(.+?)__', r'*\1*', text)
+        # ~~strike~~ -> ~strike~
+        text = re.sub(r'~~(.+?)~~', r'~\1~', text)
+        return text
+
     async def _process_message(self, user_id: str, jid: str, name: str, text: str, is_group: bool = False, quote_id: str | None = None):
         """Process a WhatsApp message through the MessageProcessor pipeline."""
         try:
+            import re
             # Strip the @mention from the text so the LLM gets a clean message
-            clean_text = text
-            if is_group and quote_id:
-                import re
-                clean_text = re.sub(r'@\d+', '', text).strip()
-                if not clean_text:
-                    clean_text = text
+            clean_text = re.sub(r'@\d+', '', text).strip() if is_group else text
+            if not clean_text:
+                clean_text = text
 
             incoming = IncomingMessage(
                 user_id=user_id,
@@ -179,12 +198,13 @@ class WhatsAppAdapter(ChannelAdapter):
 
             result = await self.processor.process(incoming)
             if result:
-                await self._send_text(jid, result.text, quote_id=quote_id)
+                reply = self._markdown_to_whatsapp(result.text)
+                await self._send_text(jid, reply, quote_id=quote_id)
 
         except Exception as e:
             logger.error(f"Error processing WhatsApp message from {user_id}: {e}", exc_info=True)
             try:
-                await self._send_text(jid, "Something went wrong. Try again in a moment.")
+                await self._send_text(jid, "_Something went wrong. Please try again in a moment._")
             except Exception:
                 pass
 
