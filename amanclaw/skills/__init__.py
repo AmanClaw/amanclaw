@@ -101,23 +101,7 @@ def execute(tool_name: str, tool_input: dict, user_id: str = None) -> str:
 
     # Check MCP for prefixed tools
     if _mcp_manager and _mcp_manager.has_tool(tool_name):
-        # MCP tools are async — run in event loop
-        import asyncio
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
-        if loop and loop.is_running():
-            # We're already in an async context - create a future
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                result = pool.submit(
-                    asyncio.run, _mcp_manager.execute(tool_name, tool_input)
-                ).result(timeout=30)
-            return result
-        else:
-            return asyncio.run(_mcp_manager.execute(tool_name, tool_input))
+        return _mcp_manager.execute(tool_name, tool_input)
 
     if tool_name not in REGISTRY:
         return f"Error: Unknown skill '{tool_name}'"

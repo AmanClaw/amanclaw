@@ -25,8 +25,8 @@ COPY config.example.yaml ./config.example.yaml
 # Install the actual package
 RUN pip install --no-cache-dir .
 
-# Pre-install Anthropic MCP fetch server so npx doesn't download every time
-RUN npx -y @anthropic/server-fetch --help 2>/dev/null || true
+# Install MCP fetch server
+RUN pip install --no-cache-dir mcp-server-fetch
 
 # Create workspace and data directories owned by app user
 RUN mkdir -p /data /home/amanclaw/amanclaw-workspace && \

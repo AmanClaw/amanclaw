@@ -303,7 +303,7 @@ def main():
     # MCP Client
     mcp_manager = MCPManager(config)
     if config.get("mcp_servers"):
-        asyncio.get_event_loop().run_until_complete(mcp_manager.start())
+        mcp_manager.start()
     set_mcp_manager(mcp_manager)
     logger.info("MCP client initialized")
 

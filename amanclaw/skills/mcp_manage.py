@@ -3,10 +3,9 @@ MCP server management skill — add, remove, list MCP servers at runtime.
 Admin-only. Changes persist to config.yaml.
 """
 
-import asyncio
 import json
 import logging
-from amanclaw.skills import skill, _mcp_manager
+from amanclaw.skills import skill
 
 logger = logging.getLogger("amanclaw.skills.mcp_manage")
 
@@ -17,21 +16,6 @@ def _get_manager():
     if not _mcp_manager:
         return None
     return _mcp_manager
-
-
-def _run_async(coro):
-    """Run an async function from sync context."""
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-
-    if loop and loop.is_running():
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            return pool.submit(asyncio.run, coro).result(timeout=30)
-    else:
-        return asyncio.run(coro)
 
 
 @skill(
@@ -108,7 +92,7 @@ def mcp_add_server(name: str, command: str = None, args: str = None, url: str = 
         except json.JSONDecodeError:
             return "Error: 'env' must be valid JSON (e.g., '{\"KEY\": \"value\"}')"
 
-    return _run_async(mgr.add_server(name, cfg))
+    return mgr.add_server(name, cfg)
 
 
 @skill(
@@ -127,4 +111,4 @@ def mcp_remove_server(name: str) -> str:
     mgr = _get_manager()
     if not mgr:
         return "MCP is not initialized."
-    return _run_async(mgr.remove_server(name))
+    return mgr.remove_server(name)
