@@ -4,6 +4,7 @@ members = [
     "crates/amanclaw-cli",
     "crates/amanclaw-core",
     "crates/amanclaw-traits",
+    "crates/amanclaw-security",
 ]
 
 [workspace.package]
