@@ -45,7 +45,6 @@ from amanclaw.skills.reminder import configure as configure_reminder, set_contex
 from amanclaw.skills.scheduled import configure as configure_scheduled, set_context as set_scheduled_context
 from amanclaw.skills.documents import configure as configure_documents, set_learning_context as set_doc_learning_context
 from amanclaw.learning import LearningEngine
-from amanclaw.whatsapp import WhatsAppAdapter
 from amanclaw.mcp_client import MCPManager
 from amanclaw.skills import set_mcp_manager, set_user_skill_manager
 from amanclaw.skills.user_skills import UserSkillManager
@@ -1584,7 +1583,8 @@ def main():
     # --- WhatsApp (optional) ---
     wa_config = config.get("whatsapp", {})
     if wa_config.get("enabled"):
-        whatsapp = WhatsAppAdapter(config, auth, rate_limiter, memory, llm)
+        from amanclaw.channels.whatsapp import WhatsAppAdapter as WAAdapter
+        whatsapp = WAAdapter(config, processor)
         logger.info("WhatsApp adapter configured (will start with bot)")
 
     # --- Discord (optional) ---
