@@ -1,0 +1,8 @@
+[package]
+name = "amanclaw-skill-shell"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+amanclaw-plugin-sdk = { path = "../../crates/amanclaw-plugin-sdk" }
+serde_json = "1"
