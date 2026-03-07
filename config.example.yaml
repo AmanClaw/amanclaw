@@ -86,8 +86,6 @@ security:
   injection_rules: "default"     # "default" or "owasp_agentic"
   sanitize_output: true
 
-# Optional environment variables for extra skills:
-#   BRAVE_API_KEY — enables the web_search skill (get one at https://api.search.brave.com/)
 
 # Webhook mode (optional — uses polling by default)
 # Requires HTTPS. Use with a reverse proxy (nginx, caddy, etc.)
