@@ -14,7 +14,7 @@ import logging
 import aiohttp
 from aiohttp import web
 
-from amanclaw.channels import ChannelAdapter, IncomingMessage, OutgoingMessage
+from amanclaw.channels import ChannelAdapter, IncomingMessage, OutgoingMessage, extract_document_text, transcribe_voice
 
 logger = logging.getLogger("amanclaw.channels.whatsapp")
 
@@ -154,6 +154,7 @@ class WhatsAppAdapter(ChannelAdapter):
         # Decode media if present
         image_data = None
         doc_text = None
+        voice_text = None
         if media:
             import base64
             media_type = media.get("type")
@@ -165,17 +166,25 @@ class WhatsAppAdapter(ChannelAdapter):
                 image_data = media_bytes
                 logger.info(f"Received image ({len(media_bytes)} bytes) from {user_id}")
             elif media_type == "document":
-                doc_text = self._extract_document_text(media_bytes, mimetype, filename)
+                doc_text = extract_document_text(media_bytes, mimetype, filename)
                 if doc_text:
                     logger.info(f"Extracted {len(doc_text)} chars from document: {filename}")
                 else:
                     logger.warning(f"Could not extract text from document: {filename} ({mimetype})")
+            elif media_type == "audio":
+                import asyncio as _asyncio
+                loop = _asyncio.get_event_loop()
+                voice_text = await loop.run_in_executor(None, transcribe_voice, media_bytes, mimetype)
+                if voice_text:
+                    logger.info(f"Transcribed voice ({len(media_bytes)} bytes): {voice_text[:80]}")
+                else:
+                    logger.warning(f"Could not transcribe voice message from {user_id}")
 
         # Process in background so we don't block the bridge
         quote_id = message_id if is_group else None
         asyncio.create_task(self._process_message(
             user_id, jid, name, text or "", is_group, quote_id,
-            image_data=image_data, doc_text=doc_text,
+            image_data=image_data, doc_text=doc_text, voice_text=voice_text,
         ))
 
         return web.json_response({"ok": True})
@@ -203,33 +212,7 @@ class WhatsAppAdapter(ChannelAdapter):
         text = re.sub(r'~~(.+?)~~', r'~\1~', text)
         return text
 
-    @staticmethod
-    def _extract_document_text(data: bytes, mimetype: str, filename: str) -> str | None:
-        """Extract text content from a document."""
-        try:
-            if mimetype == "application/pdf" or filename.lower().endswith(".pdf"):
-                try:
-                    import fitz  # PyMuPDF
-                    doc = fitz.open(stream=data, filetype="pdf")
-                    text = "\n".join(page.get_text() for page in doc)
-                    doc.close()
-                    return text.strip() if text.strip() else None
-                except ImportError:
-                    logger.warning("PyMuPDF not installed — cannot read PDFs. Install with: pip install PyMuPDF")
-                    return None
-            elif mimetype in (
-                "text/plain", "text/csv", "text/markdown",
-                "application/json", "application/xml",
-            ) or filename.lower().endswith((".txt", ".csv", ".md", ".json", ".xml", ".log")):
-                return data.decode("utf-8", errors="replace").strip() or None
-            else:
-                logger.info(f"Unsupported document type: {mimetype} ({filename})")
-                return None
-        except Exception as e:
-            logger.error(f"Document extraction failed: {e}")
-            return None
-
-    async def _process_message(self, user_id: str, jid: str, name: str, text: str, is_group: bool = False, quote_id: str | None = None, image_data: bytes | None = None, doc_text: str | None = None):
+    async def _process_message(self, user_id: str, jid: str, name: str, text: str, is_group: bool = False, quote_id: str | None = None, image_data: bytes | None = None, doc_text: str | None = None, voice_text: str | None = None):
         """Process a WhatsApp message through the MessageProcessor pipeline."""
         try:
             import re
@@ -237,6 +220,10 @@ class WhatsAppAdapter(ChannelAdapter):
             clean_text = re.sub(r'@\d+', '', text).strip() if is_group else text
             if not clean_text:
                 clean_text = text
+
+            # If voice was transcribed, use the transcript as the message
+            if voice_text:
+                clean_text = voice_text
 
             # If document text was extracted, append it to the message
             if doc_text:

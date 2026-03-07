@@ -16,6 +16,7 @@ dependencies = [
     "python-dotenv>=1.0,<2",
     "mcp>=1.0",
     "PyMuPDF>=1.24",
+    "faster-whisper>=1.0",
     "amanclaw-learning @ file:packages/amanclaw-learning",
     "amanclaw-security @ file:packages/amanclaw-security",
 ]

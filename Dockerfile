@@ -6,7 +6,7 @@ RUN groupadd --gid 1000 amanclaw && \
 
 # System deps only — no build tools in final image
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends tini && \
+    apt-get install -y --no-install-recommends tini ffmpeg && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

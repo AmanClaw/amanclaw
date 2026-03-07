@@ -20,7 +20,7 @@ from telegram.ext import (
 from telegram.constants import ParseMode, ChatAction
 from telegram.helpers import escape_markdown
 
-from amanclaw.channels import ChannelAdapter, OutgoingMessage
+from amanclaw.channels import ChannelAdapter, OutgoingMessage, extract_document_text, transcribe_voice
 from amanclaw.security import sanitize
 from amanclaw.skills import get_skill_list, REGISTRY
 from amanclaw.skills.remember import set_current_user
@@ -346,14 +346,159 @@ class TelegramAdapter(ChannelAdapter):
         await self._send_long_reply(update.message, response)
 
     async def handle_voice(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle voice messages — acknowledge and ask for text."""
-        user_id = str(update.effective_user.id)
-        if not self.auth_check(user_id):
+        """Handle voice/audio messages — transcribe and process."""
+        user = update.effective_user
+        user_id = str(user.id)
+
+        if not await self._handle_registration(update, context):
             return
-        await update.message.reply_text(
-            "I can't process voice messages yet. "
-            "Please type your message instead, or send a photo for image analysis."
+
+        if not self.processor.rate_limiter.check(user_id):
+            await update.message.reply_text("Slow down — too many messages. Try again in a minute.")
+            return
+
+        voice = update.message.voice or update.message.audio
+        if not voice:
+            return
+
+        set_current_user(user_id)
+        set_reminder_context(user_id, str(update.effective_chat.id))
+        set_scheduled_context(user_id, str(update.effective_chat.id))
+        set_doc_learning_context(user_id, self.learning)
+
+        stop_typing = asyncio.Event()
+        typing_task = asyncio.create_task(
+            self._send_typing_periodically(context, update.effective_chat.id, stop_typing)
         )
+
+        try:
+            file = await context.bot.get_file(voice.file_id)
+            audio_bytes = await file.download_as_bytearray()
+            mimetype = voice.mime_type or "audio/ogg"
+
+            transcript = await asyncio.get_event_loop().run_in_executor(
+                None, transcribe_voice, bytes(audio_bytes), mimetype
+            )
+
+            if not transcript:
+                await update.message.reply_text(
+                    "Sorry, I couldn't understand that voice message. Please try again or type your message."
+                )
+                return
+
+            # Process transcript through the normal pipeline
+            history = self.memory.get_history(user_id)
+            facts = self.memory.get_facts(user_id)
+            summary = self.memory.get_latest_summary(user_id)
+            clean_text, was_flagged = sanitize(transcript)
+
+            response = await self.llm.respond(
+                clean_text, history, flagged=was_flagged,
+                facts=facts, summary=summary,
+                user_id=user_id,
+            )
+        except Exception as e:
+            logger.error(f"Voice handling error: {e}", exc_info=True)
+            response = "Sorry, I couldn't process that voice message. Try again."
+        finally:
+            stop_typing.set()
+            await typing_task
+
+        user_text = f"[Voice]: {transcript}" if transcript else "[Voice message]"
+        self.memory.save_exchange(user_id, "telegram", user_text, response)
+        asyncio.create_task(self.processor._extract_knowledge(user_id, user_text, response))
+        await self._send_long_reply(update.message, response)
+
+    async def handle_document(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle document messages — extract text and send to LLM for analysis."""
+        user = update.effective_user
+        user_id = str(user.id)
+
+        if not await self._handle_registration(update, context):
+            return
+
+        if not self.processor.rate_limiter.check(user_id):
+            await update.message.reply_text("Slow down — too many messages. Try again in a minute.")
+            return
+
+        doc = update.message.document
+        filename = doc.file_name or "document"
+        mimetype = doc.mime_type or "application/octet-stream"
+        caption = update.message.caption or ""
+
+        # Limit file size (10MB)
+        if doc.file_size and doc.file_size > 10 * 1024 * 1024:
+            await update.message.reply_text("File too large (max 10MB). Please send a smaller file.")
+            return
+
+        set_current_user(user_id)
+        set_reminder_context(user_id, str(update.effective_chat.id))
+        set_scheduled_context(user_id, str(update.effective_chat.id))
+        set_doc_learning_context(user_id, self.learning)
+
+        stop_typing = asyncio.Event()
+        typing_task = asyncio.create_task(
+            self._send_typing_periodically(context, update.effective_chat.id, stop_typing)
+        )
+
+        try:
+            file = await context.bot.get_file(doc.file_id)
+            file_bytes = await file.download_as_bytearray()
+
+            # Check if it's an image sent as document (compressed=off)
+            if mimetype and mimetype.startswith("image/"):
+                from amanclaw.llm import build_vision_message
+                vision_msg = build_vision_message(bytes(file_bytes), caption or None)
+
+                history = self.memory.get_history(user_id)
+                facts = self.memory.get_facts(user_id)
+                summary = self.memory.get_latest_summary(user_id)
+
+                response = await self.llm.respond(
+                    vision_msg, history, flagged=False,
+                    facts=facts, summary=summary,
+                    user_id=user_id,
+                )
+            else:
+                # Extract text from document
+                doc_text = extract_document_text(bytes(file_bytes), mimetype, filename)
+
+                if not doc_text:
+                    await update.message.reply_text(
+                        f"I can't read this file type yet ({mimetype}).\n"
+                        "Supported: PDF, TXT, CSV, JSON, MD, XML"
+                    )
+                    return
+
+                doc_preview = doc_text[:3000]
+                prefix = f"{caption}\n\n" if caption else ""
+                message = f"{prefix}[Document: {filename}]:\n{doc_preview}"
+
+                if caption:
+                    clean_text, was_flagged = sanitize(caption)
+                else:
+                    clean_text, was_flagged = message, False
+
+                history = self.memory.get_history(user_id)
+                facts = self.memory.get_facts(user_id)
+                summary = self.memory.get_latest_summary(user_id)
+
+                response = await self.llm.respond(
+                    message, history, flagged=was_flagged,
+                    facts=facts, summary=summary,
+                    user_id=user_id,
+                )
+        except Exception as e:
+            logger.error(f"Document handling error: {e}", exc_info=True)
+            response = "Sorry, I couldn't process that document. Try again."
+        finally:
+            stop_typing.set()
+            await typing_task
+
+        user_text = f"[Document: {filename}]{f': {caption}' if caption else ''}"
+        self.memory.save_exchange(user_id, "telegram", user_text, response)
+        asyncio.create_task(self.processor._extract_knowledge(user_id, user_text, response))
+        await self._send_long_reply(update.message, response)
 
     # ------------------------------------------------------------------ #
     #  Command Handlers                                                   #
@@ -1073,6 +1218,7 @@ class TelegramAdapter(ChannelAdapter):
         application.add_handler(CommandHandler("marketplace", self.cmd_marketplace))
         application.add_handler(CallbackQueryHandler(self.handle_callback))
         application.add_handler(MessageHandler(filters.PHOTO, self.handle_photo))
+        application.add_handler(MessageHandler(filters.Document.ALL, self.handle_document))
         application.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, self.handle_voice))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
 
