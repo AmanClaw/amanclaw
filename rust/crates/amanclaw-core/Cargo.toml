@@ -36,6 +36,10 @@ sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
 serde_yaml = { workspace = true }
 cron = "0.13"
 chrono-tz = "0.10"
+handlebars = "6"
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"
 
 [dev-dependencies]
 tokio = { workspace = true }

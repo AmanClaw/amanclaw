@@ -43,6 +43,9 @@ pub struct AppConfig {
 
     #[serde(default)]
     pub cron: CronConfig,
+
+    #[serde(default)]
+    pub webhooks: WebhookConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -230,6 +233,114 @@ pub struct CronTargetConfig {
 }
 
 fn default_cron_timezone() -> String { "Asia/Kuala_Lumpur".into() }
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct WebhookConfig {
+    #[serde(default = "default_webhook_base_path")]
+    pub base_path: String,
+
+    #[serde(default)]
+    pub default_secret: Option<String>,
+
+    #[serde(default)]
+    pub endpoints: HashMap<String, WebhookEndpointConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebhookEndpointConfig {
+    pub name: String,
+    pub path: String,
+
+    #[serde(default)]
+    pub auth: WebhookAuthConfig,
+
+    #[serde(default)]
+    pub transform: WebhookTransformConfig,
+
+    #[serde(default)]
+    pub targets: Vec<CronTargetConfig>,
+
+    #[serde(default)]
+    pub agent: Option<String>,
+
+    #[serde(default)]
+    pub rate_limit: Option<u32>,
+
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebhookAuthConfig {
+    #[serde(rename = "type", default = "default_webhook_auth_type")]
+    pub auth_type: String,
+
+    #[serde(default)]
+    pub secret: Option<String>,
+
+    #[serde(default)]
+    pub header: Option<String>,
+
+    #[serde(default)]
+    pub token: Option<String>,
+
+    #[serde(default)]
+    pub value: Option<String>,
+}
+
+impl Default for WebhookAuthConfig {
+    fn default() -> Self {
+        Self {
+            auth_type: default_webhook_auth_type(),
+            secret: None,
+            header: None,
+            token: None,
+            value: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebhookTransformConfig {
+    #[serde(rename = "type", default = "default_webhook_transform_type")]
+    pub transform_type: String,
+
+    #[serde(default)]
+    pub template: Option<String>,
+
+    #[serde(default)]
+    pub message_path: Option<String>,
+
+    #[serde(default)]
+    pub title_path: Option<String>,
+
+    #[serde(default)]
+    pub prompt_template: Option<String>,
+
+    #[serde(default)]
+    pub skill: Option<String>,
+
+    #[serde(default)]
+    pub input_template: Option<String>,
+}
+
+impl Default for WebhookTransformConfig {
+    fn default() -> Self {
+        Self {
+            transform_type: default_webhook_transform_type(),
+            template: None,
+            message_path: None,
+            title_path: None,
+            prompt_template: None,
+            skill: None,
+            input_template: None,
+        }
+    }
+}
+
+fn default_webhook_base_path() -> String { "/hooks".into() }
+fn default_webhook_auth_type() -> String { "none".into() }
+fn default_webhook_transform_type() -> String { "raw_json".into() }
 
 fn default_agent_id() -> String { "default".into() }
 fn default_rate_limit() -> u32 { 20 }
