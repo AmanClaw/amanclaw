@@ -106,7 +106,7 @@ admin_users:
 
 ## Architecture
 
-AmanClaw is a Cargo workspace with 14 crates (9 core + 5 plugins):
+AmanClaw is a Cargo workspace with 15 crates (10 core + 5 plugins):
 
 ```text
 rust/
@@ -119,7 +119,8 @@ rust/
 │   ├── amanclaw-memory/          # SQLite conversation, facts & summaries
 │   ├── amanclaw-llm/             # OpenAI-compatible LLM client + tool calling
 │   ├── amanclaw-wasm-runtime/    # WASM plugin loader, sandbox, runtime, watcher
-│   └── amanclaw-plugin-sdk/      # SDK + macro for WASM plugin authors
+│   ├── amanclaw-plugin-sdk/      # SDK + macro for WASM plugin authors
+│   └── amanclaw-mcp/            # MCP server (stdio + HTTP transports)
 ├── plugins/
 │   ├── skill-sysinfo/            # System info skill (built-in)
 │   ├── skill-websearch/          # DuckDuckGo search skill (built-in)
@@ -261,6 +262,46 @@ All WASM plugins run with strict limits:
 - 64MB memory limit per plugin
 - 30-second execution timeout (configurable)
 - Epoch-based interruption for runaway plugins
+
+---
+
+## MCP Server
+
+AmanClaw can expose its skills as [Model Context Protocol](https://modelcontextprotocol.io/) tools, making them available to any MCP client (Claude Code, Claude Desktop, etc.).
+
+### HTTP Transport
+
+Set `MCP_HTTP_PORT` to start the MCP HTTP server alongside the bot:
+
+```bash
+MCP_HTTP_PORT=3001 ./amanclaw
+```
+
+Then configure your MCP client to connect to `http://your-server:3001/mcp`.
+
+### Stdio Transport
+
+For local use with Claude Code, add to your MCP config:
+
+```json
+{
+  "mcpServers": {
+    "amanclaw": {
+      "command": "/path/to/amanclaw",
+      "args": ["--mcp-stdio"]
+    }
+  }
+}
+```
+
+### Available MCP Tools
+
+All registered skills (built-in + WASM plugins) are automatically exposed as MCP tools with their parameter schemas. For example:
+
+- `system_info` — Get system information
+- `web_search` — Search the web via DuckDuckGo
+- `shell` — Execute whitelisted shell commands
+- Any custom WASM plugins in your plugins directory
 
 ---
 
@@ -433,13 +474,14 @@ RUST_LOG=amanclaw=debug cargo run -p amanclaw-cli
 ### Test coverage
 
 ```text
-68+ tests across 14 crates
+79+ tests across 15 crates
 ├── amanclaw-traits        11 tests (config, messages, skills, channels)
 ├── amanclaw-core           7 tests (pipeline, router, registry, integration)
 ├── amanclaw-security      11 tests (auth, rate limiter, sanitizer)
 ├── amanclaw-memory         7 tests (history, facts, summaries, pruning)
 ├── amanclaw-llm            3 tests (LLM client, tool call parsing, thinking tags)
 ├── amanclaw-wasm-runtime  13 tests (loader, host, sandbox, runtime, watcher)
+├── amanclaw-mcp           11 tests (protocol, handler, HTTP transport)
 ├── amanclaw-plugin-sdk     5 tests
 ├── skill-sysinfo           2 tests
 ├── skill-websearch         2 tests
@@ -525,7 +567,7 @@ The easiest way to contribute is by writing a new skill plugin. See the [WASM Pl
 - [x] Discord channel adapter
 - [x] WhatsApp Cloud API channel adapter
 - [x] WhatsApp Web adapter (unofficial, via WAHA)
-- [ ] MCP server integration
+- [x] MCP server integration (stdio + HTTP transports)
 - [ ] Slack channel adapter
 - [ ] Python and JavaScript plugin SDKs
 
