@@ -21,8 +21,7 @@ pub struct Engine {
     #[allow(dead_code)]
     config: AppConfig,
     pipeline: Pipeline,
-    #[allow(dead_code)]
-    registry: PluginRegistry,
+    registry: Arc<PluginRegistry>,
     channels: Vec<Arc<dyn Channel>>,
     rx: mpsc::Receiver<amanclaw_traits::message::IncomingMessage>,
     tx: mpsc::Sender<amanclaw_traits::message::IncomingMessage>,
@@ -37,14 +36,20 @@ impl Engine {
         let rate_limiter = RateLimiter::new(config.rate_limit_per_minute);
         let llm = LlmClient::new(config.llm.clone());
 
+        // Register built-in skills
+        let mut registry = PluginRegistry::new();
+        registry.register(Arc::new(amanclaw_skill_sysinfo::SysInfoSkill));
+        registry.register(Arc::new(amanclaw_skill_websearch::WebSearchSkill));
+        registry.register(Arc::new(amanclaw_skill_shell::ShellSkill));
+
         // Load WASM plugins
-        let registry = PluginRegistry::new();
         let plugin_dir = Path::new(&config.plugins.dir);
         if let Ok(loader) = PluginLoader::new(plugin_dir) {
             let plugins = loader.discover()?;
             tracing::info!(count = plugins.len(), "Discovered WASM plugins");
         }
 
+        let registry = Arc::new(registry);
         let pipeline = Pipeline::with_services(auth, rate_limiter, memory, llm);
         let (tx, rx) = mpsc::channel(256);
 
@@ -58,7 +63,7 @@ impl Engine {
             tracing::info!("Telegram channel started");
         }
 
-        tracing::info!("Engine initialized");
+        tracing::info!(skills = registry.skill_count(), "Engine initialized");
 
         Ok(Self { config, pipeline, registry, channels, rx, tx })
     }
@@ -74,10 +79,9 @@ impl Engine {
         tracing::info!("Engine running");
         while let Some(msg) = self.rx.recv().await {
             let platform = msg.platform.clone();
-            match self.pipeline.process(msg).await {
+            match self.pipeline.process(msg, &self.registry).await {
                 Ok(Some(response)) => {
                     tracing::info!(chat_id = %response.chat_id, "Sending response");
-                    // Route response to the correct channel
                     for ch in &self.channels {
                         if ch.platform() == platform {
                             if let Err(e) = ch.send_message(response.clone()).await {

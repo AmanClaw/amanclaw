@@ -1,15 +1,10 @@
-use amanclaw_traits::skill::{SkillMetadata, ToolDefinition};
+use amanclaw_traits::skill::{Skill, SkillMetadata, SkillInput, SkillResult, ToolDefinition};
 use std::collections::HashMap;
+use std::sync::Arc;
 
-/// Registered skill entry (metadata only — execution is handled by WASM runtime or built-in).
-struct RegisteredSkill {
-    metadata: SkillMetadata,
-    parameters_schema: serde_json::Value,
-}
-
-/// Central registry for all available skills (WASM plugins, built-in, MCP).
+/// Central registry for all available skills.
 pub struct PluginRegistry {
-    skills: HashMap<String, RegisteredSkill>,
+    skills: HashMap<String, Arc<dyn Skill>>,
 }
 
 impl PluginRegistry {
@@ -19,18 +14,10 @@ impl PluginRegistry {
         }
     }
 
-    pub fn register_skill(&mut self, metadata: SkillMetadata, parameters_schema: serde_json::Value) {
-        tracing::info!(name = %metadata.name, version = %metadata.version, "Registered skill");
-        self.skills.insert(metadata.name.clone(), RegisteredSkill {
-            metadata,
-            parameters_schema,
-        });
-    }
-
-    pub fn unregister_skill(&mut self, name: &str) {
-        if self.skills.remove(name).is_some() {
-            tracing::info!(name, "Unregistered skill");
-        }
+    pub fn register(&mut self, skill: Arc<dyn Skill>) {
+        let meta = skill.metadata();
+        tracing::info!(name = %meta.name, version = %meta.version, "Registered skill");
+        self.skills.insert(meta.name.clone(), skill);
     }
 
     pub fn has_skill(&self, name: &str) -> bool {
@@ -44,16 +31,27 @@ impl PluginRegistry {
     pub fn get_tool_definitions(&self) -> Vec<ToolDefinition> {
         self.skills
             .values()
-            .map(|s| ToolDefinition {
-                name: s.metadata.name.clone(),
-                description: s.metadata.description.clone(),
-                parameters_schema: s.parameters_schema.clone(),
+            .map(|s| {
+                let meta = s.metadata();
+                ToolDefinition {
+                    name: meta.name,
+                    description: meta.description,
+                    parameters_schema: s.parameters_schema(),
+                }
             })
             .collect()
     }
 
-    pub fn get_skill_metadata(&self, name: &str) -> Option<&SkillMetadata> {
-        self.skills.get(name).map(|s| &s.metadata)
+    pub fn get_skill_metadata(&self, name: &str) -> Option<SkillMetadata> {
+        self.skills.get(name).map(|s| s.metadata())
+    }
+
+    pub async fn execute(&self, name: &str, input: SkillInput) -> Option<SkillResult> {
+        if let Some(skill) = self.skills.get(name) {
+            Some(skill.execute(input).await)
+        } else {
+            None
+        }
     }
 }
 
@@ -61,21 +59,40 @@ impl PluginRegistry {
 mod tests {
     use super::*;
 
+    struct DummySkill;
+
+    #[async_trait::async_trait]
+    impl Skill for DummySkill {
+        fn metadata(&self) -> SkillMetadata {
+            SkillMetadata {
+                name: "test_skill".into(),
+                description: "A test skill".into(),
+                timeout_ms: 5000,
+                version: "0.1.0".into(),
+            }
+        }
+
+        fn parameters_schema(&self) -> serde_json::Value {
+            serde_json::json!({
+                "type": "object",
+                "properties": { "query": { "type": "string" } },
+                "required": ["query"]
+            })
+        }
+
+        async fn execute(&self, _input: SkillInput) -> SkillResult {
+            SkillResult {
+                success: true,
+                output: "test output".into(),
+                error: None,
+            }
+        }
+    }
+
     #[test]
     fn test_register_and_list_skills() {
         let mut registry = PluginRegistry::new();
-        let meta = SkillMetadata {
-            name: "test_skill".into(),
-            description: "A test skill".into(),
-            timeout_ms: 5000,
-            version: "0.1.0".into(),
-        };
-        let schema = serde_json::json!({
-            "type": "object",
-            "properties": { "query": { "type": "string" } },
-            "required": ["query"]
-        });
-        registry.register_skill(meta, schema);
+        registry.register(Arc::new(DummySkill));
         assert_eq!(registry.skill_count(), 1);
 
         let tools = registry.get_tool_definitions();
@@ -87,30 +104,23 @@ mod tests {
     fn test_has_skill() {
         let mut registry = PluginRegistry::new();
         assert!(!registry.has_skill("nonexistent"));
-
-        let meta = SkillMetadata {
-            name: "exists".into(),
-            description: "test".into(),
-            timeout_ms: 1000,
-            version: "0.1.0".into(),
-        };
-        registry.register_skill(meta, serde_json::json!({}));
-        assert!(registry.has_skill("exists"));
+        registry.register(Arc::new(DummySkill));
+        assert!(registry.has_skill("test_skill"));
     }
 
-    #[test]
-    fn test_unregister_skill() {
+    #[tokio::test]
+    async fn test_execute_skill() {
         let mut registry = PluginRegistry::new();
-        let meta = SkillMetadata {
-            name: "removable".into(),
-            description: "test".into(),
-            timeout_ms: 1000,
-            version: "0.1.0".into(),
-        };
-        registry.register_skill(meta, serde_json::json!({}));
-        assert_eq!(registry.skill_count(), 1);
+        registry.register(Arc::new(DummySkill));
 
-        registry.unregister_skill("removable");
-        assert_eq!(registry.skill_count(), 0);
+        let input = SkillInput {
+            name: "test_skill".into(),
+            args: "{}".into(),
+            user_id: "test".into(),
+            platform: "test".into(),
+        };
+        let result = registry.execute("test_skill", input).await;
+        assert!(result.is_some());
+        assert!(result.unwrap().success);
     }
 }

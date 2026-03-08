@@ -72,9 +72,14 @@ dependencies = [
  "amanclaw-llm",
  "amanclaw-memory",
  "amanclaw-security",
+ "amanclaw-skill-shell",
+ "amanclaw-skill-sysinfo",
+ "amanclaw-skill-websearch",
  "amanclaw-traits",
  "amanclaw-wasm-runtime",
  "anyhow",
+ "async-trait",
+ "chrono",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -139,7 +144,8 @@ dependencies = [
 name = "amanclaw-skill-shell"
 version = "0.1.0"
 dependencies = [
- "amanclaw-plugin-sdk",
+ "amanclaw-traits",
+ "async-trait",
  "serde_json",
 ]
 
@@ -147,19 +153,23 @@ dependencies = [
 name = "amanclaw-skill-sysinfo"
 version = "0.1.0"
 dependencies = [
- "amanclaw-plugin-sdk",
+ "amanclaw-traits",
+ "async-trait",
  "serde_json",
  "sysinfo",
+ "tokio",
 ]
 
 [[package]]
 name = "amanclaw-skill-websearch"
 version = "0.1.0"
 dependencies = [
- "amanclaw-plugin-sdk",
+ "amanclaw-traits",
+ "async-trait",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

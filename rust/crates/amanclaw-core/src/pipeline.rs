@@ -1,24 +1,24 @@
 use amanclaw_traits::message::{IncomingMessage, OutgoingMessage};
+use amanclaw_traits::skill::SkillInput;
 use amanclaw_security::auth::{Auth, UserState};
 use amanclaw_security::rate_limiter::RateLimiter;
 use amanclaw_security::sanitizer::check_injection;
 use amanclaw_memory::sqlite::SqliteMemory;
-use amanclaw_llm::client::LlmClient;
+use amanclaw_llm::client::{LlmClient, LlmResponse};
+use crate::registry::PluginRegistry;
 use anyhow::Result;
 use std::sync::Mutex;
 
+const MAX_TOOL_ROUNDS: usize = 5;
+
 /// Message processing pipeline.
-///
-/// Orchestrates: auth -> rate limit -> sanitize -> context -> LLM -> respond.
 pub enum Pipeline {
-    /// Full pipeline with all services wired in.
     Full {
         auth: Mutex<Auth>,
         rate_limiter: Mutex<RateLimiter>,
         memory: SqliteMemory,
         llm: LlmClient,
     },
-    /// Stub pipeline for testing — echoes back messages.
     Stub,
 }
 
@@ -41,23 +41,16 @@ impl Pipeline {
         }
     }
 
-    /// Process an incoming message through the full pipeline.
-    /// Returns None if the message should be silently dropped.
-    pub async fn process(&self, msg: IncomingMessage) -> Result<Option<OutgoingMessage>> {
+    pub async fn process(&self, msg: IncomingMessage, registry: &PluginRegistry) -> Result<Option<OutgoingMessage>> {
         match self {
             Self::Stub => self.process_stub(msg).await,
             Self::Full { auth, rate_limiter, memory, llm } => {
-                Self::process_full(auth, rate_limiter, memory, llm, msg).await
+                Self::process_full(auth, rate_limiter, memory, llm, registry, msg).await
             }
         }
     }
 
     async fn process_stub(&self, msg: IncomingMessage) -> Result<Option<OutgoingMessage>> {
-        tracing::info!(
-            user_id = %msg.user_id,
-            platform = %msg.platform,
-            "Processing message (stub)"
-        );
         Ok(Some(OutgoingMessage {
             chat_id: msg.chat_id,
             text: format!("[pipeline placeholder] Received: {}", msg.text),
@@ -71,13 +64,14 @@ impl Pipeline {
         rate_limiter: &Mutex<RateLimiter>,
         memory: &SqliteMemory,
         llm: &LlmClient,
+        registry: &PluginRegistry,
         msg: IncomingMessage,
     ) -> Result<Option<OutgoingMessage>> {
         let user_id = &msg.user_id;
         let platform = &msg.platform;
         let text = msg.text.trim();
 
-        // Handle /myid before auth — anyone can use it
+        // Handle /myid before auth
         if text == "/myid" || text == "/start" {
             let reply = format!("Your user ID: `{}`\nPlatform: {}", user_id, platform);
             return Ok(Some(OutgoingMessage {
@@ -109,10 +103,10 @@ impl Pipeline {
                     reply_to: None,
                 }));
             }
-            UserState::Admin | UserState::Approved => {} // proceed
+            UserState::Admin | UserState::Approved => {}
         }
 
-        // Handle commands (after auth)
+        // Handle commands
         if text.starts_with('/') {
             if let Some(reply) = Self::handle_command(auth, memory, &msg, &state).await? {
                 return Ok(Some(reply));
@@ -141,14 +135,16 @@ impl Pipeline {
             serde_json::json!({"role": m.role, "content": m.content})
         }).collect();
 
-        // 5. LLM call
-        let response = match llm.respond(&clean_text, &history_json, &[]).await {
-            Ok(r) => r,
-            Err(e) => {
-                tracing::error!(error = %e, "LLM error");
-                "Something went wrong talking to the AI. Try again in a moment.".into()
-            }
-        };
+        let now = chrono::Local::now().format("%Y-%m-%d %H:%M %A").to_string();
+        let system = amanclaw_llm::prompts::SYSTEM_PROMPT_BASE.replace("{datetime}", &now);
+
+        let mut messages = vec![serde_json::json!({"role": "system", "content": system})];
+        messages.extend_from_slice(&history_json);
+        messages.push(serde_json::json!({"role": "user", "content": clean_text}));
+
+        // 5. Tool calling loop
+        let tools = registry.get_tool_definitions();
+        let response = Self::tool_calling_loop(llm, registry, &mut messages, &tools, user_id, platform).await?;
 
         // 6. Save exchange
         memory.save_exchange(user_id, platform, &msg.text, &response).await?;
@@ -159,6 +155,76 @@ impl Pipeline {
             parse_mode: None,
             reply_to: None,
         }))
+    }
+
+    /// Execute the LLM tool calling loop: call LLM, execute tools, repeat until text response.
+    async fn tool_calling_loop(
+        llm: &LlmClient,
+        registry: &PluginRegistry,
+        messages: &mut Vec<serde_json::Value>,
+        tools: &[amanclaw_traits::skill::ToolDefinition],
+        user_id: &str,
+        platform: &str,
+    ) -> Result<String> {
+        for round in 0..MAX_TOOL_ROUNDS {
+            let (response, raw_message) = match llm.call_raw(messages, tools).await {
+                Ok(r) => r,
+                Err(e) => {
+                    tracing::error!(error = %e, "LLM error");
+                    return Ok("Something went wrong talking to the AI. Try again in a moment.".into());
+                }
+            };
+
+            match response {
+                LlmResponse::Text(text) => {
+                    return Ok(text);
+                }
+                LlmResponse::ToolCalls(calls) => {
+                    tracing::info!(round, count = calls.len(), "LLM requested tool calls");
+
+                    // Append assistant message with tool calls
+                    messages.push(raw_message);
+
+                    // Execute each tool call and append results
+                    for call in &calls {
+                        tracing::info!(tool = %call.name, id = %call.id, "Executing skill");
+
+                        let input = SkillInput {
+                            name: call.name.clone(),
+                            args: call.arguments.clone(),
+                            user_id: user_id.to_string(),
+                            platform: platform.to_string(),
+                        };
+
+                        let result = if let Some(r) = registry.execute(&call.name, input).await {
+                            if r.success {
+                                format!("[SKILL OUTPUT]\n{}", r.output)
+                            } else {
+                                format!("[SKILL ERROR]\n{}", r.error.unwrap_or_else(|| "Unknown error".into()))
+                            }
+                        } else {
+                            format!("Skill '{}' not found", call.name)
+                        };
+
+                        messages.push(serde_json::json!({
+                            "role": "tool",
+                            "tool_call_id": call.id,
+                            "content": result,
+                        }));
+                    }
+                }
+            }
+        }
+
+        // Exceeded max rounds — ask LLM for final answer without tools
+        match llm.call(messages, &[]).await {
+            Ok(LlmResponse::Text(text)) => Ok(text),
+            Ok(LlmResponse::ToolCalls(_)) => Ok("I got stuck in a tool loop. Please try rephrasing your question.".into()),
+            Err(e) => {
+                tracing::error!(error = %e, "LLM error in final round");
+                Ok("Something went wrong. Try again.".into())
+            }
+        }
     }
 
     async fn handle_command(
@@ -180,7 +246,6 @@ impl Pipeline {
                 let count = memory.get_message_count(&msg.user_id).await?;
                 Some(format!("Messages in history: {}", count))
             }
-            // Admin-only commands
             "/approve" if *state == UserState::Admin => {
                 if let Some(target) = parts.get(1) {
                     auth.lock().unwrap().approve_user(target, &msg.platform);
@@ -212,7 +277,6 @@ impl Pipeline {
             "/approve" | "/block" | "/users" => {
                 Some("Admin only command.".into())
             }
-            // Unknown command — fall through to LLM
             _ => None,
         };
 
@@ -246,8 +310,9 @@ mod tests {
     #[tokio::test]
     async fn test_pipeline_processes_message() {
         let pipeline = Pipeline::new();
+        let registry = PluginRegistry::new();
         let msg = make_test_message("Hello bot");
-        let result = pipeline.process(msg).await;
+        let result = pipeline.process(msg, &registry).await;
         assert!(result.is_ok());
         let response = result.unwrap();
         assert!(response.is_some());
