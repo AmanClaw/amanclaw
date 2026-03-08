@@ -6,6 +6,8 @@
 	import Skills from '$lib/pages/Skills.svelte';
 	import Users from '$lib/pages/Users.svelte';
 	import Settings from '$lib/pages/Settings.svelte';
+	import Logs from '$lib/pages/Logs.svelte';
+	import Content from '$lib/pages/Content.svelte';
 
 	onMount(async () => {
 		try {
@@ -25,6 +27,10 @@
 	<Users />
 {:else if $currentPage === 'settings'}
 	<Settings />
+{:else if $currentPage === 'logs'}
+	<Logs />
+{:else if $currentPage === 'content'}
+	<Content />
 {:else}
 	<!-- Dashboard -->
 	<div class="p-8 max-w-4xl">
