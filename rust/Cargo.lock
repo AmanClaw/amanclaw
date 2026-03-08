@@ -250,12 +250,45 @@ dependencies = [
 ]
 
 [[package]]
+name = "amanclaw-skill-hijri"
+version = "0.1.0"
+dependencies = [
+ "amanclaw-traits",
+ "async-trait",
+ "chrono",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "amanclaw-skill-qiblat"
+version = "0.1.0"
+dependencies = [
+ "amanclaw-traits",
+ "async-trait",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "amanclaw-skill-shell"
 version = "0.1.0"
 dependencies = [
  "amanclaw-traits",
  "async-trait",
  "serde_json",
+]
+
+[[package]]
+name = "amanclaw-skill-solat"
+version = "0.1.0"
+dependencies = [
+ "amanclaw-traits",
+ "async-trait",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
