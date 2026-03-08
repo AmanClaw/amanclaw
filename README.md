@@ -1,6 +1,6 @@
 # AmanClaw
 
-A high-performance, modular AI assistant built with Rust. Connect it to Telegram, Discord, or WhatsApp — powered by any OpenAI-compatible LLM backend. Extend it with WASM plugins written in Rust.
+A high-performance, modular AI assistant built with Rust. Connect it to Telegram, Discord, Slack, or WhatsApp — powered by any OpenAI-compatible LLM backend. Extend it with WASM plugins written in Rust.
 
 Built in Malaysia. Open source. No bloat.
 
@@ -32,7 +32,7 @@ One binary. One SQLite database. One config file. ~2MB RAM on a Raspberry Pi.
 
 - **Blazing fast** — Rust async runtime, ~2MB memory footprint, instant startup
 - **Plugin system** — WASM plugins with JSON ABI + built-in Rust skills
-- **Multi-channel** — Telegram, Discord, WhatsApp (official Cloud API + unofficial via WAHA)
+- **Multi-channel** — Telegram, Discord, WhatsApp (official + unofficial), Slack
 - **Any LLM backend** — vLLM, Ollama, LM Studio, LocalAI, OpenAI, Anthropic, etc.
 - **Tool calling** — LLM function calling with multi-round tool execution loop (max 5 rounds)
 - **Vision support** — Send images to multimodal LLMs via base64 encoding
@@ -107,7 +107,7 @@ admin_users:
 
 ## Architecture
 
-AmanClaw is a Cargo workspace with 15 crates (10 core + 5 plugins):
+AmanClaw is a Cargo workspace with 16 crates (10 core + 6 channel/skill plugins):
 
 ```text
 rust/
@@ -130,7 +130,8 @@ rust/
 │   ├── channel-telegram/         # Telegram adapter (teloxide)
 │   ├── channel-discord/          # Discord adapter (serenity)
 │   ├── channel-whatsapp/         # WhatsApp Cloud API adapter
-│   └── channel-whatsapp-web/     # Unofficial WhatsApp via WAHA bridge
+│   ├── channel-whatsapp-web/     # Unofficial WhatsApp via WAHA bridge
+│   └── channel-slack/           # Slack adapter (Socket Mode)
 ├── wit/
 │   └── skill.wit                 # WASM Interface Types contract
 ├── Dockerfile
@@ -201,6 +202,26 @@ WAHA_WEBHOOK_PORT=8081                  # default: 8081
 ```
 
 Configure WAHA's webhook to point to `http://your-server:8081/webhook`.
+
+### Slack (Socket Mode)
+
+Uses [Slack Socket Mode](https://api.slack.com/apis/socket-mode) (WebSocket) — no public URL needed.
+
+**Setup:**
+
+1. Create a Slack app at [api.slack.com/apps](https://api.slack.com/apps)
+2. Enable **Socket Mode** in your app settings
+3. Add **Bot Token Scopes**: `chat:write`, `channels:history`, `groups:history`, `im:history`, `mpim:history`
+4. Subscribe to **Events**: `message.channels`, `message.groups`, `message.im`, `message.mpim`
+5. Generate an **App-Level Token** with `connections:write` scope
+6. Install the app to your workspace
+
+```bash
+SLACK_BOT_TOKEN=xoxb-your-bot-token
+SLACK_APP_TOKEN=xapp-your-app-level-token
+```
+
+The bot auto-detects its own user ID to avoid replying to itself. Messages in channels, DMs, and threads are all supported.
 
 ---
 
@@ -756,7 +777,7 @@ RUST_LOG=amanclaw=debug cargo run -p amanclaw-cli
 ### Test coverage
 
 ```text
-85+ tests across 15 crates
+89+ tests across 16 crates
 ├── amanclaw-traits        11 tests (config, messages, skills, channels)
 ├── amanclaw-core           7 tests (pipeline, router, registry, integration)
 ├── amanclaw-security      11 tests (auth, rate limiter, sanitizer)
@@ -771,7 +792,8 @@ RUST_LOG=amanclaw=debug cargo run -p amanclaw-cli
 ├── channel-telegram        1 test
 ├── channel-discord         1 test
 ├── channel-whatsapp        2 tests
-└── channel-whatsapp-web    4 tests
+├── channel-whatsapp-web    4 tests
+└── channel-slack           4 tests (platform, env, envelope parsing)
 ```
 
 ---
@@ -816,7 +838,7 @@ git checkout -b feature/my-feature
 | Area | Description | Difficulty |
 | ---- | ----------- | ---------- |
 | **New skill plugins** | Web scraping, calendar, weather, translation, etc. | Easy |
-| **Slack adapter** | Channel adapter for Slack (Bolt API) | Medium |
+| **LINE / Viber adapter** | Channel adapters for more messaging platforms | Medium |
 | **Python/JS plugin SDK** | componentize-py and jco integration for WASM | Medium |
 | **MCP server** | Expose skills as Model Context Protocol tools | Medium |
 | **Documentation** | Tutorials, examples, architecture docs | Easy |
@@ -851,7 +873,7 @@ The easiest way to contribute is by writing a new skill plugin. See the [WASM Pl
 - [x] WhatsApp Web adapter (unofficial, via WAHA)
 - [x] MCP server integration (stdio + HTTP transports)
 - [x] MCP client bridge (consume external MCP server tools)
-- [ ] Slack channel adapter
+- [x] Slack channel adapter (Socket Mode)
 - [ ] Python and JavaScript plugin SDKs
 
 ---

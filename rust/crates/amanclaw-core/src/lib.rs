@@ -12,6 +12,7 @@ use amanclaw_channel_telegram::TelegramChannel;
 use amanclaw_channel_discord::DiscordChannel;
 use amanclaw_channel_whatsapp::WhatsAppChannel;
 use amanclaw_channel_whatsapp_web::WhatsAppWebChannel;
+use amanclaw_channel_slack::SlackChannel;
 use amanclaw_mcp::handler::McpHandler;
 use crate::pipeline::Pipeline;
 use crate::registry::PluginRegistry;
@@ -91,6 +92,12 @@ impl Engine {
             whatsapp_web.start(tx.clone()).await?;
             channels.push(Arc::new(whatsapp_web));
             tracing::info!("WhatsApp Web (WAHA) channel started");
+        }
+
+        if let Some(mut slack) = SlackChannel::from_env() {
+            slack.start(tx.clone()).await?;
+            channels.push(Arc::new(slack));
+            tracing::info!("Slack channel started");
         }
 
         // Start MCP server if configured

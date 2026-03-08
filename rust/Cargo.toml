@@ -17,6 +17,7 @@ members = [
     "plugins/channel-discord",
     "plugins/channel-whatsapp",
     "plugins/channel-whatsapp-web",
+    "plugins/channel-slack",
     "plugins/skill-echo-wasm",
 ]
 
