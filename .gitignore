@@ -28,3 +28,5 @@ data/
 # Git worktrees
 .worktrees/
 .claude/worktrees/
+__pycache__/
+*.pyc
