@@ -1,1 +1,0 @@
-["/Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-2.10.3/scripts/bundle.global.js","/Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-notification-2.3.3/api-iife.js","/Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-plugin-shell-2.3.5/api-iife.js"]

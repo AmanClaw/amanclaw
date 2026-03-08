@@ -4,6 +4,10 @@ config.yaml
 
 # Rust
 rust/target/
+desktop/src-tauri/target/
+
+# Node
+node_modules/
 
 # SQLite database
 *.db

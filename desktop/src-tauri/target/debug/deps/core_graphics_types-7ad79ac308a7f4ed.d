@@ -1,9 +1,0 @@
-/Users/aman-asmuei/Personals/aman-office/secureclaw-simple/.worktrees/desktop-admin-app/desktop/src-tauri/target/debug/deps/core_graphics_types-7ad79ac308a7f4ed.d: /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/core-graphics-types-0.2.0/src/lib.rs /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/core-graphics-types-0.2.0/src/base.rs /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/core-graphics-types-0.2.0/src/geometry.rs
-
-/Users/aman-asmuei/Personals/aman-office/secureclaw-simple/.worktrees/desktop-admin-app/desktop/src-tauri/target/debug/deps/libcore_graphics_types-7ad79ac308a7f4ed.rlib: /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/core-graphics-types-0.2.0/src/lib.rs /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/core-graphics-types-0.2.0/src/base.rs /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/core-graphics-types-0.2.0/src/geometry.rs
-
-/Users/aman-asmuei/Personals/aman-office/secureclaw-simple/.worktrees/desktop-admin-app/desktop/src-tauri/target/debug/deps/libcore_graphics_types-7ad79ac308a7f4ed.rmeta: /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/core-graphics-types-0.2.0/src/lib.rs /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/core-graphics-types-0.2.0/src/base.rs /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/core-graphics-types-0.2.0/src/geometry.rs
-
-/Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/core-graphics-types-0.2.0/src/lib.rs:
-/Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/core-graphics-types-0.2.0/src/base.rs:
-/Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/core-graphics-types-0.2.0/src/geometry.rs:
