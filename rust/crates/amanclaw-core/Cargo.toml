@@ -34,6 +34,8 @@ async-trait = "0.1"
 base64 = "0.22"
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
 serde_yaml = { workspace = true }
+cron = "0.13"
+chrono-tz = "0.10"
 
 [dev-dependencies]
 tokio = { workspace = true }
