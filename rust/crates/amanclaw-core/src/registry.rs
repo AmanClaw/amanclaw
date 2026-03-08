@@ -42,6 +42,26 @@ impl PluginRegistry {
             .collect()
     }
 
+    /// Get tool definitions filtered by allowed skill names.
+    /// Empty allowed list means return all tools.
+    pub fn get_filtered_tool_definitions(&self, allowed: &[String]) -> Vec<ToolDefinition> {
+        if allowed.is_empty() {
+            return self.get_tool_definitions();
+        }
+        self.skills
+            .iter()
+            .filter(|(name, _)| allowed.iter().any(|a| a == *name))
+            .map(|(_, s)| {
+                let meta = s.metadata();
+                ToolDefinition {
+                    name: meta.name,
+                    description: meta.description,
+                    parameters_schema: s.parameters_schema(),
+                }
+            })
+            .collect()
+    }
+
     pub fn iter_skills(&self) -> impl Iterator<Item = (&String, &Arc<dyn Skill>)> {
         self.skills.iter()
     }
@@ -110,6 +130,24 @@ mod tests {
         assert!(!registry.has_skill("nonexistent"));
         registry.register(Arc::new(DummySkill));
         assert!(registry.has_skill("test_skill"));
+    }
+
+    #[test]
+    fn test_get_filtered_tool_definitions() {
+        let mut registry = PluginRegistry::new();
+        registry.register(Arc::new(DummySkill));
+
+        // With empty filter = all tools
+        let all = registry.get_filtered_tool_definitions(&[]);
+        assert_eq!(all.len(), 1);
+
+        // With matching filter
+        let matched = registry.get_filtered_tool_definitions(&["test_skill".to_string()]);
+        assert_eq!(matched.len(), 1);
+
+        // With non-matching filter
+        let none = registry.get_filtered_tool_definitions(&["nonexistent".to_string()]);
+        assert_eq!(none.len(), 0);
     }
 
     #[tokio::test]
