@@ -6,3 +6,4 @@ pub mod memory;
 pub mod agent;
 pub mod context;
 pub mod vector;
+pub mod event;
