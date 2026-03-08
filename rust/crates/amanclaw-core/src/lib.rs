@@ -10,6 +10,7 @@ use amanclaw_security::rate_limiter::RateLimiter;
 use amanclaw_llm::client::LlmClient;
 use amanclaw_wasm_runtime::loader::PluginLoader;
 use amanclaw_channel_telegram::TelegramChannel;
+use amanclaw_channel_discord::DiscordChannel;
 use crate::pipeline::Pipeline;
 use crate::registry::PluginRegistry;
 use anyhow::Result;
@@ -61,6 +62,13 @@ impl Engine {
             telegram.start(tx.clone()).await?;
             channels.push(Arc::new(telegram));
             tracing::info!("Telegram channel started");
+        }
+
+        if let Ok(token) = std::env::var("DISCORD_BOT_TOKEN") {
+            let mut discord = DiscordChannel::new(token);
+            discord.start(tx.clone()).await?;
+            channels.push(Arc::new(discord));
+            tracing::info!("Discord channel started");
         }
 
         tracing::info!(skills = registry.skill_count(), "Engine initialized");

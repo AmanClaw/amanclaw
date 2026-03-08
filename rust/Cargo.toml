@@ -13,6 +13,7 @@ members = [
     "plugins/skill-websearch",
     "plugins/skill-shell",
     "plugins/channel-telegram",
+    "plugins/channel-discord",
 ]
 
 [workspace.package]

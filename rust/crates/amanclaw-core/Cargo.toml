@@ -10,6 +10,7 @@ amanclaw-memory = { path = "../amanclaw-memory" }
 amanclaw-llm = { path = "../amanclaw-llm" }
 amanclaw-wasm-runtime = { path = "../amanclaw-wasm-runtime" }
 amanclaw-channel-telegram = { path = "../../plugins/channel-telegram" }
+amanclaw-channel-discord = { path = "../../plugins/channel-discord" }
 amanclaw-skill-sysinfo = { path = "../../plugins/skill-sysinfo" }
 amanclaw-skill-websearch = { path = "../../plugins/skill-websearch" }
 amanclaw-skill-shell = { path = "../../plugins/skill-shell" }

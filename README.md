@@ -32,7 +32,7 @@ One binary. One SQLite database. One config file. ~2MB RAM on a Raspberry Pi.
 
 - **Blazing fast** — Rust async runtime, ~2MB memory footprint, instant startup
 - **Plugin system** — WASM Component Model plugins in Rust, Python, or JavaScript
-- **Multi-channel** — Telegram (Discord, Slack, WhatsApp planned)
+- **Multi-channel** — Telegram, Discord (Slack, WhatsApp planned)
 - **Any LLM backend** — vLLM, Ollama, LM Studio, LocalAI, OpenAI, Anthropic, etc.
 - **Security-first** — user allowlist, rate limiting, prompt injection detection, output sanitization
 - **Conversation memory** — SQLite-backed history, facts, and summaries
@@ -428,7 +428,8 @@ The easiest way to contribute is by writing a new skill plugin. See the [Plugin 
 - [x] Vision support (image analysis via multimodal LLM)
 - [x] Plugin hot reload (filesystem watcher)
 - [ ] Full WASM plugin instantiation and execution
-- [ ] Discord, Slack, WhatsApp channels
+- [x] Discord channel adapter
+- [ ] Slack, WhatsApp channels
 - [ ] Python and JavaScript plugin SDKs
 - [ ] MCP server integration
 
