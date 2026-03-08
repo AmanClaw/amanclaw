@@ -16,6 +16,7 @@ use amanclaw_channel_slack::SlackChannel;
 use amanclaw_mcp::handler::McpHandler;
 use crate::pipeline::Pipeline;
 use crate::registry::PluginRegistry;
+use crate::router::AgentRouter;
 use anyhow::Result;
 use tokio::sync::mpsc;
 use std::path::Path;
@@ -32,6 +33,7 @@ pub struct Engine {
     tx: mpsc::Sender<amanclaw_traits::message::IncomingMessage>,
     auth: Arc<Mutex<Auth>>,
     pool: SqlitePool,
+    agent_router: AgentRouter,
 }
 
 impl Engine {
@@ -95,6 +97,13 @@ impl Engine {
             }
         }
 
+        // Build agent router from config
+        let agent_router = AgentRouter::new(
+            config.agents.clone(),
+            config.routing.rules.clone(),
+            config.routing.default_agent.clone(),
+        );
+
         let registry = Arc::new(registry);
         let auth_arc = Arc::new(Mutex::new(auth));
         let pool = memory.pool().clone();
@@ -156,7 +165,7 @@ impl Engine {
 
         tracing::info!(skills = registry.skill_count(), "Engine initialized");
 
-        Ok(Self { config, pipeline, registry, channels, rx, tx, auth: auth_arc, pool })
+        Ok(Self { config, pipeline, registry, channels, rx, tx, auth: auth_arc, pool, agent_router })
     }
 
     /// Get a sender for channels to push messages into the engine.
@@ -185,7 +194,9 @@ impl Engine {
         tracing::info!("Engine running");
         while let Some(msg) = self.rx.recv().await {
             let platform = msg.platform.clone();
-            match self.pipeline.process(msg, &self.registry).await {
+            let profile = self.agent_router.resolve(&msg);
+            tracing::debug!(agent = %profile.id, "Routed to agent");
+            match self.pipeline.process(msg, &self.registry, &profile).await {
                 Ok(Some(response)) => {
                     tracing::info!(chat_id = %response.chat_id, "Sending response");
                     for ch in &self.channels {

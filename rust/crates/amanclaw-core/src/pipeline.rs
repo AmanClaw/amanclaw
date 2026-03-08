@@ -1,3 +1,4 @@
+use amanclaw_traits::agent::AgentProfile;
 use amanclaw_traits::message::{IncomingMessage, OutgoingMessage};
 use amanclaw_traits::skill::SkillInput;
 use amanclaw_security::auth::{Auth, UserState};
@@ -11,8 +12,6 @@ use std::sync::{Arc, Mutex};
 use base64::Engine as Base64Engine;
 
 const MAX_TOOL_ROUNDS: usize = 5;
-const SUMMARIZE_THRESHOLD: i64 = 40;
-const SUMMARIZE_KEEP_RECENT: i64 = 10;
 
 /// Message processing pipeline.
 pub enum Pipeline {
@@ -44,11 +43,11 @@ impl Pipeline {
         }
     }
 
-    pub async fn process(&self, msg: IncomingMessage, registry: &PluginRegistry) -> Result<Option<OutgoingMessage>> {
+    pub async fn process(&self, msg: IncomingMessage, registry: &PluginRegistry, profile: &AgentProfile) -> Result<Option<OutgoingMessage>> {
         match self {
             Self::Stub => self.process_stub(msg).await,
             Self::Full { auth, rate_limiter, memory, llm } => {
-                Self::process_full(auth, rate_limiter, memory, llm, registry, msg).await
+                Self::process_full(auth, rate_limiter, memory, llm, registry, msg, profile).await
             }
         }
     }
@@ -69,6 +68,7 @@ impl Pipeline {
         llm: &LlmClient,
         registry: &PluginRegistry,
         msg: IncomingMessage,
+        profile: &AgentProfile,
     ) -> Result<Option<OutgoingMessage>> {
         let user_id = &msg.user_id;
         let platform = &msg.platform;
@@ -133,7 +133,7 @@ impl Pipeline {
         }
 
         // 4. Build context (with summary + facts)
-        let history = memory.get_history(user_id, 20).await?;
+        let history = memory.get_history(user_id, profile.context.history_limit).await?;
         let history_json: Vec<serde_json::Value> = history.iter().map(|m| {
             serde_json::json!({"role": m.role, "content": m.content})
         }).collect();
@@ -172,14 +172,14 @@ impl Pipeline {
         }
 
         // 5. Tool calling loop
-        let tools = registry.get_tool_definitions();
+        let tools = registry.get_filtered_tool_definitions(&profile.allowed_skills);
         let response = Self::tool_calling_loop(llm, registry, &mut messages, &tools, user_id, platform).await?;
 
         // 6. Save exchange
         memory.save_exchange(user_id, platform, &msg.text, &response).await?;
 
         // 7. Auto-summarize if history is too long
-        if memory.needs_summarization(user_id, SUMMARIZE_THRESHOLD).await.unwrap_or(false) {
+        if memory.needs_summarization(user_id, profile.context.summarize_threshold).await.unwrap_or(false) {
             let sum_history = memory.get_history(user_id, 100).await?;
             let sum_text: Vec<String> = sum_history.iter()
                 .map(|m| format!("{}: {}", m.role, m.content))
@@ -194,7 +194,7 @@ impl Pipeline {
             ];
             match llm.call(&sum_messages, &[]).await {
                 Ok(LlmResponse::Text(summary)) => {
-                    if let Err(e) = memory.save_summary_and_prune(user_id, &summary, SUMMARIZE_KEEP_RECENT).await {
+                    if let Err(e) = memory.save_summary_and_prune(user_id, &summary, profile.context.summarize_keep_recent).await {
                         tracing::error!(error = %e, "Failed to save summary");
                     }
                 }
@@ -401,8 +401,9 @@ mod tests {
     async fn test_pipeline_processes_message() {
         let pipeline = Pipeline::new();
         let registry = PluginRegistry::new();
+        let profile = amanclaw_traits::agent::AgentProfile::default_agent();
         let msg = make_test_message("Hello bot");
-        let result = pipeline.process(msg, &registry).await;
+        let result = pipeline.process(msg, &registry, &profile).await;
         assert!(result.is_ok());
         let response = result.unwrap();
         assert!(response.is_some());
