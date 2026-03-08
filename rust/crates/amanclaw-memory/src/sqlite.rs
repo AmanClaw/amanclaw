@@ -1,14 +1,9 @@
+use amanclaw_traits::memory::{HistoryMessage, MemoryBackend};
 use anyhow::Result;
 use sqlx::{sqlite::SqlitePoolOptions, SqlitePool, Row};
 use std::collections::HashMap;
 
 use crate::schema::INIT_SQL;
-
-#[derive(Debug, Clone)]
-pub struct HistoryMessage {
-    pub role: String,
-    pub content: String,
-}
 
 pub struct SqliteMemory {
     pool: SqlitePool,
@@ -29,6 +24,9 @@ impl SqliteMemory {
 
         sqlx::raw_sql(INIT_SQL).execute(&pool).await?;
 
+        // Attempt migration for existing databases (ignore errors if columns already exist)
+        let _ = sqlx::raw_sql(crate::schema::MIGRATE_NS_SQL).execute(&pool).await;
+
         tracing::info!("Memory initialized at {}", db_path);
         Ok(Self { pool })
     }
@@ -38,23 +36,65 @@ impl SqliteMemory {
         &self.pool
     }
 
+    // --- Backward-compatible methods (delegate to namespaced with "default") ---
+
     pub async fn save_exchange(
         &self, user_id: &str, platform: &str, user_msg: &str, assistant_msg: &str,
     ) -> Result<()> {
-        sqlx::query("INSERT INTO messages (user_id, platform, role, content) VALUES (?, ?, 'user', ?)")
-            .bind(user_id).bind(platform).bind(user_msg)
+        self.save_exchange_ns("default", user_id, platform, user_msg, assistant_msg).await
+    }
+
+    pub async fn get_history(&self, user_id: &str, limit: i64) -> Result<Vec<HistoryMessage>> {
+        self.get_history_ns("default", user_id, limit).await
+    }
+
+    pub async fn clear_history(&self, user_id: &str) -> Result<()> {
+        self.clear_history_ns("default", user_id).await
+    }
+
+    pub async fn get_message_count(&self, user_id: &str) -> Result<i64> {
+        self.get_message_count_ns("default", user_id).await
+    }
+
+    pub async fn get_summary(&self, user_id: &str) -> Result<Option<String>> {
+        self.get_summary_ns("default", user_id).await
+    }
+
+    pub async fn save_summary_and_prune(
+        &self, user_id: &str, summary: &str, keep_recent: i64,
+    ) -> Result<()> {
+        self.save_summary_and_prune_ns("default", user_id, summary, keep_recent).await
+    }
+
+    pub async fn needs_summarization(&self, user_id: &str, threshold: i64) -> Result<bool> {
+        self.needs_summarization_ns("default", user_id, threshold).await
+    }
+
+    // --- Namespaced methods ---
+
+    pub async fn save_exchange_ns(
+        &self, ns: &str, user_id: &str, platform: &str, user_msg: &str, assistant_msg: &str,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO messages (namespace, user_id, platform, role, content) VALUES (?, ?, ?, 'user', ?)"
+        )
+            .bind(ns).bind(user_id).bind(platform).bind(user_msg)
             .execute(&self.pool).await?;
-        sqlx::query("INSERT INTO messages (user_id, platform, role, content) VALUES (?, ?, 'assistant', ?)")
-            .bind(user_id).bind(platform).bind(assistant_msg)
+        sqlx::query(
+            "INSERT INTO messages (namespace, user_id, platform, role, content) VALUES (?, ?, ?, 'assistant', ?)"
+        )
+            .bind(ns).bind(user_id).bind(platform).bind(assistant_msg)
             .execute(&self.pool).await?;
         Ok(())
     }
 
-    pub async fn get_history(&self, user_id: &str, limit: i64) -> Result<Vec<HistoryMessage>> {
+    pub async fn get_history_ns(
+        &self, ns: &str, user_id: &str, limit: i64,
+    ) -> Result<Vec<HistoryMessage>> {
         let rows = sqlx::query(
-            "SELECT role, content FROM messages WHERE user_id = ? ORDER BY id DESC LIMIT ?"
+            "SELECT role, content FROM messages WHERE namespace = ? AND user_id = ? ORDER BY id DESC LIMIT ?"
         )
-            .bind(user_id).bind(limit)
+            .bind(ns).bind(user_id).bind(limit)
             .fetch_all(&self.pool).await?;
 
         let mut messages: Vec<HistoryMessage> = rows.iter().map(|row| HistoryMessage {
@@ -64,6 +104,62 @@ impl SqliteMemory {
         messages.reverse();
         Ok(messages)
     }
+
+    pub async fn clear_history_ns(&self, ns: &str, user_id: &str) -> Result<()> {
+        sqlx::query("DELETE FROM messages WHERE namespace = ? AND user_id = ?")
+            .bind(ns).bind(user_id)
+            .execute(&self.pool).await?;
+        Ok(())
+    }
+
+    pub async fn get_message_count_ns(&self, ns: &str, user_id: &str) -> Result<i64> {
+        let row = sqlx::query(
+            "SELECT COUNT(*) as count FROM messages WHERE namespace = ? AND user_id = ?"
+        )
+            .bind(ns).bind(user_id)
+            .fetch_one(&self.pool).await?;
+        Ok(row.get("count"))
+    }
+
+    pub async fn get_summary_ns(&self, ns: &str, user_id: &str) -> Result<Option<String>> {
+        let row = sqlx::query(
+            "SELECT summary FROM summaries WHERE namespace = ? AND user_id = ? ORDER BY id DESC LIMIT 1"
+        )
+            .bind(ns).bind(user_id)
+            .fetch_optional(&self.pool).await?;
+        Ok(row.map(|r| r.get("summary")))
+    }
+
+    pub async fn save_summary_and_prune_ns(
+        &self, ns: &str, user_id: &str, summary: &str, keep_recent: i64,
+    ) -> Result<()> {
+        let count = self.get_message_count_ns(ns, user_id).await?;
+        sqlx::query(
+            "INSERT INTO summaries (namespace, user_id, summary, message_count) VALUES (?, ?, ?, ?)"
+        )
+            .bind(ns).bind(user_id).bind(summary).bind(count)
+            .execute(&self.pool).await?;
+
+        sqlx::query(
+            "DELETE FROM messages WHERE namespace = ? AND user_id = ? AND id NOT IN (
+                SELECT id FROM messages WHERE namespace = ? AND user_id = ? ORDER BY id DESC LIMIT ?
+            )"
+        )
+            .bind(ns).bind(user_id).bind(ns).bind(user_id).bind(keep_recent)
+            .execute(&self.pool).await?;
+
+        tracing::info!(ns, user_id, "Summarized and pruned conversation");
+        Ok(())
+    }
+
+    pub async fn needs_summarization_ns(
+        &self, ns: &str, user_id: &str, threshold: i64,
+    ) -> Result<bool> {
+        let count = self.get_message_count_ns(ns, user_id).await?;
+        Ok(count > threshold)
+    }
+
+    // --- Facts (not namespaced — per-user across all agents) ---
 
     pub async fn save_fact(&self, user_id: &str, key: &str, value: &str) -> Result<()> {
         sqlx::query(
@@ -91,58 +187,57 @@ impl SqliteMemory {
             .execute(&self.pool).await?;
         Ok(result.rows_affected() > 0)
     }
+}
 
-    pub async fn clear_history(&self, user_id: &str) -> Result<()> {
-        sqlx::query("DELETE FROM messages WHERE user_id = ?")
-            .bind(user_id)
-            .execute(&self.pool).await?;
-        Ok(())
-    }
-
-    pub async fn get_message_count(&self, user_id: &str) -> Result<i64> {
-        let row = sqlx::query("SELECT COUNT(*) as count FROM messages WHERE user_id = ?")
-            .bind(user_id)
-            .fetch_one(&self.pool).await?;
-        Ok(row.get("count"))
-    }
-
-    // --- Summarization ---
-
-    /// Get the latest summary for a user.
-    pub async fn get_summary(&self, user_id: &str) -> Result<Option<String>> {
-        let row = sqlx::query("SELECT summary FROM summaries WHERE user_id = ? ORDER BY id DESC LIMIT 1")
-            .bind(user_id)
-            .fetch_optional(&self.pool).await?;
-        Ok(row.map(|r| r.get("summary")))
-    }
-
-    /// Save a conversation summary and delete the old messages that were summarized.
-    pub async fn save_summary_and_prune(
-        &self, user_id: &str, summary: &str, keep_recent: i64,
+#[async_trait::async_trait]
+impl MemoryBackend for SqliteMemory {
+    async fn save_exchange(
+        &self, ns: &str, user_id: &str, platform: &str,
+        user_msg: &str, assistant_msg: &str,
     ) -> Result<()> {
-        // Save summary
-        let count = self.get_message_count(user_id).await?;
-        sqlx::query("INSERT INTO summaries (user_id, summary, message_count) VALUES (?, ?, ?)")
-            .bind(user_id).bind(summary).bind(count)
-            .execute(&self.pool).await?;
-
-        // Delete all but the most recent N messages
-        sqlx::query(
-            "DELETE FROM messages WHERE user_id = ? AND id NOT IN (
-                SELECT id FROM messages WHERE user_id = ? ORDER BY id DESC LIMIT ?
-            )"
-        )
-            .bind(user_id).bind(user_id).bind(keep_recent)
-            .execute(&self.pool).await?;
-
-        tracing::info!(user_id, "Summarized and pruned conversation");
-        Ok(())
+        self.save_exchange_ns(ns, user_id, platform, user_msg, assistant_msg).await
     }
 
-    /// Check if a user's history needs summarization (over threshold).
-    pub async fn needs_summarization(&self, user_id: &str, threshold: i64) -> Result<bool> {
-        let count = self.get_message_count(user_id).await?;
-        Ok(count > threshold)
+    async fn get_history(
+        &self, ns: &str, user_id: &str, limit: i64,
+    ) -> Result<Vec<HistoryMessage>> {
+        self.get_history_ns(ns, user_id, limit).await
+    }
+
+    async fn clear_history(&self, ns: &str, user_id: &str) -> Result<()> {
+        self.clear_history_ns(ns, user_id).await
+    }
+
+    async fn get_message_count(&self, ns: &str, user_id: &str) -> Result<i64> {
+        self.get_message_count_ns(ns, user_id).await
+    }
+
+    async fn save_fact(&self, user_id: &str, key: &str, value: &str) -> Result<()> {
+        SqliteMemory::save_fact(self, user_id, key, value).await
+    }
+
+    async fn get_facts(&self, user_id: &str) -> Result<HashMap<String, String>> {
+        SqliteMemory::get_facts(self, user_id).await
+    }
+
+    async fn delete_fact(&self, user_id: &str, key: &str) -> Result<bool> {
+        SqliteMemory::delete_fact(self, user_id, key).await
+    }
+
+    async fn get_summary(&self, ns: &str, user_id: &str) -> Result<Option<String>> {
+        self.get_summary_ns(ns, user_id).await
+    }
+
+    async fn save_summary_and_prune(
+        &self, ns: &str, user_id: &str, summary: &str, keep_recent: i64,
+    ) -> Result<()> {
+        self.save_summary_and_prune_ns(ns, user_id, summary, keep_recent).await
+    }
+
+    async fn needs_summarization(
+        &self, ns: &str, user_id: &str, threshold: i64,
+    ) -> Result<bool> {
+        self.needs_summarization_ns(ns, user_id, threshold).await
     }
 }
 
@@ -211,7 +306,6 @@ mod tests {
         assert!(summary.is_some());
         assert!(summary.unwrap().contains("topics 0-19"));
 
-        // Only 10 most recent messages should remain
         let count = mem.get_message_count("u1").await.unwrap();
         assert_eq!(count, 10);
     }
@@ -236,5 +330,57 @@ mod tests {
         assert!(!mem.delete_fact("u1", "name").await.unwrap());
         let facts = mem.get_facts("u1").await.unwrap();
         assert!(facts.is_empty());
+    }
+
+    // --- New namespace tests ---
+
+    #[tokio::test]
+    async fn test_namespaced_history_isolation() {
+        let mem = make_memory().await;
+        mem.save_exchange_ns("agent_a", "u1", "telegram", "Hello A", "Hi from A").await.unwrap();
+        mem.save_exchange_ns("agent_b", "u1", "telegram", "Hello B", "Hi from B").await.unwrap();
+
+        let history_a = mem.get_history_ns("agent_a", "u1", 10).await.unwrap();
+        let history_b = mem.get_history_ns("agent_b", "u1", 10).await.unwrap();
+
+        assert_eq!(history_a.len(), 2);
+        assert_eq!(history_b.len(), 2);
+        assert!(history_a[0].content.contains("Hello A"));
+        assert!(history_b[0].content.contains("Hello B"));
+    }
+
+    #[tokio::test]
+    async fn test_namespaced_summary_isolation() {
+        let mem = make_memory().await;
+        for i in 0..10 {
+            mem.save_exchange_ns("ns_a", "u1", "telegram", &format!("a{}", i), &format!("ra{}", i)).await.unwrap();
+            mem.save_exchange_ns("ns_b", "u1", "telegram", &format!("b{}", i), &format!("rb{}", i)).await.unwrap();
+        }
+
+        mem.save_summary_and_prune_ns("ns_a", "u1", "Summary A", 4).await.unwrap();
+
+        let summary_a = mem.get_summary_ns("ns_a", "u1").await.unwrap();
+        let summary_b = mem.get_summary_ns("ns_b", "u1").await.unwrap();
+
+        assert!(summary_a.is_some());
+        assert!(summary_b.is_none());
+
+        // ns_b should still have all 20 messages (10 exchanges)
+        let count_b = mem.get_message_count_ns("ns_b", "u1").await.unwrap();
+        assert_eq!(count_b, 20);
+    }
+
+    #[tokio::test]
+    async fn test_memory_backend_trait_works() {
+        let mem = make_memory().await;
+        let backend: &dyn MemoryBackend = &mem;
+
+        backend.save_exchange("test_ns", "u1", "telegram", "hello", "hi").await.unwrap();
+        let history = backend.get_history("test_ns", "u1", 10).await.unwrap();
+        assert_eq!(history.len(), 2);
+
+        backend.save_fact("u1", "name", "Aman").await.unwrap();
+        let facts = backend.get_facts("u1").await.unwrap();
+        assert_eq!(facts.get("name").unwrap(), "Aman");
     }
 }
