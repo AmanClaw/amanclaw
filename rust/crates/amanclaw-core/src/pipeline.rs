@@ -75,6 +75,18 @@ impl Pipeline {
     ) -> Result<Option<OutgoingMessage>> {
         let user_id = &msg.user_id;
         let platform = &msg.platform;
+        let text = msg.text.trim();
+
+        // Handle /myid before auth — anyone can use it
+        if text == "/myid" || text == "/start" {
+            let reply = format!("Your user ID: `{}`\nPlatform: {}", user_id, platform);
+            return Ok(Some(OutgoingMessage {
+                chat_id: msg.chat_id,
+                text: reply,
+                parse_mode: Some("Markdown".into()),
+                reply_to: None,
+            }));
+        }
 
         // 1. Auth check
         let state = auth.lock().unwrap().get_user_state(user_id, platform);
@@ -98,6 +110,13 @@ impl Pipeline {
                 }));
             }
             UserState::Admin | UserState::Approved => {} // proceed
+        }
+
+        // Handle commands (after auth)
+        if text.starts_with('/') {
+            if let Some(reply) = Self::handle_command(auth, memory, &msg, &state).await? {
+                return Ok(Some(reply));
+            }
         }
 
         // 2. Rate limit
@@ -137,6 +156,69 @@ impl Pipeline {
         Ok(Some(OutgoingMessage {
             chat_id: msg.chat_id,
             text: response,
+            parse_mode: None,
+            reply_to: None,
+        }))
+    }
+
+    async fn handle_command(
+        auth: &Mutex<Auth>,
+        memory: &SqliteMemory,
+        msg: &IncomingMessage,
+        state: &UserState,
+    ) -> Result<Option<OutgoingMessage>> {
+        let text = msg.text.trim();
+        let parts: Vec<&str> = text.splitn(3, ' ').collect();
+        let cmd = parts[0];
+
+        let reply = match cmd {
+            "/clear" => {
+                memory.clear_history(&msg.user_id).await?;
+                Some("Conversation history cleared.".into())
+            }
+            "/stats" => {
+                let count = memory.get_message_count(&msg.user_id).await?;
+                Some(format!("Messages in history: {}", count))
+            }
+            // Admin-only commands
+            "/approve" if *state == UserState::Admin => {
+                if let Some(target) = parts.get(1) {
+                    auth.lock().unwrap().approve_user(target, &msg.platform);
+                    Some(format!("User `{}` approved.", target))
+                } else {
+                    Some("Usage: /approve <user_id>".into())
+                }
+            }
+            "/block" if *state == UserState::Admin => {
+                if let Some(target) = parts.get(1) {
+                    auth.lock().unwrap().block_user(target, &msg.platform);
+                    Some(format!("User `{}` blocked.", target))
+                } else {
+                    Some("Usage: /block <user_id>".into())
+                }
+            }
+            "/users" if *state == UserState::Admin => {
+                let users = auth.lock().unwrap().list_users();
+                if users.is_empty() {
+                    Some("No registered users.".into())
+                } else {
+                    let mut lines = vec!["Registered users:".to_string()];
+                    for (uid, plat, st) in &users {
+                        lines.push(format!("  {} ({}) — {}", uid, plat, st));
+                    }
+                    Some(lines.join("\n"))
+                }
+            }
+            "/approve" | "/block" | "/users" => {
+                Some("Admin only command.".into())
+            }
+            // Unknown command — fall through to LLM
+            _ => None,
+        };
+
+        Ok(reply.map(|text| OutgoingMessage {
+            chat_id: msg.chat_id.clone(),
+            text,
             parse_mode: None,
             reply_to: None,
         }))

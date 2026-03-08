@@ -80,6 +80,13 @@ impl SqliteMemory {
         }).collect())
     }
 
+    pub async fn clear_history(&self, user_id: &str) -> Result<()> {
+        sqlx::query("DELETE FROM messages WHERE user_id = ?")
+            .bind(user_id)
+            .execute(&self.pool).await?;
+        Ok(())
+    }
+
     pub async fn get_message_count(&self, user_id: &str) -> Result<i64> {
         let row = sqlx::query("SELECT COUNT(*) as count FROM messages WHERE user_id = ?")
             .bind(user_id)

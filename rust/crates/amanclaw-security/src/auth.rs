@@ -9,6 +9,18 @@ pub enum UserState {
     New,
 }
 
+impl std::fmt::Display for UserState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UserState::Admin => write!(f, "Admin"),
+            UserState::Approved => write!(f, "Approved"),
+            UserState::Pending => write!(f, "Pending"),
+            UserState::Blocked => write!(f, "Blocked"),
+            UserState::New => write!(f, "New"),
+        }
+    }
+}
+
 pub struct Auth {
     admin_users: HashMap<String, Vec<String>>,
     registered: HashMap<(String, String), UserState>, // (user_id, platform) -> state
@@ -48,6 +60,13 @@ impl Auth {
     pub fn block_user(&mut self, user_id: &str, platform: &str) {
         let key = (user_id.to_string(), platform.to_string());
         self.registered.insert(key, UserState::Blocked);
+    }
+
+    pub fn list_users(&self) -> Vec<(String, String, UserState)> {
+        self.registered
+            .iter()
+            .map(|((uid, plat), state)| (uid.clone(), plat.clone(), state.clone()))
+            .collect()
     }
 }
 
