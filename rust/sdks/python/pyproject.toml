@@ -1,0 +1,14 @@
+[project]
+name = "amanclaw-sdk"
+version = "0.1.0"
+description = "AmanClaw Plugin SDK for Python"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["amanclaw_sdk*"]

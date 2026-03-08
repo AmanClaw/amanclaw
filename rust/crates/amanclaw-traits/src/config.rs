@@ -22,6 +22,18 @@ pub struct AppConfig {
 
     #[serde(default)]
     pub mcp_servers: HashMap<String, McpServerConfig>,
+
+    #[serde(default)]
+    pub script_plugins: HashMap<String, ScriptPluginConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScriptPluginConfig {
+    pub command: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+    #[serde(default)]
+    pub env: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

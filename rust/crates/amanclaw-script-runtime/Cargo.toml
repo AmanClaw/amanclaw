@@ -1,0 +1,16 @@
+[package]
+name = "amanclaw-script-runtime"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+amanclaw-traits = { path = "../amanclaw-traits" }
+tokio = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+async-trait = "0.1"
+
+[dev-dependencies]
+serde_yaml = { workspace = true }

@@ -140,6 +140,7 @@ dependencies = [
  "amanclaw-llm",
  "amanclaw-mcp",
  "amanclaw-memory",
+ "amanclaw-script-runtime",
  "amanclaw-security",
  "amanclaw-skill-shell",
  "amanclaw-skill-sysinfo",
@@ -212,6 +213,20 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "amanclaw-script-runtime"
+version = "0.1.0"
+dependencies = [
+ "amanclaw-traits",
+ "anyhow",
+ "async-trait",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

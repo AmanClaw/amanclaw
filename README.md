@@ -31,7 +31,7 @@ One binary. One SQLite database. One config file. ~2MB RAM on a Raspberry Pi.
 ## Features
 
 - **Blazing fast** — Rust async runtime, ~2MB memory footprint, instant startup
-- **Plugin system** — WASM plugins with JSON ABI + built-in Rust skills
+- **Plugin system** — WASM plugins (Rust/AssemblyScript) + script plugins (Python/JS) + built-in Rust skills
 - **Multi-channel** — Telegram, Discord, WhatsApp (official + unofficial), Slack
 - **Any LLM backend** — vLLM, Ollama, LM Studio, LocalAI, OpenAI, Anthropic, etc.
 - **Tool calling** — LLM function calling with multi-round tool execution loop (max 5 rounds)
@@ -107,7 +107,7 @@ admin_users:
 
 ## Architecture
 
-AmanClaw is a Cargo workspace with 16 crates (10 core + 6 channel/skill plugins):
+AmanClaw is a Cargo workspace with 17 crates (11 core + 6 channel/skill plugins):
 
 ```text
 rust/
@@ -121,7 +121,8 @@ rust/
 │   ├── amanclaw-llm/             # OpenAI-compatible LLM client + tool calling
 │   ├── amanclaw-wasm-runtime/    # WASM plugin loader, sandbox, runtime, watcher
 │   ├── amanclaw-plugin-sdk/      # SDK + macro for WASM plugin authors
-│   └── amanclaw-mcp/            # MCP server + client bridge (stdio + HTTP)
+│   ├── amanclaw-mcp/            # MCP server + client bridge (stdio + HTTP)
+│   └── amanclaw-script-runtime/ # Script plugin loader (Python/JS via subprocess)
 ├── plugins/
 │   ├── skill-sysinfo/            # System info skill (built-in)
 │   ├── skill-websearch/          # DuckDuckGo search skill (built-in)
@@ -132,6 +133,9 @@ rust/
 │   ├── channel-whatsapp/         # WhatsApp Cloud API adapter
 │   ├── channel-whatsapp-web/     # Unofficial WhatsApp via WAHA bridge
 │   └── channel-slack/           # Slack adapter (Socket Mode)
+├── sdks/
+│   ├── assemblyscript/           # AssemblyScript (JS/TS) plugin SDK
+│   └── python/                   # Python plugin SDK
 ├── wit/
 │   └── skill.wit                 # WASM Interface Types contract
 ├── Dockerfile
@@ -284,6 +288,71 @@ All WASM plugins run with strict limits:
 - 64MB memory limit per plugin
 - 30-second execution timeout (configurable)
 - Epoch-based interruption for runaway plugins
+
+### Writing Plugins in Python
+
+Python plugins use a JSON protocol over stdin/stdout. Install the SDK and write your plugin:
+
+```python
+# my_plugin.py
+from amanclaw_sdk import plugin, SkillInput, SkillResult
+
+@plugin(
+    name="weather",
+    description="Get weather for a city",
+    parameters={
+        "type": "object",
+        "properties": {"city": {"type": "string"}},
+        "required": ["city"]
+    }
+)
+def execute(input: SkillInput) -> SkillResult:
+    args = input.parse_args()
+    city = args.get("city", "unknown")
+    return SkillResult.ok(f"Weather in {city}: Sunny, 32°C")
+
+if __name__ == "__main__":
+    execute.run()
+```
+
+Register in `config.yaml`:
+
+```yaml
+script_plugins:
+  weather:
+    command: "python3"
+    args: ["plugins/my_plugin.py"]
+```
+
+The SDK is at `sdks/python/`. Install with `pip install -e sdks/python/`.
+
+### Writing Plugins in JavaScript (AssemblyScript)
+
+AssemblyScript compiles TypeScript-like code directly to WASM modules matching AmanClaw's ABI.
+
+```typescript
+// assembly/index.ts
+import { SkillMetadata, SkillInput, SkillResult, stringToPtr } from "./sdk";
+
+function getMetadata(): SkillMetadata {
+  const meta = new SkillMetadata();
+  meta.name = "hello_js";
+  meta.description = "A greeting skill";
+  meta.timeout_ms = 10000;
+  meta.version = "0.1.0";
+  return meta;
+}
+
+function executeSkill(input: SkillInput): SkillResult {
+  const args = JSON.parse<Map<string, string>>(input.args);
+  const name = args.has("name") ? args.get("name") : "World";
+  return SkillResult.ok("Hello, " + name + "!");
+}
+```
+
+Build: `npm run build` → produces `build/plugin.wasm`. Copy to the plugins directory.
+
+Template project at `sdks/assemblyscript/`.
 
 ---
 
@@ -777,7 +846,7 @@ RUST_LOG=amanclaw=debug cargo run -p amanclaw-cli
 ### Test coverage
 
 ```text
-89+ tests across 16 crates
+91+ tests across 17 crates
 ├── amanclaw-traits        11 tests (config, messages, skills, channels)
 ├── amanclaw-core           7 tests (pipeline, router, registry, integration)
 ├── amanclaw-security      11 tests (auth, rate limiter, sanitizer)
@@ -793,7 +862,8 @@ RUST_LOG=amanclaw=debug cargo run -p amanclaw-cli
 ├── channel-discord         1 test
 ├── channel-whatsapp        2 tests
 ├── channel-whatsapp-web    4 tests
-└── channel-slack           4 tests (platform, env, envelope parsing)
+├── channel-slack           4 tests (platform, env, envelope parsing)
+└── amanclaw-script-runtime 2 tests (config parsing, discovery)
 ```
 
 ---
@@ -874,7 +944,7 @@ The easiest way to contribute is by writing a new skill plugin. See the [WASM Pl
 - [x] MCP server integration (stdio + HTTP transports)
 - [x] MCP client bridge (consume external MCP server tools)
 - [x] Slack channel adapter (Socket Mode)
-- [ ] Python and JavaScript plugin SDKs
+- [x] Python and JavaScript (AssemblyScript) plugin SDKs
 
 ---
 
@@ -890,7 +960,7 @@ Yes. Add user IDs to `admin_users` in config. Non-admin users go through an appr
 ~2MB RAM, <1% CPU idle on a Raspberry Pi 4. It's Rust — it's fast.
 
 **Q: Can I write plugins in Python?**
-Not yet natively. The WASM ABI is language-agnostic — any language that compiles to WASM and can export the required functions will work. Python/JS SDK support is on the roadmap.
+Yes! Python plugins use a subprocess-based protocol (JSON over stdin/stdout). Write a Python script with the `@plugin` decorator, register it in `config.yaml` under `script_plugins`, and it works alongside WASM and built-in skills. See the [Python plugin section](#writing-plugins-in-python) and `sdks/python/` for the SDK.
 
 **Q: Is my data stored?**
 Conversations are stored in a local SQLite database. Nothing leaves your server except LLM API calls.

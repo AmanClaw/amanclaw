@@ -61,6 +61,22 @@ impl Engine {
             }
         }
 
+        // Load script plugins (Python, JavaScript, etc.)
+        if !config.script_plugins.is_empty() {
+            let script_configs: std::collections::HashMap<String, amanclaw_script_runtime::ScriptPluginConfig> =
+                config.script_plugins.iter().map(|(k, v)| {
+                    (k.clone(), amanclaw_script_runtime::ScriptPluginConfig {
+                        command: v.command.clone(),
+                        args: v.args.clone(),
+                        env: v.env.clone(),
+                    })
+                }).collect();
+            let script_skills = amanclaw_script_runtime::load_script_plugins(&script_configs).await;
+            for skill in script_skills {
+                registry.register(skill);
+            }
+        }
+
         let registry = Arc::new(registry);
         let pipeline = Pipeline::with_services(auth, rate_limiter, memory, llm);
         let (tx, rx) = mpsc::channel(256);

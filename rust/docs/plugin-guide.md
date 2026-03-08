@@ -72,88 +72,81 @@ cp target/release/libmy_skill.so /path/to/plugins/my-skill.wasm
 
 ## Writing a Python Skill Plugin
 
-Requires [componentize-py](https://github.com/bytecodealliance/componentize-py).
+Python plugins use the AmanClaw Python SDK with a JSON protocol over stdin/stdout.
 
-### 1. Create the skill
+### 1. Install the SDK
+
+```bash
+pip install -e rust/sdks/python/
+```
+
+### 2. Create the skill
 
 ```python
+#!/usr/bin/env python3
 # my_skill.py
-class Skill:
-    def metadata(self):
-        return {
-            "name": "my_python_skill",
-            "description": "A skill written in Python",
-            "timeout_ms": 10000,
-            "version": "0.1.0"
-        }
+from amanclaw_sdk import plugin, SkillInput, SkillResult
 
-    def parameters(self):
-        return '{"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}'
+@plugin(
+    name="my_python_skill",
+    description="A skill written in Python",
+    parameters={
+        "type": "object",
+        "properties": {"query": {"type": "string", "description": "Search query"}},
+        "required": ["query"]
+    }
+)
+def execute(input: SkillInput) -> SkillResult:
+    args = input.parse_args()
+    query = args.get("query", "none")
+    return SkillResult.ok(f"Hello from Python: {query}")
 
-    def execute(self, input):
-        import json
-        args = json.loads(input.args)
-        return {"success": True, "output": f"Hello from Python: {args.get('query')}", "error": None}
+if __name__ == "__main__":
+    execute.run()
 ```
 
-### 2. Build
+### 3. Register in config
+
+```yaml
+# config.yaml
+script_plugins:
+  my_python_skill:
+    command: "python3"
+    args: ["plugins/my_skill.py"]
+```
+
+The plugin is automatically discovered on startup and available as a tool for the LLM.
+
+## Writing a JavaScript/TypeScript Skill Plugin (AssemblyScript)
+
+[AssemblyScript](https://www.assemblyscript.org/) compiles TypeScript-like code directly to WASM modules that match AmanClaw's ABI.
+
+### 1. Set up the project
 
 ```bash
-componentize-py -d ../../wit/skill.wit -w skill componentize my_skill -o my-python-skill.wasm
+cp -r rust/sdks/assemblyscript/ my-js-plugin/
+cd my-js-plugin
+npm install
 ```
 
-### 3. Install
+### 2. Edit `assembly/index.ts`
+
+Modify `getMetadata()`, `getParametersSchema()`, and `executeSkill()` with your plugin logic.
+
+### 3. Build
 
 ```bash
-cp my-python-skill.wasm /path/to/plugins/
+npm run build
+# Output: build/plugin.wasm
 ```
 
-## Writing a JavaScript Skill Plugin
-
-Requires [jco](https://github.com/bytecodealliance/jco).
-
-### 1. Create the skill
-
-```javascript
-// my-skill.js
-export function metadata() {
-    return {
-        name: "my_js_skill",
-        description: "A skill written in JavaScript",
-        timeoutMs: 10000,
-        version: "0.1.0"
-    };
-}
-
-export function parameters() {
-    return JSON.stringify({
-        type: "object",
-        properties: { query: { type: "string" } },
-        required: ["query"]
-    });
-}
-
-export function execute(input) {
-    const args = JSON.parse(input.args);
-    return {
-        success: true,
-        output: `Hello from JS: ${args.query}`,
-        error: null
-    };
-}
-```
-
-### 2. Build
+### 4. Install
 
 ```bash
-jco componentize my-skill.js -d ../../wit/skill.wit -w skill -o my-js-skill.wasm
+cp build/plugin.wasm /path/to/plugins/
 ```
 
-### 3. Install
-
-```bash
-cp my-js-skill.wasm /path/to/plugins/
-```
+The WASM plugin is loaded automatically on startup (or via hot reload).
 
 ## Available Host Functions
 

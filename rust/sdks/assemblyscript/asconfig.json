@@ -1,0 +1,18 @@
+{
+  "targets": {
+    "debug": {
+      "outFile": "build/plugin.debug.wasm",
+      "sourceMap": true,
+      "debug": true
+    },
+    "release": {
+      "outFile": "build/plugin.wasm",
+      "sourceMap": false,
+      "optimizeLevel": 3,
+      "shrinkLevel": 1
+    }
+  },
+  "options": {
+    "exportRuntime": true
+  }
+}
