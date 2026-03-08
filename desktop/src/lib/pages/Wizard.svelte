@@ -18,9 +18,9 @@
 		error = '';
 		try {
 			await api.saveConfig({
-				llm_base_url: baseUrl,
-				llm_model: model,
-				llm_api_key: apiKey,
+				llmBaseUrl: baseUrl,
+				llmModel: model,
+				llmApiKey: apiKey,
 			});
 			await api.startEngine();
 			isFirstRun.set(false);

@@ -7,16 +7,16 @@ export const api = {
 	// Config
 	getConfig: () => invoke('get_config'),
 	saveConfig: (params: {
-		llm_base_url: string;
-		llm_model: string;
-		llm_api_key: string;
-		max_tokens?: number;
+		llmBaseUrl: string;
+		llmModel: string;
+		llmApiKey: string;
+		maxTokens?: number;
 		temperature?: number;
-		rate_limit?: number;
-		telegram_token?: string;
-		discord_token?: string;
-		slack_bot_token?: string;
-		slack_app_token?: string;
+		rateLimit?: number;
+		telegramToken?: string;
+		discordToken?: string;
+		slackBotToken?: string;
+		slackAppToken?: string;
 	}) => invoke('save_config', params),
 
 	// Engine lifecycle

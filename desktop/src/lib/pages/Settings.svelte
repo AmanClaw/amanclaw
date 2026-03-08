@@ -59,16 +59,16 @@
 		try {
 			await api.setMode(mode, remoteUrl, remoteToken);
 			await api.saveConfig({
-				llm_base_url: llmBaseUrl,
-				llm_model: llmModel,
-				llm_api_key: llmApiKey,
-				max_tokens: maxTokens,
+				llmBaseUrl: llmBaseUrl,
+				llmModel: llmModel,
+				llmApiKey: llmApiKey,
+				maxTokens: maxTokens,
 				temperature: temperature,
-				rate_limit: rateLimit,
-				telegram_token: telegramToken || undefined,
-				discord_token: discordToken || undefined,
-				slack_bot_token: slackBotToken || undefined,
-				slack_app_token: slackAppToken || undefined,
+				rateLimit: rateLimit,
+				telegramToken: telegramToken || undefined,
+				discordToken: discordToken || undefined,
+				slackBotToken: slackBotToken || undefined,
+				slackAppToken: slackAppToken || undefined,
 			});
 			saved = true;
 			setTimeout(() => saved = false, 2000);
