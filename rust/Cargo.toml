@@ -10,6 +10,7 @@ members = [
     "crates/amanclaw-wasm-runtime",
     "crates/amanclaw-plugin-sdk",
     "crates/amanclaw-mcp",
+    "crates/amanclaw-api",
     "crates/amanclaw-script-runtime",
     "plugins/skill-sysinfo",
     "plugins/skill-websearch",

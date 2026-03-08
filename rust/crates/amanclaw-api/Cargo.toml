@@ -1,0 +1,23 @@
+[package]
+name = "amanclaw-api"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+amanclaw-traits = { path = "../amanclaw-traits" }
+amanclaw-memory = { path = "../amanclaw-memory" }
+amanclaw-core = { path = "../amanclaw-core" }
+amanclaw-security = { path = "../amanclaw-security" }
+axum = { version = "0.8", features = ["json"] }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+tracing = { workspace = true }
+chrono = "0.4"
+uuid = { version = "1", features = ["v4"] }
+anyhow = { workspace = true }
+sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }

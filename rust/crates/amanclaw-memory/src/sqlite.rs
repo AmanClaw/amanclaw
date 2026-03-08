@@ -33,6 +33,11 @@ impl SqliteMemory {
         Ok(Self { pool })
     }
 
+    /// Get a reference to the underlying SQLite pool.
+    pub fn pool(&self) -> &SqlitePool {
+        &self.pool
+    }
+
     pub async fn save_exchange(
         &self, user_id: &str, platform: &str, user_msg: &str, assistant_msg: &str,
     ) -> Result<()> {
