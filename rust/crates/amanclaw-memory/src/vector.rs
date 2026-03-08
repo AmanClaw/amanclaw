@@ -98,12 +98,17 @@ impl VectorStore for SqliteVectorStore {
     }
 
     async fn search(&self, collection: &str, query: &str, limit: usize) -> Result<Vec<SearchResult>> {
-        // Without an embedding client, fall back to simple LIKE search
+        // Use FTS5 MATCH with BM25 ranking instead of LIKE
         let rows = sqlx::query(
-            "SELECT id, content, metadata FROM vector_documents WHERE collection = ? AND content LIKE ? LIMIT ?"
+            "SELECT vd.id, vd.content, vd.metadata, bm25(vector_documents_fts) as rank
+             FROM vector_documents vd
+             JOIN vector_documents_fts fts ON vd.rowid = fts.rowid
+             WHERE vd.collection = ? AND vector_documents_fts MATCH ?
+             ORDER BY rank
+             LIMIT ?"
         )
             .bind(collection)
-            .bind(format!("%{}%", query))
+            .bind(query)
             .bind(limit as i64)
             .fetch_all(&self.pool).await?;
 
@@ -112,7 +117,7 @@ impl VectorStore for SqliteVectorStore {
             SearchResult {
                 id: row.get("id"),
                 content: row.get("content"),
-                score: 1.0, // Text match, no real score
+                score: row.get::<f64, _>("rank"),
                 metadata: serde_json::from_str(&metadata_str).unwrap_or_default(),
             }
         }).collect();
@@ -137,10 +142,89 @@ impl VectorStore for SqliteVectorStore {
     }
 
     async fn search_by_embedding(
-        &self, collection: &str, query_embedding: &[f32], _query_text: &str, limit: usize,
+        &self, collection: &str, query_embedding: &[f32], query_text: &str, limit: usize,
     ) -> Result<Vec<SearchResult>> {
-        SqliteVectorStore::search_by_embedding(self, collection, query_embedding, limit).await
+        // 1. Vector search (cosine similarity)
+        let vector_results = SqliteVectorStore::search_by_embedding(self, collection, query_embedding, limit * 2).await?;
+        let vector_ranked: Vec<_> = vector_results.iter()
+            .map(|r| (r.id.clone(), r.score, r.content.clone(), serde_json::to_string(&r.metadata).unwrap_or_default()))
+            .collect();
+
+        // 2. FTS5 BM25 search
+        let fts_rows = sqlx::query(
+            "SELECT vd.id, vd.content, vd.metadata, bm25(vector_documents_fts) as rank
+             FROM vector_documents vd
+             JOIN vector_documents_fts fts ON vd.rowid = fts.rowid
+             WHERE vd.collection = ? AND vector_documents_fts MATCH ?
+             ORDER BY rank
+             LIMIT ?"
+        )
+            .bind(collection)
+            .bind(query_text)
+            .bind((limit * 2) as i64)
+            .fetch_all(&self.pool).await
+            .unwrap_or_default(); // FTS match may fail on invalid syntax — degrade gracefully
+
+        let fts_ranked: Vec<_> = fts_rows.iter()
+            .map(|row| {
+                let id: String = row.get("id");
+                let content: String = row.get("content");
+                let metadata: String = row.get("metadata");
+                let rank: f64 = row.get("rank");
+                (id, rank, content, metadata)
+            })
+            .collect();
+
+        // 3. Merge with RRF (k=60)
+        if fts_ranked.is_empty() {
+            let mut results = vector_results;
+            results.truncate(limit);
+            return Ok(results);
+        }
+
+        let merged = hybrid_rrf(&vector_ranked, &fts_ranked, 60.0);
+
+        let results: Vec<SearchResult> = merged.into_iter()
+            .take(limit)
+            .map(|(id, score, content, metadata_str)| {
+                let metadata = serde_json::from_str(&metadata_str).unwrap_or_default();
+                SearchResult { id, content, score, metadata }
+            })
+            .collect();
+
+        Ok(results)
     }
+}
+
+/// Reciprocal Rank Fusion: combines two ranked lists without score normalization.
+/// k=60 is the standard constant from Cormack et al. 2009.
+fn hybrid_rrf(
+    vector_ranked: &[(String, f64, String, String)], // (id, score, content, metadata)
+    fts_ranked: &[(String, f64, String, String)],
+    k: f64,
+) -> Vec<(String, f64, String, String)> {
+    use std::collections::HashMap;
+
+    let mut scores: HashMap<String, f64> = HashMap::new();
+    let mut data: HashMap<String, (String, String)> = HashMap::new();
+
+    for (rank, (id, _, content, metadata)) in vector_ranked.iter().enumerate() {
+        *scores.entry(id.clone()).or_default() += 1.0 / (k + rank as f64 + 1.0);
+        data.entry(id.clone()).or_insert_with(|| (content.clone(), metadata.clone()));
+    }
+    for (rank, (id, _, content, metadata)) in fts_ranked.iter().enumerate() {
+        *scores.entry(id.clone()).or_default() += 1.0 / (k + rank as f64 + 1.0);
+        data.entry(id.clone()).or_insert_with(|| (content.clone(), metadata.clone()));
+    }
+
+    let mut merged: Vec<_> = scores.into_iter()
+        .map(|(id, score)| {
+            let (content, metadata) = data.remove(&id).unwrap_or_default();
+            (id, score, content, metadata)
+        })
+        .collect();
+    merged.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    merged
 }
 
 // --- Embedding helpers ---
@@ -206,6 +290,7 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].id, "q1");
         assert_eq!(results[0].metadata.get("surah").unwrap(), "Al-Fatihah");
+        assert!(results[0].score < 0.0); // BM25 returns negative scores (lower = better match)
     }
 
     #[tokio::test]
@@ -263,5 +348,48 @@ mod tests {
         let bytes = embedding_to_bytes(&original);
         let restored = bytes_to_embedding(&bytes);
         assert_eq!(original, restored);
+    }
+
+    #[tokio::test]
+    async fn test_fts5_text_search_with_bm25() {
+        let pool = make_pool().await;
+        let store = SqliteVectorStore::new(pool);
+
+        let docs = vec![
+            Document { id: "q1".into(), content: "Bismillah ar-Rahman ar-Rahim".into(), metadata: HashMap::new() },
+            Document { id: "q2".into(), content: "Alhamdulillah Rabbil Alamin".into(), metadata: HashMap::new() },
+            Document { id: "q3".into(), content: "The most merciful and compassionate".into(), metadata: HashMap::new() },
+        ];
+        store.upsert("quran", &docs).await.unwrap();
+
+        let results = store.search("quran", "Rahman", 5).await.unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].id, "q1");
+        assert!(results[0].score < 0.0); // BM25 returns negative scores (lower = better match)
+    }
+
+    #[tokio::test]
+    async fn test_hybrid_rrf_search() {
+        let pool = make_pool().await;
+        let store = SqliteVectorStore::new(pool);
+
+        let docs = vec![
+            Document { id: "d1".into(), content: "prayer prayer prayer times".into(), metadata: HashMap::new() },
+            Document { id: "d2".into(), content: "Fasting rules during Ramadan".into(), metadata: HashMap::new() },
+            Document { id: "d3".into(), content: "Solat schedule Malaysia".into(), metadata: HashMap::new() },
+        ];
+        let embeddings = vec![
+            vec![1.0, 0.0, 0.0],  // d1: exact match direction
+            vec![0.0, 1.0, 0.0],  // d2: orthogonal
+            vec![0.1, 0.9, 0.0],  // d3: far from query
+        ];
+        store.upsert_with_embeddings("test", &docs, &embeddings).await.unwrap();
+
+        // Query embedding matches d1, text query "prayer" only matches d1
+        // RRF should rank d1 highest (top in both vector AND FTS)
+        let store_trait: &dyn VectorStore = &store;
+        let results = store_trait.search_by_embedding("test", &[0.9, 0.1, 0.0], "prayer", 3).await.unwrap();
+        assert!(!results.is_empty());
+        assert_eq!(results[0].id, "d1"); // Best in both ranking lists
     }
 }
