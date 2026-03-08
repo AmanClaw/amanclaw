@@ -10,6 +10,8 @@ use anyhow::Result;
 use std::sync::Mutex;
 
 const MAX_TOOL_ROUNDS: usize = 5;
+const SUMMARIZE_THRESHOLD: i64 = 40;
+const SUMMARIZE_KEEP_RECENT: i64 = 10;
 
 /// Message processing pipeline.
 pub enum Pipeline {
@@ -129,14 +131,29 @@ impl Pipeline {
             tracing::warn!(user_id, "Flagged message");
         }
 
-        // 4. Build context
+        // 4. Build context (with summary + facts)
         let history = memory.get_history(user_id, 20).await?;
         let history_json: Vec<serde_json::Value> = history.iter().map(|m| {
             serde_json::json!({"role": m.role, "content": m.content})
         }).collect();
 
         let now = chrono::Local::now().format("%Y-%m-%d %H:%M %A").to_string();
-        let system = amanclaw_llm::prompts::SYSTEM_PROMPT_BASE.replace("{datetime}", &now);
+        let mut system = amanclaw_llm::prompts::SYSTEM_PROMPT_BASE.replace("{datetime}", &now);
+
+        // Prepend summary if available
+        if let Ok(Some(summary)) = memory.get_summary(user_id).await {
+            system.push_str(&format!("\n\n## Previous conversation summary\n{}", summary));
+        }
+
+        // Append known facts about the user
+        if let Ok(facts) = memory.get_facts(user_id).await {
+            if !facts.is_empty() {
+                system.push_str("\n\n## Known facts about this user");
+                for (k, v) in &facts {
+                    system.push_str(&format!("\n- {}: {}", k, v));
+                }
+            }
+        }
 
         let mut messages = vec![serde_json::json!({"role": "system", "content": system})];
         messages.extend_from_slice(&history_json);
@@ -148,6 +165,32 @@ impl Pipeline {
 
         // 6. Save exchange
         memory.save_exchange(user_id, platform, &msg.text, &response).await?;
+
+        // 7. Auto-summarize if history is too long
+        if memory.needs_summarization(user_id, SUMMARIZE_THRESHOLD).await.unwrap_or(false) {
+            let sum_history = memory.get_history(user_id, 100).await?;
+            let sum_text: Vec<String> = sum_history.iter()
+                .map(|m| format!("{}: {}", m.role, m.content))
+                .collect();
+            let sum_prompt = format!(
+                "Summarize the following conversation concisely. Focus on key topics, decisions, and important context. Reply with ONLY the summary:\n\n{}",
+                sum_text.join("\n")
+            );
+            let sum_messages = vec![
+                serde_json::json!({"role": "system", "content": "You are a conversation summarizer. Output only a concise summary."}),
+                serde_json::json!({"role": "user", "content": sum_prompt}),
+            ];
+            match llm.call(&sum_messages, &[]).await {
+                Ok(LlmResponse::Text(summary)) => {
+                    if let Err(e) = memory.save_summary_and_prune(user_id, &summary, SUMMARIZE_KEEP_RECENT).await {
+                        tracing::error!(error = %e, "Failed to save summary");
+                    }
+                }
+                _ => {
+                    tracing::warn!("Failed to generate summary for {}", user_id);
+                }
+            }
+        }
 
         Ok(Some(OutgoingMessage {
             chat_id: msg.chat_id,
@@ -272,6 +315,39 @@ impl Pipeline {
                         lines.push(format!("  {} ({}) — {}", uid, plat, st));
                     }
                     Some(lines.join("\n"))
+                }
+            }
+            "/learned" => {
+                let facts = memory.get_facts(&msg.user_id).await?;
+                if facts.is_empty() {
+                    Some("I haven't learned anything about you yet.".into())
+                } else {
+                    let mut lines = vec!["Things I know about you:".to_string()];
+                    for (k, v) in &facts {
+                        lines.push(format!("  *{}*: {}", k, v));
+                    }
+                    Some(lines.join("\n"))
+                }
+            }
+            "/remember" => {
+                if parts.len() < 3 {
+                    Some("Usage: /remember <key> <value>\nExample: /remember name Aman".into())
+                } else {
+                    let key = parts[1];
+                    let value = parts[2];
+                    memory.save_fact(&msg.user_id, key, value).await?;
+                    Some(format!("Got it! I'll remember that your {} is: {}", key, value))
+                }
+            }
+            "/forget" => {
+                if let Some(key) = parts.get(1) {
+                    if memory.delete_fact(&msg.user_id, key).await? {
+                        Some(format!("Forgot your {}.", key))
+                    } else {
+                        Some(format!("I don't have anything stored for '{}'.", key))
+                    }
+                } else {
+                    Some("Usage: /forget <key>".into())
                 }
             }
             "/approve" | "/block" | "/users" => {
