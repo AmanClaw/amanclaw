@@ -20,6 +20,11 @@ members = [
     "plugins/channel-whatsapp-web",
     "plugins/channel-slack",
     "plugins/skill-echo-wasm",
+    "plugins/skill-qiblat",
+    "plugins/skill-hijri",
+    "plugins/skill-solat",
+    "plugins/skill-doa",
+    "plugins/skill-quran",
 ]
 
 [workspace.package]

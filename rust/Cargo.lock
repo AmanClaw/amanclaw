@@ -142,7 +142,12 @@ dependencies = [
  "amanclaw-memory",
  "amanclaw-script-runtime",
  "amanclaw-security",
+ "amanclaw-skill-doa",
+ "amanclaw-skill-hijri",
+ "amanclaw-skill-qiblat",
+ "amanclaw-skill-quran",
  "amanclaw-skill-shell",
+ "amanclaw-skill-solat",
  "amanclaw-skill-sysinfo",
  "amanclaw-skill-websearch",
  "amanclaw-traits",
@@ -205,6 +210,7 @@ dependencies = [
  "sqlx",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -242,11 +248,57 @@ dependencies = [
 ]
 
 [[package]]
+name = "amanclaw-skill-doa"
+version = "0.1.0"
+dependencies = [
+ "amanclaw-traits",
+ "async-trait",
+ "once_cell",
+ "rand 0.8.5",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "amanclaw-skill-echo-wasm"
 version = "0.1.0"
 dependencies = [
  "amanclaw-plugin-sdk",
  "serde_json",
+]
+
+[[package]]
+name = "amanclaw-skill-hijri"
+version = "0.1.0"
+dependencies = [
+ "amanclaw-traits",
+ "async-trait",
+ "chrono",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "amanclaw-skill-qiblat"
+version = "0.1.0"
+dependencies = [
+ "amanclaw-traits",
+ "async-trait",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "amanclaw-skill-quran"
+version = "0.1.0"
+dependencies = [
+ "amanclaw-traits",
+ "async-trait",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
+ "urlencoding",
 ]
 
 [[package]]
@@ -256,6 +308,18 @@ dependencies = [
  "amanclaw-traits",
  "async-trait",
  "serde_json",
+]
+
+[[package]]
+name = "amanclaw-skill-solat"
+version = "0.1.0"
+dependencies = [
+ "amanclaw-traits",
+ "async-trait",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -4356,6 +4420,12 @@ dependencies = [
  "serde",
  "serde_derive",
 ]
+
+[[package]]
+name = "urlencoding"
+version = "2.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "daf8dba3b7eb870caf1ddeed7bc9d2a049f3cfdfae7cb521b087cc33ae4c49da"
 
 [[package]]
 name = "utf-8"

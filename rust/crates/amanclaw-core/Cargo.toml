@@ -19,6 +19,11 @@ amanclaw-channel-slack = { path = "../../plugins/channel-slack" }
 amanclaw-skill-sysinfo = { path = "../../plugins/skill-sysinfo" }
 amanclaw-skill-websearch = { path = "../../plugins/skill-websearch" }
 amanclaw-skill-shell = { path = "../../plugins/skill-shell" }
+amanclaw-skill-solat = { path = "../../plugins/skill-solat" }
+amanclaw-skill-qiblat = { path = "../../plugins/skill-qiblat" }
+amanclaw-skill-hijri = { path = "../../plugins/skill-hijri" }
+amanclaw-skill-doa = { path = "../../plugins/skill-doa" }
+amanclaw-skill-quran = { path = "../../plugins/skill-quran" }
 tokio = { workspace = true }
 tracing = { workspace = true }
 serde = { workspace = true }

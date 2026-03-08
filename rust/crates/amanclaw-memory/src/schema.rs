@@ -28,4 +28,30 @@ CREATE TABLE IF NOT EXISTS summaries (
 
 CREATE INDEX IF NOT EXISTS idx_messages_user ON messages(user_id);
 CREATE INDEX IF NOT EXISTS idx_facts_user ON facts(user_id);
+
+CREATE TABLE IF NOT EXISTS communities (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    zone TEXT NOT NULL DEFAULT 'WLY01',
+    language TEXT NOT NULL DEFAULT 'rojak',
+    platform TEXT NOT NULL,
+    platform_group_id TEXT NOT NULL UNIQUE,
+    enabled_skills TEXT NOT NULL DEFAULT '[]',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS community_notifications (
+    community_id TEXT NOT NULL REFERENCES communities(id),
+    notification_type TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (community_id, notification_type)
+);
+
+CREATE TABLE IF NOT EXISTS community_admins (
+    community_id TEXT NOT NULL REFERENCES communities(id),
+    user_id TEXT NOT NULL,
+    platform TEXT NOT NULL,
+    added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (community_id, user_id)
+);
 "#;
