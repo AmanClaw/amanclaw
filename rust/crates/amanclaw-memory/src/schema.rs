@@ -58,6 +58,17 @@ CREATE TABLE IF NOT EXISTS community_admins (
     added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (community_id, user_id)
 );
+
+CREATE TABLE IF NOT EXISTS vector_documents (
+    id TEXT NOT NULL,
+    collection TEXT NOT NULL,
+    content TEXT NOT NULL,
+    metadata TEXT NOT NULL DEFAULT '{}',
+    embedding BLOB,
+    PRIMARY KEY (collection, id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_vector_collection ON vector_documents(collection);
 "#;
 
 /// Migration statements for existing databases that lack namespace columns.
