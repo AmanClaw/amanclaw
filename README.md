@@ -41,6 +41,7 @@ One binary. One SQLite database. One config file. ~2MB RAM on a Raspberry Pi.
 - **Vision support** — Send images to multimodal LLMs via base64 encoding
 - **Security-first** — User allowlist, rate limiting, prompt injection detection, output sanitization
 - **Conversation memory** — SQLite-backed history with auto-summarization and pruning
+- **RAG (Retrieval-Augmented Generation)** — Load knowledge bases at startup, index with embeddings, retrieve relevant context during conversations
 - **Learning engine** — Remembers facts about users across conversations (`/remember`, `/forget`, `/learned`)
 - **Plugin hot reload** — Filesystem watcher detects new/modified `.wasm` plugins
 - **MCP integration** — Expose skills as MCP tools + consume external MCP servers as skills
@@ -112,7 +113,7 @@ admin_users:
 
 ## Architecture
 
-AmanClaw is a Cargo workspace with 18 crates (12 core + 6 channel/skill plugins) plus a Tauri desktop app:
+AmanClaw is a Cargo workspace with 24 crates (11 core + 13 plugins) plus a Tauri desktop app:
 
 ```text
 rust/
@@ -122,8 +123,8 @@ rust/
 │   ├── amanclaw-cli/             # Binary entry point
 │   ├── amanclaw-core/            # Engine, pipeline, router, registry
 │   ├── amanclaw-security/        # Auth, rate limiter, sanitizer
-│   ├── amanclaw-memory/          # SQLite conversation, facts & summaries
-│   ├── amanclaw-llm/             # OpenAI-compatible LLM client + tool calling
+│   ├── amanclaw-memory/          # SQLite conversation, facts, summaries & vector store
+│   ├── amanclaw-llm/             # OpenAI-compatible LLM client + tool calling + embeddings
 │   ├── amanclaw-wasm-runtime/    # WASM plugin loader, sandbox, runtime, watcher
 │   ├── amanclaw-plugin-sdk/      # SDK + macro for WASM plugin authors
 │   ├── amanclaw-mcp/            # MCP server + client bridge (stdio + HTTP)
@@ -131,8 +132,12 @@ rust/
 │   └── amanclaw-api/            # REST management API (Axum)
 ├── plugins/
 │   ├── skill-sysinfo/            # System info skill (built-in)
-│   ├── skill-websearch/          # DuckDuckGo search skill (built-in)
 │   ├── skill-shell/              # Whitelisted shell commands (built-in)
+│   ├── skill-solat/              # Prayer times via JAKIM (built-in)
+│   ├── skill-qiblat/             # Qiblat direction (built-in)
+│   ├── skill-hijri/              # Islamic calendar (built-in)
+│   ├── skill-doa/                # Doa & zikir collection (built-in)
+│   ├── skill-quran/              # Quran lookup & search (built-in)
 │   ├── skill-echo-wasm/          # Example WASM plugin (153KB compiled)
 │   ├── channel-telegram/         # Telegram adapter (teloxide)
 │   ├── channel-discord/          # Discord adapter (serenity)
@@ -169,7 +174,7 @@ desktop/                           # Tauri 2 desktop admin app
 
 1. **Channel adapters** receive messages from platforms and push them into the engine via async channels
 2. **Engine** pulls messages and runs them through the **pipeline**
-3. **Pipeline** checks auth → rate limit → sanitize input → build context (summary + facts + history) → call LLM
+3. **Pipeline** checks auth → rate limit → sanitize input → build context (summary + facts + history + RAG retrieval) → call LLM
 4. **LLM** may request tool calls, which are executed via the **plugin registry** (up to 5 rounds)
 5. **Auto-summarization** kicks in when history exceeds 40 messages — LLM summarizes, old messages are pruned
 6. **Response** is routed back to the correct channel adapter by platform
@@ -443,9 +448,9 @@ For local use with Claude Code, add to your MCP config:
 All registered skills (built-in + WASM plugins) are automatically exposed as MCP tools with their parameter schemas. For example:
 
 - `system_info` — Get system information
-- `web_search` — Search the web via DuckDuckGo
 - `shell` — Execute whitelisted shell commands
-- Any custom WASM plugins in your plugins directory
+- `solat`, `quran`, `qiblat`, `hijri`, `doa` — Islamic community skills
+- Any custom WASM or script plugins
 
 ### MCP Client Bridge (Consuming External MCP Servers)
 
@@ -1025,7 +1030,7 @@ RUST_LOG=amanclaw=debug cargo run -p amanclaw-cli
 ### Test coverage
 
 ```text
-136+ tests across 18 crates
+130+ tests across 24 crates
 ├── amanclaw-traits        11 tests (config, messages, skills, channels)
 ├── amanclaw-core           7 tests (pipeline, router, registry, integration)
 ├── amanclaw-security      11 tests (auth, rate limiter, sanitizer)
@@ -1035,7 +1040,6 @@ RUST_LOG=amanclaw=debug cargo run -p amanclaw-cli
 ├── amanclaw-mcp           17 tests (protocol, handler, HTTP, client, bridge)
 ├── amanclaw-plugin-sdk     5 tests
 ├── skill-sysinfo           2 tests
-├── skill-websearch         2 tests
 ├── skill-shell             4 tests
 ├── channel-telegram        1 test
 ├── channel-discord         1 test
@@ -1116,7 +1120,7 @@ The easiest way to contribute is by writing a new skill plugin. See the [WASM Pl
 - [x] SQLite conversation memory
 - [x] Security (auth, rate limiting, injection detection)
 - [x] WASM plugin runtime (loader, sandbox, SDK)
-- [x] Built-in skills (sysinfo, websearch, shell)
+- [x] Built-in skills (sysinfo, shell)
 - [x] Docker & systemd deployment
 - [x] LLM tool calling loop (multi-round skill execution)
 - [x] Admin commands (`/approve`, `/block`, `/stats`, `/users`)
@@ -1132,6 +1136,8 @@ The easiest way to contribute is by writing a new skill plugin. See the [WASM Pl
 - [x] MCP client bridge (consume external MCP server tools)
 - [x] Slack channel adapter (Socket Mode)
 - [x] Python and JavaScript (AssemblyScript) plugin SDKs
+- [x] RAG with SQLite vector store (knowledge base indexing + cosine similarity search)
+- [x] Embedding client for vector store indexing and retrieval
 
 ### Phase 1: Islamic Community Skills (Done)
 
