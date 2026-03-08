@@ -1,6 +1,6 @@
 # AmanClaw
 
-A high-performance, modular AI assistant built with Rust. Connect it to Telegram (more channels coming) — powered by any OpenAI-compatible LLM backend. Extend it with WASM plugins written in Rust, Python, or JavaScript.
+A high-performance, modular AI assistant built with Rust. Connect it to Telegram, Discord, or WhatsApp — powered by any OpenAI-compatible LLM backend. Extend it with WASM plugins written in Rust.
 
 Built in Malaysia. Open source. No bloat.
 
@@ -14,14 +14,14 @@ Built in Malaysia. Open source. No bloat.
 
 AmanClaw is a personal AI assistant that lives in your chat apps. You message it, it thinks using an LLM, optionally calls skills (tools), and replies back.
 
-```
-You (Telegram)
+```text
+You (Telegram / Discord / WhatsApp)
   │
   ▼
-AmanClaw Engine ──► Auth ──► Rate Limit ──► Sanitize ──► LLM ──► Skills (WASM)
-  │                                                                    │
-  ▼                                                                    ▼
-Reply  ◄──────────────────────────────────────────────────────────────-┘
+AmanClaw Engine ──► Auth ──► Rate Limit ──► Sanitize ──► LLM ◄──► Skills (WASM/built-in)
+  │                                                                       │
+  ▼                                                                       ▼
+Reply  ◄─────────────────────────────────────────────────────────────────-┘
 ```
 
 One binary. One SQLite database. One config file. ~2MB RAM on a Raspberry Pi.
@@ -31,13 +31,17 @@ One binary. One SQLite database. One config file. ~2MB RAM on a Raspberry Pi.
 ## Features
 
 - **Blazing fast** — Rust async runtime, ~2MB memory footprint, instant startup
-- **Plugin system** — WASM Component Model plugins in Rust, Python, or JavaScript
-- **Multi-channel** — Telegram, Discord, WhatsApp (Slack planned)
+- **Plugin system** — WASM plugins with JSON ABI + built-in Rust skills
+- **Multi-channel** — Telegram, Discord, WhatsApp (official Cloud API + unofficial via WAHA)
 - **Any LLM backend** — vLLM, Ollama, LM Studio, LocalAI, OpenAI, Anthropic, etc.
-- **Security-first** — user allowlist, rate limiting, prompt injection detection, output sanitization
-- **Conversation memory** — SQLite-backed history, facts, and summaries
+- **Tool calling** — LLM function calling with multi-round tool execution loop (max 5 rounds)
+- **Vision support** — Send images to multimodal LLMs via base64 encoding
+- **Security-first** — User allowlist, rate limiting, prompt injection detection, output sanitization
+- **Conversation memory** — SQLite-backed history with auto-summarization and pruning
+- **Learning engine** — Remembers facts about users across conversations (`/remember`, `/forget`, `/learned`)
+- **Plugin hot reload** — Filesystem watcher detects new/modified `.wasm` plugins
 - **Production-ready** — Docker with hardened containers, systemd service, structured logging
-- **Cross-platform** — runs on x86_64, ARM64 (Raspberry Pi), and anywhere Rust compiles
+- **Cross-platform** — Runs on x86_64, ARM64 (Raspberry Pi), and anywhere Rust compiles
 
 ---
 
@@ -64,8 +68,15 @@ The binary is at `target/release/amanclaw`.
 Create a `.env` file in the project root:
 
 ```bash
+# Required
 TELEGRAM_BOT_TOKEN=your-telegram-bot-token
 LLM_API_KEY=your-llm-api-key
+
+# Optional channels
+DISCORD_BOT_TOKEN=your-discord-bot-token
+WHATSAPP_ACCESS_TOKEN=your-whatsapp-access-token
+WHATSAPP_PHONE_NUMBER_ID=your-phone-number-id
+WAHA_API_URL=http://localhost:3000   # For unofficial WhatsApp via WAHA
 ```
 
 ### 3. Configure settings
@@ -95,88 +106,161 @@ admin_users:
 
 ## Architecture
 
-AmanClaw is a Cargo workspace with modular crates:
+AmanClaw is a Cargo workspace with 14 crates (9 core + 5 plugins):
 
-```
+```text
 rust/
-├── Cargo.toml                 # Workspace root
+├── Cargo.toml                    # Workspace root
 ├── crates/
-│   ├── amanclaw-traits/       # Core types, traits, config
-│   ├── amanclaw-cli/          # Binary entry point
-│   ├── amanclaw-core/         # Engine, pipeline, router, registry
-│   ├── amanclaw-security/     # Auth, rate limiter, sanitizer
-│   ├── amanclaw-memory/       # SQLite conversation & fact storage
-│   ├── amanclaw-llm/          # OpenAI-compatible LLM client
-│   ├── amanclaw-wasm-runtime/ # WASM plugin loader & sandbox
-│   └── amanclaw-plugin-sdk/   # SDK types for plugin authors
+│   ├── amanclaw-traits/          # Core types, traits, config
+│   ├── amanclaw-cli/             # Binary entry point
+│   ├── amanclaw-core/            # Engine, pipeline, router, registry
+│   ├── amanclaw-security/        # Auth, rate limiter, sanitizer
+│   ├── amanclaw-memory/          # SQLite conversation, facts & summaries
+│   ├── amanclaw-llm/             # OpenAI-compatible LLM client + tool calling
+│   ├── amanclaw-wasm-runtime/    # WASM plugin loader, sandbox, runtime, watcher
+│   └── amanclaw-plugin-sdk/      # SDK + macro for WASM plugin authors
 ├── plugins/
-│   ├── skill-sysinfo/         # System info skill
-│   ├── skill-websearch/       # DuckDuckGo search skill
-│   ├── skill-shell/           # Whitelisted shell commands
-│   └── channel-telegram/      # Telegram adapter
+│   ├── skill-sysinfo/            # System info skill (built-in)
+│   ├── skill-websearch/          # DuckDuckGo search skill (built-in)
+│   ├── skill-shell/              # Whitelisted shell commands (built-in)
+│   ├── skill-echo-wasm/          # Example WASM plugin (153KB compiled)
+│   ├── channel-telegram/         # Telegram adapter (teloxide)
+│   ├── channel-discord/          # Discord adapter (serenity)
+│   ├── channel-whatsapp/         # WhatsApp Cloud API adapter
+│   └── channel-whatsapp-web/     # Unofficial WhatsApp via WAHA bridge
 ├── wit/
-│   └── skill.wit              # WASM Interface Types contract
+│   └── skill.wit                 # WASM Interface Types contract
 ├── Dockerfile
-├── docker-compose.yml
-└── docs/
-    └── plugin-guide.md        # Plugin authoring guide
+└── docker-compose.yml
 ```
 
 ### How It Works
 
-1. **Channel adapters** receive messages from platforms and push them into the engine via an async channel
+1. **Channel adapters** receive messages from platforms and push them into the engine via async channels
 2. **Engine** pulls messages and runs them through the **pipeline**
-3. **Pipeline** checks auth → rate limit → sanitize input → build context from memory → call LLM → save exchange
-4. **LLM** may request tool calls, which are executed via the **plugin registry**
-5. **Response** is routed back to the correct channel adapter
+3. **Pipeline** checks auth → rate limit → sanitize input → build context (summary + facts + history) → call LLM
+4. **LLM** may request tool calls, which are executed via the **plugin registry** (up to 5 rounds)
+5. **Auto-summarization** kicks in when history exceeds 40 messages — LLM summarizes, old messages are pruned
+6. **Response** is routed back to the correct channel adapter by platform
+
+### Bot Commands
+
+| Command | Description | Access |
+| ------- | ----------- | ------ |
+| `/start`, `/myid` | Show your user ID and platform | Everyone |
+| `/clear` | Clear conversation history | Approved |
+| `/stats` | Show message count | Approved |
+| `/learned` | Show stored facts about you | Approved |
+| `/remember <key> <value>` | Save a fact (e.g. `/remember name Aman`) | Approved |
+| `/forget <key>` | Delete a stored fact | Approved |
+| `/approve <user_id>` | Approve a pending user | Admin |
+| `/block <user_id>` | Block a user | Admin |
+| `/users` | List all registered users | Admin |
 
 ---
 
-## Writing Plugins
+## Channel Adapters
 
-AmanClaw uses the [WASM Component Model](https://component-model.bytecodealliance.org/) for plugins. Write skills in **Rust**, **Python**, or **JavaScript** — they all compile to `.wasm` and run sandboxed.
+### Telegram
 
-### Rust Example
+Set `TELEGRAM_BOT_TOKEN` and the bot starts automatically.
+
+### Discord
+
+Set `DISCORD_BOT_TOKEN`. Requires `MESSAGE_CONTENT` intent enabled in the Discord Developer Portal.
+
+### WhatsApp (Official — Cloud API)
+
+Requires a Meta Business account. Set:
+
+```bash
+WHATSAPP_ACCESS_TOKEN=your-access-token
+WHATSAPP_PHONE_NUMBER_ID=your-phone-number-id
+WHATSAPP_VERIFY_TOKEN=your-verify-token     # default: amanclaw_verify
+WHATSAPP_WEBHOOK_PORT=8080                   # default: 8080
+```
+
+Configure Meta's webhook to point to `http://your-server:8080/webhook`.
+
+### WhatsApp (Unofficial — WAHA)
+
+Uses [WAHA](https://waha.devlike.pro) (WhatsApp HTTP API), a self-hosted WhatsApp Web bridge. No Business account needed.
+
+```bash
+# Start WAHA
+docker run -p 3000:3000 devlikeapro/waha
+
+# Set env vars
+WAHA_API_URL=http://localhost:3000
+WAHA_API_KEY=your-api-key              # optional
+WAHA_SESSION=default                    # default: default
+WAHA_WEBHOOK_PORT=8081                  # default: 8081
+```
+
+Configure WAHA's webhook to point to `http://your-server:8081/webhook`.
+
+---
+
+## Writing WASM Plugins
+
+AmanClaw loads `.wasm` files from the plugins directory on startup. Plugins use a simple JSON-based ABI.
+
+### Using the SDK Macro
 
 ```rust
+// Cargo.toml: [lib] crate-type = ["cdylib"]
 use amanclaw_plugin_sdk::*;
 
-pub fn metadata() -> SkillMetadata {
-    SkillMetadata {
+amanclaw_plugin!(
+    metadata: SkillMetadata {
         name: "my_skill".into(),
         description: "Does something useful".into(),
         timeout_ms: 10000,
         version: "0.1.0".into(),
+    },
+    parameters: r#"{"type":"object","properties":{"query":{"type":"string","description":"Search query"}},"required":["query"]}"#,
+    execute: |input: SkillInput| -> SkillResult {
+        let args: serde_json::Value = serde_json::from_str(&input.args).unwrap_or_default();
+        let query = args["query"].as_str().unwrap_or("none");
+        SkillResult::ok(format!("Result for: {}", query))
     }
-}
-
-pub fn parameters() -> serde_json::Value {
-    serde_json::json!({
-        "type": "object",
-        "properties": {
-            "query": { "type": "string", "description": "Input query" }
-        },
-        "required": ["query"]
-    })
-}
-
-pub fn execute(input: SkillInput) -> SkillResult {
-    let args: serde_json::Value = serde_json::from_str(&input.args).unwrap_or_default();
-    let query = args.get("query").and_then(|v| v.as_str()).unwrap_or("no query");
-    SkillResult::ok(format!("Result for: {}", query))
-}
+);
 ```
+
+### Build and Deploy
+
+```bash
+# Build for WASM
+cargo build --target wasm32-unknown-unknown --release -p my-skill
+
+# Copy to plugins directory
+cp target/wasm32-unknown-unknown/release/my_skill.wasm ./plugins/
+
+# Restart the engine (or wait for hot reload)
+```
+
+### WASM ABI Contract
+
+Plugins must export these functions:
+
+| Export | Signature | Description |
+| ------ | --------- | ----------- |
+| `alloc` | `(size: i32) -> ptr: i32` | Allocate memory for input |
+| `dealloc` | `(ptr: i32, size: i32)` | Free allocated memory |
+| `metadata` | `() -> ptr: i32` | Return null-terminated JSON `SkillMetadata` |
+| `parameters` | `() -> ptr: i32` | Return null-terminated JSON schema string |
+| `execute` | `(ptr: i32, len: i32) -> ptr: i32` | Take JSON `SkillInput`, return JSON `SkillResult` |
 
 ### Plugin Sandbox
 
-All plugins run with strict limits:
-- No filesystem access
-- No direct network — use `http-fetch` host function
-- 64MB memory limit per plugin
-- Configurable execution timeout
-- Domain allowlist for HTTP requests
+All WASM plugins run with strict limits:
 
-See [`rust/docs/plugin-guide.md`](rust/docs/plugin-guide.md) for the full guide including Python and JavaScript examples.
+- No filesystem access
+- No direct network access
+- 64MB memory limit per plugin
+- 30-second execution timeout (configurable)
+- Epoch-based interruption for runaway plugins
 
 ---
 
@@ -187,9 +271,13 @@ See [`rust/docs/plugin-guide.md`](rust/docs/plugin-guide.md) for the full guide 
 Never commit this file. Set `chmod 600 .env`.
 
 | Variable | Required | Purpose |
-|----------|----------|---------|
-| `TELEGRAM_BOT_TOKEN` | Yes | Telegram bot token |
+| -------- | -------- | ------- |
+| `TELEGRAM_BOT_TOKEN` | For Telegram | Telegram bot token |
 | `LLM_API_KEY` | Yes | LLM API key |
+| `DISCORD_BOT_TOKEN` | For Discord | Discord bot token |
+| `WHATSAPP_ACCESS_TOKEN` | For WhatsApp | WhatsApp Cloud API token |
+| `WHATSAPP_PHONE_NUMBER_ID` | For WhatsApp | WhatsApp phone number ID |
+| `WAHA_API_URL` | For WAHA | WAHA bridge base URL |
 
 ### Settings (`config.yaml`)
 
@@ -209,17 +297,12 @@ rate_limit_per_minute: 20
 
 plugins:
   dir: "./plugins"
-  hot_reload: false
-
-security:
-  injection_rules: "default"
-  sanitize_output: true
 ```
 
 ### Environment Overrides
 
 | Variable | Purpose |
-|----------|---------|
+| -------- | ------- |
 | `MEMORY_DB_PATH` | Override SQLite database path |
 | `LOG_FORMAT` | `text` or `json` |
 | `RUST_LOG` | Log level filter (e.g. `amanclaw=debug`) |
@@ -280,14 +363,15 @@ sudo systemctl enable --now amanclaw
 
 ### Cross-Compilation (for Raspberry Pi)
 
-Build on your dev machine, deploy to Pi:
-
 ```bash
-# Install cross-compilation target
-rustup target add aarch64-unknown-linux-gnu
-
-# Build (requires aarch64 linker or use Docker/cross)
-cargo build --release --target aarch64-unknown-linux-gnu -p amanclaw-cli
+# Using Docker for cross-compilation
+cd rust
+docker run --rm -v "$(pwd)":/app -w /app rust:1.85-slim bash -c "
+  apt-get update -qq && apt-get install -y -qq gcc-aarch64-linux-gnu
+  rustup target add aarch64-unknown-linux-gnu
+  CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
+    cargo build --release --target aarch64-unknown-linux-gnu -p amanclaw-cli
+"
 
 # Copy to Pi
 scp target/aarch64-unknown-linux-gnu/release/amanclaw user@pi:~/amanclaw/
@@ -298,22 +382,26 @@ scp target/aarch64-unknown-linux-gnu/release/amanclaw user@pi:~/amanclaw/
 ## Security
 
 ### Authentication & Authorization
+
 - User allowlist with admin approval flow
 - New users are registered but must be approved by an admin
 - Per-user sliding window rate limiting
 
 ### Input Protection
+
 - Regex-based prompt injection detection
 - Input sanitization before LLM processing
 - Skill output sandboxing — marked as external data to the LLM
 
 ### Plugin Sandboxing
+
 - WASM plugins run in isolated memory spaces
 - No filesystem or direct network access
 - Configurable timeouts and memory limits
-- Domain allowlist for HTTP requests
+- Epoch-based interruption for runaway plugins
 
 ### Infrastructure
+
 - Docker: non-root, `cap_drop: ALL`, read-only filesystem, resource limits
 - Secrets in `.env` (never in config or code)
 
@@ -329,26 +417,37 @@ cargo build
 cargo test --workspace
 ```
 
+### Build a WASM plugin
+
+```bash
+rustup target add wasm32-unknown-unknown
+cargo build --target wasm32-unknown-unknown --release -p amanclaw-skill-echo-wasm
+```
+
 ### Run with debug logging
 
 ```bash
 RUST_LOG=amanclaw=debug cargo run -p amanclaw-cli
 ```
 
-### Project test coverage
+### Test coverage
 
-```
-53 tests across 12 crates
-├── amanclaw-traits       11 tests (config, messages, skills, channels)
-├── amanclaw-core          7 tests (pipeline, router, registry, integration)
-├── amanclaw-security     11 tests (auth, rate limiter, sanitizer)
-├── amanclaw-memory        4 tests (history, facts, upsert, counting)
-├── amanclaw-llm           2 tests (LLM client, thinking tag stripping)
-├── amanclaw-wasm-runtime  7 tests (loader, host state, sandbox config)
-├── skill-sysinfo          2 tests
-├── skill-websearch        2 tests
-├── skill-shell            4 tests
-└── channel-telegram       1 test
+```text
+68+ tests across 14 crates
+├── amanclaw-traits        11 tests (config, messages, skills, channels)
+├── amanclaw-core           7 tests (pipeline, router, registry, integration)
+├── amanclaw-security      11 tests (auth, rate limiter, sanitizer)
+├── amanclaw-memory         7 tests (history, facts, summaries, pruning)
+├── amanclaw-llm            3 tests (LLM client, tool call parsing, thinking tags)
+├── amanclaw-wasm-runtime  13 tests (loader, host, sandbox, runtime, watcher)
+├── amanclaw-plugin-sdk     5 tests
+├── skill-sysinfo           2 tests
+├── skill-websearch         2 tests
+├── skill-shell             4 tests
+├── channel-telegram        1 test
+├── channel-discord         1 test
+├── channel-whatsapp        2 tests
+└── channel-whatsapp-web    4 tests
 ```
 
 ---
@@ -381,7 +480,7 @@ git checkout -b feature/my-feature
 
 ### Pull Request Process
 
-1. Fork the repo and create your branch from `master`
+1. Fork the repo and create your branch from `main`
 2. Add tests for any new functionality
 3. Ensure `cargo test --workspace` passes with zero failures
 4. Ensure `cargo clippy` has no warnings
@@ -391,23 +490,18 @@ git checkout -b feature/my-feature
 ### Areas Where Help Is Appreciated
 
 | Area | Description | Difficulty |
-|------|-------------|------------|
+| ---- | ----------- | ---------- |
 | **New skill plugins** | Web scraping, calendar, weather, translation, etc. | Easy |
-| **Channel adapters** | Discord, Slack, WhatsApp, Matrix, Signal | Medium |
-| **Python/JS plugin SDK** | componentize-py and jco integration | Medium |
-| **WASM runtime integration** | Wire PluginLoader to actually instantiate .wasm files | Medium |
-| **Tool calling** | LLM tool call parsing and skill execution loop | Medium |
-| **Vision support** | Image handling in messages | Medium |
-| **Conversation summarization** | Auto-compress long conversations | Medium |
-| **Hot reload** | Watch plugin directory and reload on changes | Medium |
-| **Admin commands** | `/approve`, `/block`, `/clear`, `/learned` | Easy |
+| **Slack adapter** | Channel adapter for Slack (Bolt API) | Medium |
+| **Python/JS plugin SDK** | componentize-py and jco integration for WASM | Medium |
+| **MCP server** | Expose skills as Model Context Protocol tools | Medium |
 | **Documentation** | Tutorials, examples, architecture docs | Easy |
 | **Security review** | Audit injection detection, auth flow, sandbox | Hard |
 | **i18n / localization** | Malay, Mandarin, and other languages | Easy |
 
 ### Writing a Plugin
 
-The easiest way to contribute is by writing a new skill plugin. See the [Plugin Author Guide](rust/docs/plugin-guide.md) for step-by-step instructions in Rust, Python, and JavaScript.
+The easiest way to contribute is by writing a new skill plugin. See the [WASM Plugins](#writing-wasm-plugins) section above, or create a built-in Rust skill by implementing the `Skill` trait.
 
 ---
 
@@ -421,7 +515,7 @@ The easiest way to contribute is by writing a new skill plugin. See the [Plugin 
 - [x] WASM plugin runtime (loader, sandbox, SDK)
 - [x] Built-in skills (sysinfo, websearch, shell)
 - [x] Docker & systemd deployment
-- [x] LLM tool calling loop (skill execution)
+- [x] LLM tool calling loop (multi-round skill execution)
 - [x] Admin commands (`/approve`, `/block`, `/stats`, `/users`)
 - [x] Conversation auto-summarization
 - [x] Learning engine (`/remember`, `/forget`, `/learned`)
@@ -430,9 +524,10 @@ The easiest way to contribute is by writing a new skill plugin. See the [Plugin 
 - [x] Full WASM plugin instantiation and execution
 - [x] Discord channel adapter
 - [x] WhatsApp Cloud API channel adapter
-- [ ] Slack channel
-- [ ] Python and JavaScript plugin SDKs
+- [x] WhatsApp Web adapter (unofficial, via WAHA)
 - [ ] MCP server integration
+- [ ] Slack channel adapter
+- [ ] Python and JavaScript plugin SDKs
 
 ---
 
@@ -448,10 +543,13 @@ Yes. Add user IDs to `admin_users` in config. Non-admin users go through an appr
 ~2MB RAM, <1% CPU idle on a Raspberry Pi 4. It's Rust — it's fast.
 
 **Q: Can I write plugins in Python?**
-Yes! Plugins use the WASM Component Model. Write in Python, compile with [componentize-py](https://github.com/bytecodealliance/componentize-py), and drop the `.wasm` file in the plugins directory.
+Not yet natively. The WASM ABI is language-agnostic — any language that compiles to WASM and can export the required functions will work. Python/JS SDK support is on the roadmap.
 
 **Q: Is my data stored?**
 Conversations are stored in a local SQLite database. Nothing leaves your server except LLM API calls.
+
+**Q: How does auto-summarization work?**
+When a user's message count exceeds 40, the engine asks the LLM to summarize the conversation, saves the summary, and prunes old messages (keeping the 10 most recent). The summary is included in future prompts as context.
 
 ---
 
@@ -463,6 +561,6 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-Built with care from Puncak Alam, Malaysia. Made possible by the Rust ecosystem and the communities behind teloxide, wasmtime, tokio, and the WASM Component Model.
+Built with care from Puncak Alam, Malaysia. Made possible by the Rust ecosystem and the communities behind teloxide, serenity, wasmtime, axum, tokio, and sqlx.
 
-*Malaysia boleh!* 🇲🇾
+*Malaysia boleh!*
