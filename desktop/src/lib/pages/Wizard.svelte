@@ -22,12 +22,12 @@
 				llmModel: model,
 				llmApiKey: apiKey,
 			});
+			error = 'Config saved! Starting engine...';
 			await api.startEngine();
 			isFirstRun.set(false);
 			currentPage.set('dashboard');
 		} catch (e: any) {
-			error = e?.toString() || 'Failed to start';
-		} finally {
+			error = String(e) || 'Failed to start';
 			saving = false;
 		}
 	}
