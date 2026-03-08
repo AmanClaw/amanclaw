@@ -490,8 +490,8 @@
 											<div class="mt-3 pt-3 border-t border-gray-100 flex gap-3">
 												{#if skill.source === 'builtin'}
 													<button onclick={() => toggleSkill(skill.name)}
-														class="text-xs font-medium {disabledSkills.includes(skill.name) ? 'text-green-600 hover:text-green-800' : 'text-red-500 hover:text-red-700'}">
-														{disabledSkills.includes(skill.name) ? 'Enable' : 'Disable'}
+														class="text-xs text-red-500 hover:text-red-700 font-medium">
+														Remove
 													</button>
 												{:else if skill.source === 'mcp'}
 													{@const serverName = skill.name.split('__')[0]}
@@ -566,7 +566,7 @@
 		{#if disabledSkills.length > 0}
 			<div class="mt-6">
 				<h3 class="text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-2">
-					Disabled ({disabledSkills.length})
+					Removed ({disabledSkills.length})
 				</h3>
 				<div class="space-y-1">
 					{#each disabledSkills as skillName}
@@ -574,13 +574,13 @@
 							<div class="flex items-center justify-between p-3">
 								<div class="flex items-center gap-3 min-w-0">
 									<span class="inline-flex px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-100 text-gray-500">
-										Disabled
+										Removed
 									</span>
 									<p class="text-sm font-medium text-gray-500 truncate">{skillName}</p>
 								</div>
 								<button onclick={() => toggleSkill(skillName)}
 									class="text-xs text-green-600 hover:text-green-800 font-medium shrink-0 ml-3">
-									Enable
+									Re-add
 								</button>
 							</div>
 						</div>

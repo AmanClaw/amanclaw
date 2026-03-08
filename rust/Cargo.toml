@@ -13,7 +13,6 @@ members = [
     "crates/amanclaw-api",
     "crates/amanclaw-script-runtime",
     "plugins/skill-sysinfo",
-    "plugins/skill-websearch",
     "plugins/skill-shell",
     "plugins/channel-telegram",
     "plugins/channel-discord",

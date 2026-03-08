@@ -48,7 +48,6 @@ impl Engine {
         let mut registry = PluginRegistry::new();
         let builtins: Vec<Arc<dyn amanclaw_traits::skill::Skill>> = vec![
             Arc::new(amanclaw_skill_sysinfo::SysInfoSkill),
-            Arc::new(amanclaw_skill_websearch::WebSearchSkill),
             Arc::new(amanclaw_skill_shell::ShellSkill),
             Arc::new(amanclaw_skill_solat::SolatSkill),
             Arc::new(amanclaw_skill_qiblat::QiblatSkill),

@@ -170,7 +170,6 @@ dependencies = [
  "amanclaw-skill-shell",
  "amanclaw-skill-solat",
  "amanclaw-skill-sysinfo",
- "amanclaw-skill-websearch",
  "amanclaw-traits",
  "amanclaw-wasm-runtime",
  "anyhow",
@@ -353,18 +352,6 @@ dependencies = [
  "async-trait",
  "serde_json",
  "sysinfo",
-]
-
-[[package]]
-name = "amanclaw-skill-websearch"
-version = "0.1.0"
-dependencies = [
- "amanclaw-traits",
- "async-trait",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "tokio",
 ]
 
 [[package]]
@@ -4831,7 +4818,6 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "encoding_rs",
- "futures-channel",
  "futures-core",
  "futures-util",
  "h2 0.4.13",

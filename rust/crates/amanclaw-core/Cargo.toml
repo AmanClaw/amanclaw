@@ -17,7 +17,6 @@ amanclaw-channel-whatsapp = { path = "../../plugins/channel-whatsapp" }
 amanclaw-channel-whatsapp-web = { path = "../../plugins/channel-whatsapp-web" }
 amanclaw-channel-slack = { path = "../../plugins/channel-slack" }
 amanclaw-skill-sysinfo = { path = "../../plugins/skill-sysinfo" }
-amanclaw-skill-websearch = { path = "../../plugins/skill-websearch" }
 amanclaw-skill-shell = { path = "../../plugins/skill-shell" }
 amanclaw-skill-solat = { path = "../../plugins/skill-solat" }
 amanclaw-skill-qiblat = { path = "../../plugins/skill-qiblat" }
