@@ -142,7 +142,12 @@ dependencies = [
  "amanclaw-memory",
  "amanclaw-script-runtime",
  "amanclaw-security",
+ "amanclaw-skill-doa",
+ "amanclaw-skill-hijri",
+ "amanclaw-skill-qiblat",
+ "amanclaw-skill-quran",
  "amanclaw-skill-shell",
+ "amanclaw-skill-solat",
  "amanclaw-skill-sysinfo",
  "amanclaw-skill-websearch",
  "amanclaw-traits",
@@ -205,6 +210,7 @@ dependencies = [
  "sqlx",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]

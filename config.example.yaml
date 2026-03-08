@@ -96,6 +96,37 @@ security:
 #   port: 8443
 #   # secret_token: loaded from WEBHOOK_SECRET env var
 
+# --- Islamic Python Plugins (optional) ---
+# These plugins are loaded via the script runtime.
+# Set env vars in .env for any that need API keys.
+script_plugins:
+  hadith:
+    command: "python3"
+    args: ["plugins/skill_hadith.py"]
+    env:
+      SUNNAH_API_KEY: "${SUNNAH_API_KEY}"
+  halal:
+    command: "python3"
+    args: ["plugins/skill_halal.py"]
+    env: {}
+  zakat:
+    command: "python3"
+    args: ["plugins/skill_zakat.py"]
+    env: {}
+  masjid:
+    command: "python3"
+    args: ["plugins/skill_masjid.py"]
+    env:
+      GOOGLE_PLACES_API_KEY: "${GOOGLE_PLACES_API_KEY}"
+  khutbah:
+    command: "python3"
+    args: ["plugins/skill_khutbah.py"]
+    env: {}
+  jakim:
+    command: "python3"
+    args: ["plugins/skill_jakim.py"]
+    env: {}
+
 # --- MCP Servers (optional) ---
 # mcp_servers:
 #   filesystem:

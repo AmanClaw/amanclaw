@@ -45,6 +45,11 @@ impl Engine {
         registry.register(Arc::new(amanclaw_skill_sysinfo::SysInfoSkill));
         registry.register(Arc::new(amanclaw_skill_websearch::WebSearchSkill));
         registry.register(Arc::new(amanclaw_skill_shell::ShellSkill));
+        registry.register(Arc::new(amanclaw_skill_solat::SolatSkill));
+        registry.register(Arc::new(amanclaw_skill_qiblat::QiblatSkill));
+        registry.register(Arc::new(amanclaw_skill_hijri::HijriSkill));
+        registry.register(Arc::new(amanclaw_skill_doa::DoaSkill));
+        registry.register(Arc::new(amanclaw_skill_quran::QuranSkill));
 
         // Load WASM plugins
         let plugin_dir = Path::new(&config.plugins.dir);
