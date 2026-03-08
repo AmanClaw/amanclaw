@@ -19,10 +19,18 @@ pub fn api_router(state: ApiState) -> Router {
         .route("/api/users", get(routes::users::list_users))
         .route("/api/users/{platform}/{user_id}/approve", post(routes::users::approve_user))
         .route("/api/users/{platform}/{user_id}/block", post(routes::users::block_user))
+        .route("/api/webhooks", get(routes::webhooks::list_webhooks))
         .layer(middleware::from_fn_with_state(state.clone(), auth::require_auth))
+        .with_state(state.clone());
+
+    // Webhook receiver — no auth middleware (uses its own auth)
+    let webhook_routes = Router::new()
+        .route("/hooks/{webhook_id}", post(routes::webhooks::receive_webhook))
         .with_state(state);
 
-    authed
+    Router::new()
+        .merge(authed)
+        .merge(webhook_routes)
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
 }

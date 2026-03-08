@@ -1,4 +1,5 @@
 use amanclaw_core::registry::PluginRegistry;
+use amanclaw_core::webhooks::WebhookRouter;
 use amanclaw_security::auth::Auth;
 use sqlx::SqlitePool;
 use std::sync::{Arc, Mutex};
@@ -11,6 +12,7 @@ pub struct ApiState {
     pub api_token: String,
     pub bot_status: Arc<RwLock<BotStatus>>,
     pub auth: Arc<Mutex<Auth>>,
+    pub webhook_router: Option<Arc<WebhookRouter>>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
