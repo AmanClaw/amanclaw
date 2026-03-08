@@ -44,6 +44,8 @@ One binary. One SQLite database. One config file. ~2MB RAM on a Raspberry Pi.
 - **Learning engine** — Remembers facts about users across conversations (`/remember`, `/forget`, `/learned`)
 - **Plugin hot reload** — Filesystem watcher detects new/modified `.wasm` plugins
 - **MCP integration** — Expose skills as MCP tools + consume external MCP servers as skills
+- **Desktop admin app** — Cross-platform Tauri 2 desktop app (macOS, Windows, Linux) with system tray and native notifications
+- **REST management API** — Axum-based REST API for bot status, communities, skills, users management
 - **Production-ready** — Docker with hardened containers, systemd service, structured logging
 - **Cross-platform** — Runs on x86_64, ARM64 (Raspberry Pi), and anywhere Rust compiles
 
@@ -110,7 +112,7 @@ admin_users:
 
 ## Architecture
 
-AmanClaw is a Cargo workspace with 17 crates (11 core + 6 channel/skill plugins):
+AmanClaw is a Cargo workspace with 18 crates (12 core + 6 channel/skill plugins) plus a Tauri desktop app:
 
 ```text
 rust/
@@ -125,7 +127,8 @@ rust/
 │   ├── amanclaw-wasm-runtime/    # WASM plugin loader, sandbox, runtime, watcher
 │   ├── amanclaw-plugin-sdk/      # SDK + macro for WASM plugin authors
 │   ├── amanclaw-mcp/            # MCP server + client bridge (stdio + HTTP)
-│   └── amanclaw-script-runtime/ # Script plugin loader (Python/JS via subprocess)
+│   ├── amanclaw-script-runtime/ # Script plugin loader (Python/JS via subprocess)
+│   └── amanclaw-api/            # REST management API (Axum)
 ├── plugins/
 │   ├── skill-sysinfo/            # System info skill (built-in)
 │   ├── skill-websearch/          # DuckDuckGo search skill (built-in)
@@ -143,6 +146,23 @@ rust/
 │   └── skill.wit                 # WASM Interface Types contract
 ├── Dockerfile
 └── docker-compose.yml
+desktop/                           # Tauri 2 desktop admin app
+├── src/                           # Svelte 5 + Tailwind CSS 4 frontend
+│   ├── lib/
+│   │   ├── components/            # Sidebar, UI components
+│   │   ├── pages/                 # Dashboard, Communities, Skills, etc.
+│   │   ├── stores/                # Svelte stores (state management)
+│   │   └── api.ts                 # API client (Tauri IPC / REST)
+│   └── routes/                    # SvelteKit routes
+├── src-tauri/                     # Rust backend (Tauri 2)
+│   └── src/
+│       ├── commands.rs            # IPC commands (Svelte ↔ Rust)
+│       ├── tray.rs                # System tray setup
+│       ├── notifications.rs       # Native notification manager
+│       ├── logs.rs                # Log broadcasting
+│       └── state.rs               # App state (local/remote mode)
+├── package.json
+└── svelte.config.js
 ```
 
 ### How It Works
@@ -460,6 +480,68 @@ Key features:
 
 ---
 
+## REST Management API
+
+AmanClaw includes a REST management API (`amanclaw-api` crate) built with Axum. Set `API_PORT` to enable it:
+
+```bash
+API_PORT=8090 API_TOKEN=my-secret-token ./amanclaw
+```
+
+### Endpoints
+
+| Group | Endpoint | Method | Description |
+| ----- | -------- | ------ | ----------- |
+| Bot | `/api/status` | GET | Bot status, uptime, stats |
+| Communities | `/api/communities` | GET | List all communities |
+| Communities | `/api/communities` | POST | Create community |
+| Communities | `/api/communities/{id}` | GET | Get community |
+| Communities | `/api/communities/{id}` | DELETE | Delete community |
+| Communities | `/api/communities/{id}/skills` | PUT | Update community skills |
+| Skills | `/api/skills` | GET | List registered skills |
+| Users | `/api/users` | GET | List all users |
+| Users | `/api/users/{platform}/{id}/approve` | POST | Approve a user |
+| Users | `/api/users/{platform}/{id}/block` | POST | Block a user |
+
+All endpoints require `Authorization: Bearer <token>`. The API binds to `127.0.0.1` only (not exposed to network by default).
+
+---
+
+## Desktop Admin App
+
+Cross-platform desktop app for managing AmanClaw bot instances. Built with Tauri 2 (Rust) + Svelte 5 + Tailwind CSS 4.
+
+### Features
+
+- **Dashboard** — Stats overview, bot status, quick actions
+- **Communities** — List, add, edit communities with zone/language/skills config
+- **Skills** — Global skill toggle with status
+- **Users** — User list with approve/block actions and status badges
+- **Content** — Manage doa collection, zakat rates, khutbah cache
+- **Logs** — Live log stream with filtering
+- **Settings** — Local/remote mode switch, server URL + token config
+- **System tray** — Background operation with native notifications (solat, user pending, skill errors)
+
+### Running the Desktop App
+
+```bash
+# Development
+cd desktop
+npm install
+cargo tauri dev
+
+# Build for production
+cargo tauri build
+# Outputs: .dmg (macOS), .msi (Windows), .AppImage (Linux)
+```
+
+### Connection Modes
+
+- **Local mode** — Desktop app embeds the bot engine, manages it directly
+- **Remote mode** — Connects to a remote AmanClaw instance via the REST management API
+
+---
+
 ## Islamic Community Skills
 
 AmanClaw comes with 11 Islamic skills designed for Malaysian Muslim communities. All skills use official JAKIM (Jabatan Kemajuan Islam Malaysia) data sources where applicable.
@@ -564,6 +646,8 @@ plugins:
 | `MEMORY_DB_PATH` | Override SQLite database path |
 | `LOG_FORMAT` | `text` or `json` |
 | `RUST_LOG` | Log level filter (e.g. `amanclaw=debug`) |
+| `API_PORT` | Start REST management API on this port (e.g. `8090`) |
+| `API_TOKEN` | Bearer token for management API (auto-generated if not set) |
 
 ---
 
@@ -941,7 +1025,7 @@ RUST_LOG=amanclaw=debug cargo run -p amanclaw-cli
 ### Test coverage
 
 ```text
-91+ tests across 17 crates
+136+ tests across 18 crates
 ├── amanclaw-traits        11 tests (config, messages, skills, channels)
 ├── amanclaw-core           7 tests (pipeline, router, registry, integration)
 ├── amanclaw-security      11 tests (auth, rate limiter, sanitizer)
@@ -958,7 +1042,12 @@ RUST_LOG=amanclaw=debug cargo run -p amanclaw-cli
 ├── channel-whatsapp        2 tests
 ├── channel-whatsapp-web    4 tests
 ├── channel-slack           4 tests (platform, env, envelope parsing)
-└── amanclaw-script-runtime 2 tests (config parsing, discovery)
+├── amanclaw-script-runtime 2 tests (config parsing, discovery)
+├── skill-solat              9 tests (prayer times, JAKIM zones)
+├── skill-qiblat             7 tests (direction, distance)
+├── skill-hijri             13 tests (conversion, events)
+├── skill-doa               17 tests (categories, search)
+└── skill-quran             11 tests (lookup, search, surahs)
 ```
 
 ---
@@ -1005,7 +1094,7 @@ git checkout -b feature/my-feature
 | **Islamic skill plugins** | Improve doa collection, add more hadith sources, refine halal scraping | Easy |
 | **New skill plugins** | Weather, translation, news, etc. | Easy |
 | **LINE / Viber adapter** | Channel adapters for more messaging platforms | Medium |
-| **Web dashboard** | Admin panel for community settings (Phase 2) | Medium |
+| **Web dashboard** | Web-based admin panel (desktop app already done) | Medium |
 | **Documentation** | Tutorials, examples, architecture docs | Easy |
 | **Security review** | Audit injection detection, auth flow, sandbox | Hard |
 | **i18n / localization** | Improve BM translations, add Jawi script support | Easy |
@@ -1058,6 +1147,15 @@ The easiest way to contribute is by writing a new skill plugin. See the [WASM Pl
 - [x] skill-khutbah — Weekly JAKIM khutbah (Python)
 - [x] skill-jakim — JAKIM services & fatwa search (Python)
 - [x] Multi-community model (per-group zone, language, skills config)
+
+### Phase 1.5: Desktop Admin App (Done)
+
+- [x] REST management API (amanclaw-api crate, Axum, 10 endpoints)
+- [x] Tauri 2 desktop app with Svelte 5 + Tailwind CSS 4
+- [x] Dashboard, Communities, Skills, Users, Content, Logs, Settings pages
+- [x] System tray with native notifications (solat, users, skill errors)
+- [x] Local/remote mode switching
+- [x] Apple-style clean minimal UI
 
 ### Phase 2: Community Onboarding
 
