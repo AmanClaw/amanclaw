@@ -14,6 +14,7 @@ members = [
     "plugins/skill-shell",
     "plugins/channel-telegram",
     "plugins/channel-discord",
+    "plugins/channel-whatsapp",
 ]
 
 [workspace.package]

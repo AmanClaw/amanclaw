@@ -11,6 +11,7 @@ use amanclaw_llm::client::LlmClient;
 use amanclaw_wasm_runtime::loader::PluginLoader;
 use amanclaw_channel_telegram::TelegramChannel;
 use amanclaw_channel_discord::DiscordChannel;
+use amanclaw_channel_whatsapp::WhatsAppChannel;
 use crate::pipeline::Pipeline;
 use crate::registry::PluginRegistry;
 use anyhow::Result;
@@ -69,6 +70,12 @@ impl Engine {
             discord.start(tx.clone()).await?;
             channels.push(Arc::new(discord));
             tracing::info!("Discord channel started");
+        }
+
+        if let Some(mut whatsapp) = WhatsAppChannel::from_env() {
+            whatsapp.start(tx.clone()).await?;
+            channels.push(Arc::new(whatsapp));
+            tracing::info!("WhatsApp channel started");
         }
 
         tracing::info!(skills = registry.skill_count(), "Engine initialized");
