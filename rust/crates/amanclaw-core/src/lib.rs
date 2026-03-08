@@ -52,6 +52,14 @@ impl Engine {
             registry.register(skill);
         }
 
+        // Connect to external MCP servers and register their tools
+        if !config.mcp_servers.is_empty() {
+            let mcp_skills = amanclaw_mcp::bridge::connect_all(&config.mcp_servers).await;
+            for skill in mcp_skills {
+                registry.register(skill);
+            }
+        }
+
         let registry = Arc::new(registry);
         let pipeline = Pipeline::with_services(auth, rate_limiter, memory, llm);
         let (tx, rx) = mpsc::channel(256);

@@ -40,6 +40,7 @@ One binary. One SQLite database. One config file. ~2MB RAM on a Raspberry Pi.
 - **Conversation memory** — SQLite-backed history with auto-summarization and pruning
 - **Learning engine** — Remembers facts about users across conversations (`/remember`, `/forget`, `/learned`)
 - **Plugin hot reload** — Filesystem watcher detects new/modified `.wasm` plugins
+- **MCP integration** — Expose skills as MCP tools + consume external MCP servers as skills
 - **Production-ready** — Docker with hardened containers, systemd service, structured logging
 - **Cross-platform** — Runs on x86_64, ARM64 (Raspberry Pi), and anywhere Rust compiles
 
@@ -120,7 +121,7 @@ rust/
 │   ├── amanclaw-llm/             # OpenAI-compatible LLM client + tool calling
 │   ├── amanclaw-wasm-runtime/    # WASM plugin loader, sandbox, runtime, watcher
 │   ├── amanclaw-plugin-sdk/      # SDK + macro for WASM plugin authors
-│   └── amanclaw-mcp/            # MCP server (stdio + HTTP transports)
+│   └── amanclaw-mcp/            # MCP server + client bridge (stdio + HTTP)
 ├── plugins/
 │   ├── skill-sysinfo/            # System info skill (built-in)
 │   ├── skill-websearch/          # DuckDuckGo search skill (built-in)
@@ -303,6 +304,37 @@ All registered skills (built-in + WASM plugins) are automatically exposed as MCP
 - `shell` — Execute whitelisted shell commands
 - Any custom WASM plugins in your plugins directory
 
+### MCP Client Bridge (Consuming External MCP Servers)
+
+AmanClaw can also act as an MCP **client**, connecting to external MCP servers and importing their tools as skills. This lets you use tools from any MCP server (GitHub, Linear, filesystem, databases, etc.) directly through AmanClaw.
+
+Configure external MCP servers in `config.yaml`:
+
+```yaml
+mcp_servers:
+  # Stdio transport — spawns a child process
+  github:
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_PERSONAL_ACCESS_TOKEN: "${GITHUB_TOKEN}"
+
+  filesystem:
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/home/user/docs"]
+
+  # HTTP transport — connects to a remote MCP server
+  remote-tools:
+    url: "https://mcp.example.com/mcp"
+```
+
+Key features:
+- **Auto-discovery** — Tools are discovered via `tools/list` on startup
+- **Namespacing** — Tools are namespaced as `{server}__{tool_name}` to avoid collisions (e.g. `github__create_issue`)
+- **Env var resolution** — Use `${VAR}` syntax to inject secrets from process environment
+- **Dual transport** — Supports both stdio (child process) and HTTP transports
+- **Seamless integration** — External tools appear alongside built-in and WASM skills in the LLM's tool list
+
 ---
 
 ## Configuration
@@ -474,14 +506,14 @@ RUST_LOG=amanclaw=debug cargo run -p amanclaw-cli
 ### Test coverage
 
 ```text
-79+ tests across 15 crates
+85+ tests across 15 crates
 ├── amanclaw-traits        11 tests (config, messages, skills, channels)
 ├── amanclaw-core           7 tests (pipeline, router, registry, integration)
 ├── amanclaw-security      11 tests (auth, rate limiter, sanitizer)
 ├── amanclaw-memory         7 tests (history, facts, summaries, pruning)
 ├── amanclaw-llm            3 tests (LLM client, tool call parsing, thinking tags)
 ├── amanclaw-wasm-runtime  13 tests (loader, host, sandbox, runtime, watcher)
-├── amanclaw-mcp           11 tests (protocol, handler, HTTP transport)
+├── amanclaw-mcp           17 tests (protocol, handler, HTTP, client, bridge)
 ├── amanclaw-plugin-sdk     5 tests
 ├── skill-sysinfo           2 tests
 ├── skill-websearch         2 tests
@@ -568,6 +600,7 @@ The easiest way to contribute is by writing a new skill plugin. See the [WASM Pl
 - [x] WhatsApp Cloud API channel adapter
 - [x] WhatsApp Web adapter (unofficial, via WAHA)
 - [x] MCP server integration (stdio + HTTP transports)
+- [x] MCP client bridge (consume external MCP server tools)
 - [ ] Slack channel adapter
 - [ ] Python and JavaScript plugin SDKs
 

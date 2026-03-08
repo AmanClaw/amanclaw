@@ -13,3 +13,4 @@ anyhow = { workspace = true }
 async-trait = "0.1"
 axum = "0.8"
 tower = { version = "0.5", features = ["util"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

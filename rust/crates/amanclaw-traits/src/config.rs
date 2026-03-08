@@ -74,9 +74,17 @@ pub struct SkillsConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpServerConfig {
-    pub command: String,
+    /// Command to spawn (stdio transport). Mutually exclusive with `url`.
+    #[serde(default)]
+    pub command: Option<String>,
     #[serde(default)]
     pub args: Vec<String>,
+    /// Environment variables to set for the spawned process.
+    #[serde(default)]
+    pub env: HashMap<String, String>,
+    /// HTTP URL for remote MCP servers. Mutually exclusive with `command`.
+    #[serde(default)]
+    pub url: Option<String>,
 }
 
 fn default_rate_limit() -> u32 { 20 }
