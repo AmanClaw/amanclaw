@@ -33,9 +33,9 @@ chrono = "0.4"
 async-trait = "0.1"
 base64 = "0.22"
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
+serde_yaml = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true }
-serde_yaml = { workspace = true }
 wiremock = "0.6"
 tempfile = "3"

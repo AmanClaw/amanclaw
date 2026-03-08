@@ -2,6 +2,7 @@ pub mod pipeline;
 pub mod router;
 pub mod registry;
 pub mod context_engine;
+pub mod soul;
 
 use amanclaw_traits::config::AppConfig;
 use amanclaw_traits::context::ContextEngine;
