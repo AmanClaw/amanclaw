@@ -3,16 +3,19 @@ pub mod router;
 pub mod registry;
 
 use amanclaw_traits::config::AppConfig;
+use amanclaw_traits::channel::Channel;
 use amanclaw_memory::sqlite::SqliteMemory;
 use amanclaw_security::auth::Auth;
 use amanclaw_security::rate_limiter::RateLimiter;
 use amanclaw_llm::client::LlmClient;
 use amanclaw_wasm_runtime::loader::PluginLoader;
+use amanclaw_channel_telegram::TelegramChannel;
 use crate::pipeline::Pipeline;
 use crate::registry::PluginRegistry;
 use anyhow::Result;
 use tokio::sync::mpsc;
 use std::path::Path;
+use std::sync::Arc;
 
 pub struct Engine {
     #[allow(dead_code)]
@@ -20,6 +23,7 @@ pub struct Engine {
     pipeline: Pipeline,
     #[allow(dead_code)]
     registry: PluginRegistry,
+    channels: Vec<Arc<dyn Channel>>,
     rx: mpsc::Receiver<amanclaw_traits::message::IncomingMessage>,
     tx: mpsc::Sender<amanclaw_traits::message::IncomingMessage>,
 }
@@ -39,15 +43,24 @@ impl Engine {
         if let Ok(loader) = PluginLoader::new(plugin_dir) {
             let plugins = loader.discover()?;
             tracing::info!(count = plugins.len(), "Discovered WASM plugins");
-            // TODO: instantiate each .wasm and call metadata() to register
         }
 
         let pipeline = Pipeline::with_services(auth, rate_limiter, memory, llm);
         let (tx, rx) = mpsc::channel(256);
 
+        // Start channel adapters
+        let mut channels: Vec<Arc<dyn Channel>> = Vec::new();
+
+        if let Ok(token) = std::env::var("TELEGRAM_BOT_TOKEN") {
+            let mut telegram = TelegramChannel::new(token);
+            telegram.start(tx.clone()).await?;
+            channels.push(Arc::new(telegram));
+            tracing::info!("Telegram channel started");
+        }
+
         tracing::info!("Engine initialized");
 
-        Ok(Self { config, pipeline, registry, rx, tx })
+        Ok(Self { config, pipeline, registry, channels, rx, tx })
     }
 
     /// Get a sender for channels to push messages into the engine.
@@ -60,10 +73,19 @@ impl Engine {
         drop(self.tx);
         tracing::info!("Engine running");
         while let Some(msg) = self.rx.recv().await {
+            let platform = msg.platform.clone();
             match self.pipeline.process(msg).await {
                 Ok(Some(response)) => {
                     tracing::info!(chat_id = %response.chat_id, "Sending response");
-                    // TODO: route response back to correct channel
+                    // Route response to the correct channel
+                    for ch in &self.channels {
+                        if ch.platform() == platform {
+                            if let Err(e) = ch.send_message(response.clone()).await {
+                                tracing::error!(error = %e, "Failed to send response");
+                            }
+                            break;
+                        }
+                    }
                 }
                 Ok(None) => {}
                 Err(e) => tracing::error!(error = %e, "Pipeline error"),

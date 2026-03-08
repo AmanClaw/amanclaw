@@ -9,6 +9,7 @@ amanclaw-security = { path = "../amanclaw-security" }
 amanclaw-memory = { path = "../amanclaw-memory" }
 amanclaw-llm = { path = "../amanclaw-llm" }
 amanclaw-wasm-runtime = { path = "../amanclaw-wasm-runtime" }
+amanclaw-channel-telegram = { path = "../../plugins/channel-telegram" }
 tokio = { workspace = true }
 tracing = { workspace = true }
 serde = { workspace = true }
