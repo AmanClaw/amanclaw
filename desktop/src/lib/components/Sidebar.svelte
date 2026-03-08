@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { currentPage } from '$lib/stores/app';
+	import { currentPage, botStatus } from '$lib/stores/app';
 
 	const pages = [
 		{ id: 'dashboard', label: 'Dashboard', icon: '⊞' },
@@ -13,6 +13,20 @@
 	const bottomPages = [
 		{ id: 'settings', label: 'Settings', icon: '⚙' },
 	];
+
+	const statusColor = $derived(
+		$botStatus.engine_status === 'running' ? 'bg-green-500' :
+		$botStatus.engine_status === 'starting' ? 'bg-yellow-500 animate-pulse' :
+		$botStatus.engine_status === 'error' ? 'bg-red-500' :
+		'bg-gray-400'
+	);
+
+	const statusText = $derived(
+		$botStatus.engine_status === 'running' ? 'Engine Running' :
+		$botStatus.engine_status === 'starting' ? 'Starting...' :
+		$botStatus.engine_status === 'error' ? 'Engine Error' :
+		'Engine Stopped'
+	);
 </script>
 
 <aside class="w-56 h-screen bg-gray-50/80 backdrop-blur-xl border-r border-gray-200 flex flex-col justify-between p-3">
@@ -50,8 +64,8 @@
 		</div>
 		<div class="mx-2 p-2.5 bg-white rounded-lg border border-gray-200 shadow-sm">
 			<div class="flex items-center gap-2">
-				<span class="w-2 h-2 rounded-full bg-green-500"></span>
-				<span class="text-[11px] font-medium text-gray-700">Bot Running</span>
+				<span class="w-2 h-2 rounded-full {statusColor}"></span>
+				<span class="text-[11px] font-medium text-gray-700">{statusText}</span>
 			</div>
 		</div>
 	</div>
