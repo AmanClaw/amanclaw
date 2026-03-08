@@ -84,6 +84,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "amanclaw-channel-whatsapp-web"
+version = "0.1.0"
+dependencies = [
+ "amanclaw-traits",
+ "anyhow",
+ "async-trait",
+ "axum",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "amanclaw-cli"
 version = "0.1.0"
 dependencies = [
@@ -104,6 +119,7 @@ dependencies = [
  "amanclaw-channel-discord",
  "amanclaw-channel-telegram",
  "amanclaw-channel-whatsapp",
+ "amanclaw-channel-whatsapp-web",
  "amanclaw-llm",
  "amanclaw-memory",
  "amanclaw-security",

@@ -12,6 +12,7 @@ amanclaw-wasm-runtime = { path = "../amanclaw-wasm-runtime" }
 amanclaw-channel-telegram = { path = "../../plugins/channel-telegram" }
 amanclaw-channel-discord = { path = "../../plugins/channel-discord" }
 amanclaw-channel-whatsapp = { path = "../../plugins/channel-whatsapp" }
+amanclaw-channel-whatsapp-web = { path = "../../plugins/channel-whatsapp-web" }
 amanclaw-skill-sysinfo = { path = "../../plugins/skill-sysinfo" }
 amanclaw-skill-websearch = { path = "../../plugins/skill-websearch" }
 amanclaw-skill-shell = { path = "../../plugins/skill-shell" }

@@ -15,6 +15,7 @@ members = [
     "plugins/channel-telegram",
     "plugins/channel-discord",
     "plugins/channel-whatsapp",
+    "plugins/channel-whatsapp-web",
 ]
 
 [workspace.package]

@@ -12,6 +12,7 @@ use amanclaw_wasm_runtime::loader::PluginLoader;
 use amanclaw_channel_telegram::TelegramChannel;
 use amanclaw_channel_discord::DiscordChannel;
 use amanclaw_channel_whatsapp::WhatsAppChannel;
+use amanclaw_channel_whatsapp_web::WhatsAppWebChannel;
 use crate::pipeline::Pipeline;
 use crate::registry::PluginRegistry;
 use anyhow::Result;
@@ -76,6 +77,12 @@ impl Engine {
             whatsapp.start(tx.clone()).await?;
             channels.push(Arc::new(whatsapp));
             tracing::info!("WhatsApp channel started");
+        }
+
+        if let Some(mut whatsapp_web) = WhatsAppWebChannel::from_env() {
+            whatsapp_web.start(tx.clone()).await?;
+            channels.push(Arc::new(whatsapp_web));
+            tracing::info!("WhatsApp Web (WAHA) channel started");
         }
 
         tracing::info!(skills = registry.skill_count(), "Engine initialized");
