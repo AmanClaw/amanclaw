@@ -288,6 +288,8 @@ async fn run_socket_mode(
                 is_group: !is_dm,
                 image_data: None,
                 reply_to: event.thread_ts,
+                topic_id: None,
+                channel_context: None,
             };
 
             let _ = tx.send(incoming).await;

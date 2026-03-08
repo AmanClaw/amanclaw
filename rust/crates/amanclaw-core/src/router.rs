@@ -74,6 +74,8 @@ mod tests {
             is_group: false,
             image_data: None,
             reply_to: None,
+            topic_id: None,
+            channel_context: None,
         };
 
         tx.send(msg).await.unwrap();

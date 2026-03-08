@@ -27,6 +27,8 @@ impl EventHandler for Handler {
             is_group: true, // Discord channels are group-like
             image_data: None,
             reply_to: None,
+            topic_id: None,
+            channel_context: None,
         };
         let _ = self.tx.send(incoming).await;
     }

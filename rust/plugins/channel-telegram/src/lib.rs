@@ -42,6 +42,8 @@ impl Channel for TelegramChannel {
                             is_group: msg.chat.is_group() || msg.chat.is_supergroup(),
                             image_data: None,
                             reply_to: None,
+                            topic_id: None,
+                            channel_context: None,
                         };
                         let _ = tx.send(incoming).await;
                     }

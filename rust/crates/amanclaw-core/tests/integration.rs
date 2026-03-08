@@ -54,6 +54,8 @@ plugins:
         is_group: false,
         image_data: None,
         reply_to: None,
+        topic_id: None,
+        channel_context: None,
     }).await.unwrap();
 
     // Drop sender to close the channel and let engine exit
@@ -106,6 +108,8 @@ plugins:
         is_group: false,
         image_data: None,
         reply_to: None,
+        topic_id: None,
+        channel_context: None,
     }).await.unwrap();
 
     drop(tx);

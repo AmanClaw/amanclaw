@@ -225,6 +225,7 @@ version = "0.1.0"
 dependencies = [
  "amanclaw-traits",
  "anyhow",
+ "async-trait",
  "chrono",
  "serde",
  "serde_json",

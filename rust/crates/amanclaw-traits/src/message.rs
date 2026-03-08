@@ -12,6 +12,12 @@ pub struct IncomingMessage {
     pub is_group: bool,
     pub image_data: Option<Vec<u8>>,
     pub reply_to: Option<String>,
+    /// Platform-specific topic/thread ID for agent routing.
+    #[serde(default)]
+    pub topic_id: Option<String>,
+    /// Additional routing context (e.g., Discord channel name).
+    #[serde(default)]
+    pub channel_context: Option<String>,
 }
 
 /// Normalized outgoing message to any platform.
@@ -39,6 +45,8 @@ mod tests {
             is_group: false,
             image_data: None,
             reply_to: None,
+            topic_id: None,
+            channel_context: None,
         };
         assert_eq!(msg.platform, "telegram");
         assert_eq!(msg.text, "Hello bot");
@@ -67,6 +75,8 @@ mod tests {
             is_group: false,
             image_data: None,
             reply_to: None,
+            topic_id: None,
+            channel_context: None,
         };
         let json = serde_json::to_string(&msg).unwrap();
         let deserialized: IncomingMessage = serde_json::from_str(&json).unwrap();

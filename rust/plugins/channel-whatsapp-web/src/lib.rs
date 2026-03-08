@@ -218,6 +218,8 @@ async fn handle_webhook(
         is_group,
         image_data: None,
         reply_to: None,
+        topic_id: None,
+        channel_context: None,
     };
 
     let _ = state.tx.send(incoming).await;
