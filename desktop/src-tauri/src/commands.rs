@@ -1,4 +1,4 @@
-use crate::state::{AppMode, AppState};
+use crate::state::{AppMode, AppState, EngineStatus};
 use std::sync::Arc;
 use tauri::State;
 use tokio::sync::RwLock;
@@ -9,7 +9,7 @@ pub async fn get_status(
 ) -> Result<serde_json::Value, String> {
     let app = state.read().await;
     Ok(serde_json::json!({
-        "bot_running": app.bot_running,
+        "engine_running": app.engine_status == EngineStatus::Running,
         "mode": match &app.mode {
             AppMode::Local => "local",
             AppMode::Remote { .. } => "remote",

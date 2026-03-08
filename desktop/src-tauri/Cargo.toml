@@ -12,6 +12,17 @@ serde_json = "1"
 tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.12", features = ["json"] }
 tracing = "0.1"
+serde_yaml = "0.9"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+dotenvy = "0.15"
+anyhow = "1"
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
+
+# AmanClaw engine
+amanclaw-core = { path = "../../rust/crates/amanclaw-core" }
+amanclaw-traits = { path = "../../rust/crates/amanclaw-traits" }
+amanclaw-api = { path = "../../rust/crates/amanclaw-api" }
+amanclaw-security = { path = "../../rust/crates/amanclaw-security" }
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
