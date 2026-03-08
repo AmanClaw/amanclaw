@@ -39,6 +39,11 @@ export const api = {
 	blockUser: (userId: string, platform: string) =>
 		invoke('block_user', { userId, platform }),
 
+	// Skills management
+	disableSkill: (name: string) => invoke('disable_skill', { name }),
+	enableSkill: (name: string) => invoke('enable_skill', { name }),
+	getDisabledSkills: () => invoke('get_disabled_skills') as Promise<string[]>,
+
 	// MCP Servers
 	getMcpServers: () => invoke('get_mcp_servers'),
 	saveMcpServer: (params: {

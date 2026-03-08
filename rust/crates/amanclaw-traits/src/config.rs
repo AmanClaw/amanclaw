@@ -82,6 +82,10 @@ pub struct SkillsConfig {
 
     #[serde(default = "default_skill_timeout")]
     pub skill_timeout_seconds: u32,
+
+    /// List of skill names to disable (not registered with the engine).
+    #[serde(default)]
+    pub disabled: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

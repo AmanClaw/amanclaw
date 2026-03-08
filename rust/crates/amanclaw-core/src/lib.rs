@@ -43,16 +43,27 @@ impl Engine {
         let rate_limiter = RateLimiter::new(config.rate_limit_per_minute);
         let llm = LlmClient::new(config.llm.clone());
 
-        // Register built-in skills
+        // Register built-in skills (skip disabled ones)
+        let disabled = &config.skills.disabled;
         let mut registry = PluginRegistry::new();
-        registry.register(Arc::new(amanclaw_skill_sysinfo::SysInfoSkill));
-        registry.register(Arc::new(amanclaw_skill_websearch::WebSearchSkill));
-        registry.register(Arc::new(amanclaw_skill_shell::ShellSkill));
-        registry.register(Arc::new(amanclaw_skill_solat::SolatSkill));
-        registry.register(Arc::new(amanclaw_skill_qiblat::QiblatSkill));
-        registry.register(Arc::new(amanclaw_skill_hijri::HijriSkill));
-        registry.register(Arc::new(amanclaw_skill_doa::DoaSkill));
-        registry.register(Arc::new(amanclaw_skill_quran::QuranSkill));
+        let builtins: Vec<Arc<dyn amanclaw_traits::skill::Skill>> = vec![
+            Arc::new(amanclaw_skill_sysinfo::SysInfoSkill),
+            Arc::new(amanclaw_skill_websearch::WebSearchSkill),
+            Arc::new(amanclaw_skill_shell::ShellSkill),
+            Arc::new(amanclaw_skill_solat::SolatSkill),
+            Arc::new(amanclaw_skill_qiblat::QiblatSkill),
+            Arc::new(amanclaw_skill_hijri::HijriSkill),
+            Arc::new(amanclaw_skill_doa::DoaSkill),
+            Arc::new(amanclaw_skill_quran::QuranSkill),
+        ];
+        for skill in builtins {
+            let name = skill.metadata().name;
+            if disabled.iter().any(|d| d == &name) {
+                tracing::info!(skill = %name, "Skill disabled by config");
+                continue;
+            }
+            registry.register(skill);
+        }
 
         // Load WASM plugins
         let plugin_dir = Path::new(&config.plugins.dir);

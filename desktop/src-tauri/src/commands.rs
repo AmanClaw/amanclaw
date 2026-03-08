@@ -529,3 +529,44 @@ pub async fn delete_mcp_server(
     st.config = Some(cfg);
     Ok(())
 }
+
+#[tauri::command]
+pub async fn disable_skill(
+    app: AppHandle,
+    state: State<'_, SharedState>,
+    name: String,
+) -> Result<(), String> {
+    let mut cfg = config::load_config(&app)?;
+    if !cfg.skills.disabled.contains(&name) {
+        cfg.skills.disabled.push(name);
+    }
+    config::save_config(&app, &cfg)?;
+    let mut st = state.write().await;
+    st.config = Some(cfg);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn enable_skill(
+    app: AppHandle,
+    state: State<'_, SharedState>,
+    name: String,
+) -> Result<(), String> {
+    let mut cfg = config::load_config(&app)?;
+    cfg.skills.disabled.retain(|n| n != &name);
+    config::save_config(&app, &cfg)?;
+    let mut st = state.write().await;
+    st.config = Some(cfg);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_disabled_skills(
+    app: AppHandle,
+) -> Result<Vec<String>, String> {
+    if !config::has_config(&app) {
+        return Ok(vec![]);
+    }
+    let cfg = config::load_config(&app)?;
+    Ok(cfg.skills.disabled)
+}
