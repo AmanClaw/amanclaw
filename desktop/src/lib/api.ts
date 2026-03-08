@@ -33,4 +33,5 @@ export const api = {
 	setMode: (mode: string, url?: string, token?: string) =>
 		invoke('set_mode', { mode, url, token }),
 	getDataDir: () => invoke('get_data_dir') as Promise<string>,
+	getLogs: () => invoke('get_logs') as Promise<any[]>,
 };

@@ -381,3 +381,21 @@ pub async fn get_data_dir(app: AppHandle) -> Result<String, String> {
     let dir = config::data_dir(&app)?;
     Ok(dir.to_string_lossy().to_string())
 }
+
+// --- Logs ---
+
+#[tauri::command]
+pub async fn get_logs(
+    state: State<'_, SharedState>,
+) -> Result<serde_json::Value, String> {
+    let st = state.read().await;
+    let logs: Vec<serde_json::Value> = st.logs.iter().map(|e| {
+        serde_json::json!({
+            "timestamp": e.timestamp,
+            "level": e.level,
+            "target": e.target,
+            "message": e.message,
+        })
+    }).collect();
+    Ok(serde_json::json!(logs))
+}

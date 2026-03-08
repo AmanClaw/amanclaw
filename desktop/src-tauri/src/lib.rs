@@ -9,21 +9,30 @@ use state::AppState;
 use std::sync::Arc;
 use tauri::Manager;
 use tokio::sync::RwLock;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Initialize logging
+    // Create shared state early so the log layer can write to it
+    let shared_state = Arc::new(RwLock::new(AppState::new()));
+
+    // Initialize logging with custom layer that captures to AppState
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("amanclaw=info"));
-    tracing_subscriber::fmt()
-        .with_env_filter(filter)
+    let log_layer = logs::AppLogLayer::new(shared_state.clone());
+
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(tracing_subscriber::fmt::layer())
+        .with(log_layer)
         .init();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_shell::init())
-        .manage(Arc::new(RwLock::new(AppState::new())))
+        .manage(shared_state)
         .setup(|app| {
             tray::setup_tray(app)?;
 
@@ -100,6 +109,7 @@ pub fn run() {
             commands::get_skills,
             commands::get_users,
             commands::get_data_dir,
+            commands::get_logs,
         ])
         .run(tauri::generate_context!())
         .expect("error running AmanClaw Desktop");
