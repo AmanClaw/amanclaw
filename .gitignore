@@ -9,6 +9,10 @@ desktop/src-tauri/target/
 # Node
 node_modules/
 
+# SvelteKit build artifacts
+desktop/.svelte-kit/
+desktop/build/
+
 # SQLite database
 *.db
 
