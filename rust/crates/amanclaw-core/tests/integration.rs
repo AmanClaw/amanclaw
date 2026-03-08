@@ -7,6 +7,10 @@ use wiremock::matchers::{method, path};
 async fn test_engine_initializes_with_mock_llm() {
     let mock_server = MockServer::start().await;
 
+    // Use a fresh temp DB so schema is created from scratch
+    let tmp_db = tempfile::NamedTempFile::new().unwrap();
+    unsafe { std::env::set_var("MEMORY_DB_PATH", tmp_db.path().to_str().unwrap()) };
+
     // Mock LLM endpoint
     Mock::given(method("POST"))
         .and(path("/v1/chat/completions"))
@@ -69,6 +73,10 @@ plugins:
 #[tokio::test]
 async fn test_engine_handles_new_user_registration() {
     let mock_server = MockServer::start().await;
+
+    // Use a fresh temp DB so schema is created from scratch
+    let tmp_db = tempfile::NamedTempFile::new().unwrap();
+    unsafe { std::env::set_var("MEMORY_DB_PATH", tmp_db.path().to_str().unwrap()) };
 
     Mock::given(method("POST"))
         .and(path("/v1/chat/completions"))
