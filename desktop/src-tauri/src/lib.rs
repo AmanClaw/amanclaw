@@ -1,4 +1,5 @@
 mod commands;
+mod config;
 mod logs;
 mod notifications;
 mod state;
