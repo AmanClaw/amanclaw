@@ -3,3 +3,4 @@ pub mod skill;
 pub mod channel;
 pub mod config;
 pub mod memory;
+pub mod agent;

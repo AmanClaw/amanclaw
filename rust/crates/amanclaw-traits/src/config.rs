@@ -25,6 +25,12 @@ pub struct AppConfig {
 
     #[serde(default)]
     pub script_plugins: HashMap<String, ScriptPluginConfig>,
+
+    #[serde(default)]
+    pub agents: HashMap<String, crate::agent::AgentProfile>,
+
+    #[serde(default)]
+    pub routing: RoutingConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -103,6 +109,35 @@ pub struct McpServerConfig {
     pub url: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RoutingConfig {
+    #[serde(default)]
+    pub rules: Vec<RoutingRule>,
+
+    #[serde(default = "default_agent_id")]
+    pub default_agent: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RoutingRule {
+    #[serde(rename = "match")]
+    pub match_criteria: RoutingMatch,
+    pub agent: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RoutingMatch {
+    #[serde(default)]
+    pub platform: Option<String>,
+    #[serde(default)]
+    pub topic_id: Option<String>,
+    #[serde(default)]
+    pub channel_id: Option<String>,
+    #[serde(default)]
+    pub group_id: Option<String>,
+}
+
+fn default_agent_id() -> String { "default".into() }
 fn default_rate_limit() -> u32 { 20 }
 fn default_max_tokens() -> u32 { 4096 }
 fn default_temperature() -> f32 { 0.7 }
