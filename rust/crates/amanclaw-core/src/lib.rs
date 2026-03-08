@@ -39,10 +39,11 @@ pub struct Engine {
     registry: Arc<PluginRegistry>,
     channels: Vec<Arc<dyn Channel>>,
     rx: mpsc::Receiver<amanclaw_traits::message::IncomingMessage>,
-    tx: mpsc::Sender<amanclaw_traits::message::IncomingMessage>,
+    tx: Option<mpsc::Sender<amanclaw_traits::message::IncomingMessage>>,
     auth: Arc<Mutex<Auth>>,
     pool: SqlitePool,
     agent_router: AgentRouter,
+    sched_rx: mpsc::Receiver<crate::scheduler::SchedulerEvent>,
 }
 
 impl Engine {
@@ -260,14 +261,19 @@ impl Engine {
             }
         }
 
+        // Initialize scheduler
+        let (sched_tx, sched_rx) = mpsc::channel(64);
+        let mut scheduler = crate::scheduler::Scheduler::new(sched_tx);
+        scheduler.start_jobs(&config.cron.jobs, &config.cron.timezone);
+
         tracing::info!(skills = registry.skill_count(), "Engine initialized");
 
-        Ok(Self { config, pipeline, registry, channels, rx, tx, auth: auth_arc, pool, agent_router })
+        Ok(Self { config, pipeline, registry, channels, rx, tx: Some(tx), auth: auth_arc, pool, agent_router, sched_rx })
     }
 
     /// Get a sender for channels to push messages into the engine.
     pub fn sender(&self) -> mpsc::Sender<amanclaw_traits::message::IncomingMessage> {
-        self.tx.clone()
+        self.tx.as_ref().expect("sender() called after run()").clone()
     }
 
     /// Get the shared auth instance for use by the management API.
@@ -287,29 +293,58 @@ impl Engine {
 
     pub async fn run(mut self) -> Result<()> {
         // Drop our sender so the channel closes when all external senders are dropped
-        drop(self.tx);
+        drop(self.tx.take());
         tracing::info!("Engine running");
-        while let Some(msg) = self.rx.recv().await {
-            let platform = msg.platform.clone();
-            let profile = self.agent_router.resolve(&msg);
-            tracing::debug!(agent = %profile.id, "Routed to agent");
-            match self.pipeline.process(msg, &self.registry, &profile).await {
-                Ok(Some(response)) => {
-                    tracing::info!(chat_id = %response.chat_id, "Sending response");
-                    for ch in &self.channels {
-                        if ch.platform() == platform {
-                            if let Err(e) = ch.send_message(response.clone()).await {
-                                tracing::error!(error = %e, "Failed to send response");
+
+        loop {
+            tokio::select! {
+                Some(msg) = self.rx.recv() => {
+                    let platform = msg.platform.clone();
+                    let profile = self.agent_router.resolve(&msg);
+                    tracing::debug!(agent = %profile.id, "Routed to agent");
+                    match self.pipeline.process(msg, &self.registry, &profile).await {
+                        Ok(Some(response)) => {
+                            self.send_to_channel(&platform, response).await;
+                        }
+                        Ok(None) => {}
+                        Err(e) => tracing::error!(error = %e, "Pipeline error"),
+                    }
+                }
+                Some(event) = self.sched_rx.recv() => {
+                    match event {
+                        crate::scheduler::SchedulerEvent::SendMessage(response) => {
+                            let platform = response.platform.clone().unwrap_or_default();
+                            self.send_to_channel(&platform, response).await;
+                        }
+                        crate::scheduler::SchedulerEvent::InjectMessage(msg) => {
+                            let platform = msg.platform.clone();
+                            let profile = self.agent_router.resolve(&msg);
+                            match self.pipeline.process(msg, &self.registry, &profile).await {
+                                Ok(Some(response)) => {
+                                    self.send_to_channel(&platform, response).await;
+                                }
+                                Ok(None) => {}
+                                Err(e) => tracing::error!(error = %e, "Cron pipeline error"),
                             }
-                            break;
                         }
                     }
                 }
-                Ok(None) => {}
-                Err(e) => tracing::error!(error = %e, "Pipeline error"),
+                else => break,
             }
         }
         Ok(())
+    }
+
+    async fn send_to_channel(&self, platform: &str, response: amanclaw_traits::message::OutgoingMessage) {
+        tracing::info!(chat_id = %response.chat_id, "Sending response");
+        for ch in &self.channels {
+            if ch.platform() == platform {
+                if let Err(e) = ch.send_message(response.clone()).await {
+                    tracing::error!(error = %e, "Failed to send response");
+                }
+                break;
+            }
+        }
     }
 
     pub async fn shutdown(&self) -> Result<()> {

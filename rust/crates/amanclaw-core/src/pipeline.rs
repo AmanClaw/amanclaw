@@ -82,8 +82,11 @@ impl Pipeline {
         let text = msg.text.trim();
         let ns = &profile.memory_namespace;
 
+        // Internal messages (cron, webhook, subagent) skip auth, rate limit, and sanitization
+        let is_internal = msg.is_cron || msg.is_webhook || msg.is_subagent;
+
         // Handle /myid before auth
-        if text == "/myid" || text == "/start" {
+        if !is_internal && (text == "/myid" || text == "/start") {
             let reply = format!("Your user ID: `{}`\nPlatform: {}", user_id, platform);
             return Ok(Some(OutgoingMessage {
                 chat_id: msg.chat_id,
@@ -95,55 +98,62 @@ impl Pipeline {
             }));
         }
 
-        // 1. Auth check
-        let state = auth.lock().unwrap().get_user_state(user_id, platform);
-        match state {
-            UserState::Blocked => return Ok(None),
-            UserState::New => {
-                auth.lock().unwrap().register_user(user_id, platform);
+        if !is_internal {
+            // 1. Auth check
+            let state = auth.lock().unwrap().get_user_state(user_id, platform);
+            match state {
+                UserState::Blocked => return Ok(None),
+                UserState::New => {
+                    auth.lock().unwrap().register_user(user_id, platform);
+                    return Ok(Some(OutgoingMessage {
+                        chat_id: msg.chat_id,
+                        text: "Welcome! You've been registered. An admin needs to approve your access.".into(),
+                        parse_mode: None,
+                        reply_to: None,
+                        platform: None,
+                        topic_id: None,
+                    }));
+                }
+                UserState::Pending => {
+                    return Ok(Some(OutgoingMessage {
+                        chat_id: msg.chat_id,
+                        text: "Your registration is pending approval.".into(),
+                        parse_mode: None,
+                        reply_to: None,
+                        platform: None,
+                        topic_id: None,
+                    }));
+                }
+                UserState::Admin | UserState::Approved => {}
+            }
+
+            // Handle commands
+            if text.starts_with('/') {
+                if let Some(reply) = Self::handle_command(auth, memory.as_ref(), &msg, &state).await? {
+                    return Ok(Some(reply));
+                }
+            }
+
+            // 2. Rate limit
+            if !rate_limiter.lock().unwrap().check(user_id) {
                 return Ok(Some(OutgoingMessage {
                     chat_id: msg.chat_id,
-                    text: "Welcome! You've been registered. An admin needs to approve your access.".into(),
+                    text: "Slow down — too many messages. Try again in a minute.".into(),
                     parse_mode: None,
                     reply_to: None,
                     platform: None,
                     topic_id: None,
                 }));
             }
-            UserState::Pending => {
-                return Ok(Some(OutgoingMessage {
-                    chat_id: msg.chat_id,
-                    text: "Your registration is pending approval.".into(),
-                    parse_mode: None,
-                    reply_to: None,
-                    platform: None,
-                    topic_id: None,
-                }));
-            }
-            UserState::Admin | UserState::Approved => {}
-        }
-
-        // Handle commands
-        if text.starts_with('/') {
-            if let Some(reply) = Self::handle_command(auth, memory.as_ref(), &msg, &state).await? {
-                return Ok(Some(reply));
-            }
-        }
-
-        // 2. Rate limit
-        if !rate_limiter.lock().unwrap().check(user_id) {
-            return Ok(Some(OutgoingMessage {
-                chat_id: msg.chat_id,
-                text: "Slow down — too many messages. Try again in a minute.".into(),
-                parse_mode: None,
-                reply_to: None,
-                platform: None,
-                topic_id: None,
-            }));
         }
 
         // 3. Sanitize
-        let (clean_text, was_flagged) = check_injection(&msg.text);
+        let (clean_text, was_flagged) = if is_internal {
+            (msg.text.clone(), false)
+        } else {
+            let (ct, wf) = check_injection(&msg.text);
+            (ct.to_string(), wf)
+        };
         if was_flagged {
             tracing::warn!(user_id, "Flagged message");
         }
