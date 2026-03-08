@@ -1,7 +1,4 @@
-<p align="center">
-  <img src="desktop/src-tauri/icons/app-icon.png" width="180" alt="AmanClaw mascot" />
-  <strong style="font-size:4em">AmanClaw</strong>
-</p>
+<p align="center"><img src="desktop/src-tauri/icons/app-icon.png" width="150" alt="AmanClaw mascot" /><br><strong style="font-size:2em">AmanClaw</strong></p>
 
 A high-performance, modular AI assistant built with Rust for Malaysian Muslim communities. Connect it to Telegram, Discord, Slack, or WhatsApp — powered by any OpenAI-compatible LLM backend. Comes with 11 Islamic skills (solat, Quran, halal, zakat, and more) out of the box.
 
