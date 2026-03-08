@@ -60,11 +60,11 @@ CREATE TABLE IF NOT EXISTS community_admins (
 );
 "#;
 
-/// Migration SQL for existing databases that lack namespace columns.
-/// Safe to run multiple times — errors ignored if columns already exist.
-pub const MIGRATE_NS_SQL: &str = r#"
-ALTER TABLE messages ADD COLUMN namespace TEXT NOT NULL DEFAULT 'default';
-ALTER TABLE summaries ADD COLUMN namespace TEXT NOT NULL DEFAULT 'default';
-CREATE INDEX IF NOT EXISTS idx_messages_ns_user ON messages(namespace, user_id);
-CREATE INDEX IF NOT EXISTS idx_summaries_ns_user ON summaries(namespace, user_id);
-"#;
+/// Migration statements for existing databases that lack namespace columns.
+/// Each runs independently — errors ignored if columns already exist.
+pub const MIGRATE_NS_STMTS: &[&str] = &[
+    "ALTER TABLE messages ADD COLUMN namespace TEXT NOT NULL DEFAULT 'default';",
+    "ALTER TABLE summaries ADD COLUMN namespace TEXT NOT NULL DEFAULT 'default';",
+    "CREATE INDEX IF NOT EXISTS idx_messages_ns_user ON messages(namespace, user_id);",
+    "CREATE INDEX IF NOT EXISTS idx_summaries_ns_user ON summaries(namespace, user_id);",
+];
