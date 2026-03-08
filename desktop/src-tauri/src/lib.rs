@@ -110,6 +110,8 @@ pub fn run() {
             commands::get_users,
             commands::get_data_dir,
             commands::get_logs,
+            commands::approve_user,
+            commands::block_user,
         ])
         .run(tauri::generate_context!())
         .expect("error running AmanClaw Desktop");

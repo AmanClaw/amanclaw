@@ -5,7 +5,7 @@
 	let users: any[] = $state([]);
 	let loading = $state(true);
 
-	onMount(async () => {
+	async function loadUsers() {
 		try {
 			const data = await api.getUsers() as any;
 			users = data.users || [];
@@ -13,6 +13,26 @@
 			// Not connected
 		}
 		loading = false;
+	}
+
+	async function approve(userId: string, platform: string) {
+		try {
+			await api.approveUser(userId, platform);
+			await loadUsers();
+		} catch (_) {}
+	}
+
+	async function block(userId: string, platform: string) {
+		try {
+			await api.blockUser(userId, platform);
+			await loadUsers();
+		} catch (_) {}
+	}
+
+	onMount(() => {
+		loadUsers();
+		const interval = setInterval(loadUsers, 5000);
+		return () => clearInterval(interval);
 	});
 </script>
 
@@ -46,20 +66,22 @@
 							<td class="px-4 py-3 text-gray-500">{user.platform}</td>
 							<td class="px-4 py-3">
 								<span class="inline-flex px-2 py-0.5 text-[11px] font-medium rounded-full
-									{user.state === 'Admin' ? 'bg-purple-100 text-purple-700' :
-									 user.state === 'Approved' ? 'bg-green-100 text-green-700' :
-									 user.state === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
-									 user.state === 'Blocked' ? 'bg-red-100 text-red-700' :
+									{user.status === 'Admin' ? 'bg-purple-100 text-purple-700' :
+									 user.status === 'Approved' ? 'bg-green-100 text-green-700' :
+									 user.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
+									 user.status === 'Blocked' ? 'bg-red-100 text-red-700' :
 									 'bg-gray-100 text-gray-700'}">
-									{user.state}
+									{user.status}
 								</span>
 							</td>
 							<td class="px-4 py-3 text-right">
-								{#if user.state === 'Pending'}
-									<button class="text-xs text-green-600 hover:text-green-800 mr-2">Approve</button>
+								{#if user.status === 'Pending' || user.status === 'New'}
+									<button onclick={() => approve(user.user_id, user.platform)}
+										class="text-xs text-green-600 hover:text-green-800 font-medium mr-3">Approve</button>
 								{/if}
-								{#if user.state !== 'Blocked' && user.state !== 'Admin'}
-									<button class="text-xs text-red-600 hover:text-red-800">Block</button>
+								{#if user.status !== 'Blocked' && user.status !== 'Admin'}
+									<button onclick={() => block(user.user_id, user.platform)}
+										class="text-xs text-red-600 hover:text-red-800 font-medium">Block</button>
 								{/if}
 							</td>
 						</tr>

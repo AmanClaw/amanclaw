@@ -374,6 +374,40 @@ pub async fn get_users(
     }
 }
 
+// --- User actions ---
+
+#[tauri::command]
+pub async fn approve_user(
+    state: State<'_, SharedState>,
+    user_id: String,
+    platform: String,
+) -> Result<(), String> {
+    let st = state.read().await;
+    if let Some(handle) = &st.engine_handle {
+        let mut auth = handle.auth.lock().unwrap();
+        auth.approve_user(&user_id, &platform);
+        Ok(())
+    } else {
+        Err("Engine not running".into())
+    }
+}
+
+#[tauri::command]
+pub async fn block_user(
+    state: State<'_, SharedState>,
+    user_id: String,
+    platform: String,
+) -> Result<(), String> {
+    let st = state.read().await;
+    if let Some(handle) = &st.engine_handle {
+        let mut auth = handle.auth.lock().unwrap();
+        auth.block_user(&user_id, &platform);
+        Ok(())
+    } else {
+        Err("Engine not running".into())
+    }
+}
+
 // --- Data dir ---
 
 #[tauri::command]

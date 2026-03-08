@@ -34,4 +34,8 @@ export const api = {
 		invoke('set_mode', { mode, url, token }),
 	getDataDir: () => invoke('get_data_dir') as Promise<string>,
 	getLogs: () => invoke('get_logs') as Promise<any[]>,
+	approveUser: (userId: string, platform: string) =>
+		invoke('approve_user', { userId, platform }),
+	blockUser: (userId: string, platform: string) =>
+		invoke('block_user', { userId, platform }),
 };
