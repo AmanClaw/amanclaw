@@ -1,47 +1,43 @@
 # AmanClaw
 
-A multi-channel AI assistant built with Python. Connect it to Telegram, WhatsApp, Discord, or Slack — powered by any OpenAI-compatible LLM backend.
+A high-performance, modular AI assistant built with Rust. Connect it to Telegram (more channels coming) — powered by any OpenAI-compatible LLM backend. Extend it with WASM plugins written in Rust, Python, or JavaScript.
 
 Built in Malaysia. Open source. No bloat.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](docker-compose.yml)
+[![Rust](https://img.shields.io/badge/rust-1.85+-orange.svg)](https://www.rust-lang.org/)
+[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](rust/docker-compose.yml)
 
 ---
 
 ## What Is This?
 
-AmanClaw is a personal AI assistant that lives in your chat apps. You message it, it thinks using an LLM, optionally calls skills (tools), and replies back. That's it.
+AmanClaw is a personal AI assistant that lives in your chat apps. You message it, it thinks using an LLM, optionally calls skills (tools), and replies back.
 
 ```
-You (Telegram / WhatsApp / Discord / Slack)
-  |
-  v
-AmanClaw  -->  auth check  -->  LLM (any OpenAI-compatible API)  -->  picks a skill
-  |                                                                        |
-  v                                                                        v
-Reply  <-------------------------------  skill runs with limits  <---------+
+You (Telegram)
+  │
+  ▼
+AmanClaw Engine ──► Auth ──► Rate Limit ──► Sanitize ──► LLM ──► Skills (WASM)
+  │                                                                    │
+  ▼                                                                    ▼
+Reply  ◄──────────────────────────────────────────────────────────────-┘
 ```
 
-One Python process. One SQLite database. One config file.
+One binary. One SQLite database. One config file. ~2MB RAM on a Raspberry Pi.
+
+---
 
 ## Features
 
-- **Multi-channel** — Telegram, WhatsApp (via Baileys bridge), Discord, Slack
+- **Blazing fast** — Rust async runtime, ~2MB memory footprint, instant startup
+- **Plugin system** — WASM Component Model plugins in Rust, Python, or JavaScript
+- **Multi-channel** — Telegram (Discord, Slack, WhatsApp planned)
 - **Any LLM backend** — vLLM, Ollama, LM Studio, LocalAI, OpenAI, Anthropic, etc.
-- **Fully async** — non-blocking aiohttp LLM calls, handles concurrent users
-- **15+ skills** — shell commands, file ops, web search, document extraction, system info, reminders, schedules, fact memory, prayer times, user-defined skills, MCP server management
-- **Vision support** — send photos for analysis
-- **Voice transcription** — Whisper-based audio transcription from voice messages
-- **MCP integration** — connect external MCP servers as additional tool sources
-- **Learning engine** — learns user preferences and proactively checks in
-- **Auto-summarization** — compresses long conversations to stay within context
-- **Recurring tasks** — cron-like scheduled actions
-- **Security-first** — user allowlist, rate limiting, prompt injection detection, OWASP agentic rules
-- **Production-ready** — Docker with hardened containers, systemd service, webhook mode, structured JSON logging
-- **Daily auto-pruning** — prevents unbounded database growth
-- **Graceful shutdown** — clean resource cleanup on exit
+- **Security-first** — user allowlist, rate limiting, prompt injection detection, output sanitization
+- **Conversation memory** — SQLite-backed history, facts, and summaries
+- **Production-ready** — Docker with hardened containers, systemd service, structured logging
+- **Cross-platform** — runs on x86_64, ARM64 (Raspberry Pi), and anywhere Rust compiles
 
 ---
 
@@ -49,32 +45,27 @@ One Python process. One SQLite database. One config file.
 
 ### Prerequisites
 
-- Python 3.11+
+- [Rust 1.85+](https://rustup.rs/) (for building from source)
 - An OpenAI-compatible LLM API (local or remote)
 - A Telegram bot token (from [@BotFather](https://t.me/BotFather))
 
-### 1. Clone and set up
+### 1. Clone and build
 
 ```bash
 git clone https://github.com/amanasmuei/amanclaw.git
-cd amanclaw
-chmod +x setup.sh && ./setup.sh
+cd amanclaw/rust
+cargo build --release
 ```
+
+The binary is at `target/release/amanclaw`.
 
 ### 2. Configure secrets
 
-Create a `.env` file:
+Create a `.env` file in the project root:
 
 ```bash
-# Required
 TELEGRAM_BOT_TOKEN=your-telegram-bot-token
 LLM_API_KEY=your-llm-api-key
-
-# Optional
-BRAVE_API_KEY=your-brave-key           # enables web search skill
-DISCORD_BOT_TOKEN=your-discord-token   # enables Discord channel
-SLACK_BOT_TOKEN=your-slack-bot-token   # enables Slack channel
-SLACK_APP_TOKEN=your-slack-app-token   # for Slack socket mode
 ```
 
 ### 3. Configure settings
@@ -83,7 +74,7 @@ SLACK_APP_TOKEN=your-slack-app-token   # for Slack socket mode
 cp config.example.yaml config.yaml
 ```
 
-Edit `config.yaml` — at minimum set your LLM endpoint and admin user ID:
+Edit `config.yaml`:
 
 ```yaml
 llm:
@@ -91,59 +82,101 @@ llm:
   model: "your-model-name"
 
 admin_users:
-  telegram: [YOUR_TELEGRAM_USER_ID]
+  telegram: ["YOUR_TELEGRAM_USER_ID"]
 ```
-
-Use the `/myid` command after starting the bot to find your Telegram user ID.
 
 ### 4. Run
 
 ```bash
-source .venv/bin/activate
-python -m amanclaw
+./target/release/amanclaw
 ```
 
 ---
 
-## Project Structure
+## Architecture
+
+AmanClaw is a Cargo workspace with modular crates:
 
 ```
-amanclaw/
-├── __main__.py          Entry point
-├── bot.py               Telegram bot (polling + webhook)
-├── processor.py         Unified message processor across channels
-├── llm.py               Async LLM client (native + fallback tool calling)
-├── memory.py            SQLite: conversations, facts, reminders, schedules
-├── security.py          Auth, rate limiter, input sanitizer
-├── learning.py          Learning engine for user preferences
-├── mcp_client.py        MCP server integration
-├── channels/
-│   ├── telegram.py      Telegram adapter
-│   ├── whatsapp.py      WhatsApp adapter (via Baileys bridge)
-│   ├── discord.py       Discord adapter
-│   └── slack.py         Slack adapter
-├── skills/
-│   ├── __init__.py      Skill registry and execution
-│   ├── shell.py         Whitelisted shell commands
-│   ├── files.py         Workspace file operations
-│   ├── web_search.py    DuckDuckGo search integration
-│   ├── web_fetch.py     Fetch and extract web page content
-│   ├── documents.py     PDF/text document extraction
-│   ├── system_info.py   CPU/memory/disk status
-│   ├── remember.py      Save/recall user facts
-│   ├── reminder.py      One-time timed reminders
-│   ├── scheduled.py     Recurring scheduled tasks (cron-like)
-│   ├── prayer_times.py  Islamic prayer time lookups
-│   ├── user_skills.py   User-defined custom skills
-│   └── mcp_manage.py    MCP server management
-packages/
-├── amanclaw-learning/   Learning engine package
-└── amanclaw-security/   Security package (auth, injection detection, rate limiting)
-bridge/
-└── whatsapp/            Node.js WhatsApp bridge using Baileys
-deploy/
-└── amanclaw.service     Systemd service file
+rust/
+├── Cargo.toml                 # Workspace root
+├── crates/
+│   ├── amanclaw-traits/       # Core types, traits, config
+│   ├── amanclaw-cli/          # Binary entry point
+│   ├── amanclaw-core/         # Engine, pipeline, router, registry
+│   ├── amanclaw-security/     # Auth, rate limiter, sanitizer
+│   ├── amanclaw-memory/       # SQLite conversation & fact storage
+│   ├── amanclaw-llm/          # OpenAI-compatible LLM client
+│   ├── amanclaw-wasm-runtime/ # WASM plugin loader & sandbox
+│   └── amanclaw-plugin-sdk/   # SDK types for plugin authors
+├── plugins/
+│   ├── skill-sysinfo/         # System info skill
+│   ├── skill-websearch/       # DuckDuckGo search skill
+│   ├── skill-shell/           # Whitelisted shell commands
+│   └── channel-telegram/      # Telegram adapter
+├── wit/
+│   └── skill.wit              # WASM Interface Types contract
+├── Dockerfile
+├── docker-compose.yml
+└── docs/
+    └── plugin-guide.md        # Plugin authoring guide
 ```
+
+### How It Works
+
+1. **Channel adapters** receive messages from platforms and push them into the engine via an async channel
+2. **Engine** pulls messages and runs them through the **pipeline**
+3. **Pipeline** checks auth → rate limit → sanitize input → build context from memory → call LLM → save exchange
+4. **LLM** may request tool calls, which are executed via the **plugin registry**
+5. **Response** is routed back to the correct channel adapter
+
+---
+
+## Writing Plugins
+
+AmanClaw uses the [WASM Component Model](https://component-model.bytecodealliance.org/) for plugins. Write skills in **Rust**, **Python**, or **JavaScript** — they all compile to `.wasm` and run sandboxed.
+
+### Rust Example
+
+```rust
+use amanclaw_plugin_sdk::*;
+
+pub fn metadata() -> SkillMetadata {
+    SkillMetadata {
+        name: "my_skill".into(),
+        description: "Does something useful".into(),
+        timeout_ms: 10000,
+        version: "0.1.0".into(),
+    }
+}
+
+pub fn parameters() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "query": { "type": "string", "description": "Input query" }
+        },
+        "required": ["query"]
+    })
+}
+
+pub fn execute(input: SkillInput) -> SkillResult {
+    let args: serde_json::Value = serde_json::from_str(&input.args).unwrap_or_default();
+    let query = args.get("query").and_then(|v| v.as_str()).unwrap_or("no query");
+    SkillResult::ok(format!("Result for: {}", query))
+}
+```
+
+### Plugin Sandbox
+
+All plugins run with strict limits:
+- No filesystem access
+- No direct network — use `http-fetch` host function
+- 64MB memory limit per plugin
+- Configurable execution timeout
+- Domain allowlist for HTTP requests
+
+See [`rust/docs/plugin-guide.md`](rust/docs/plugin-guide.md) for the full guide including Python and JavaScript examples.
 
 ---
 
@@ -155,71 +188,41 @@ Never commit this file. Set `chmod 600 .env`.
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `TELEGRAM_BOT_TOKEN` | Yes* | Telegram bot token |
+| `TELEGRAM_BOT_TOKEN` | Yes | Telegram bot token |
 | `LLM_API_KEY` | Yes | LLM API key |
-| `BRAVE_API_KEY` | No | Enables Brave web search |
-| `DISCORD_BOT_TOKEN` | No | Enables Discord channel |
-| `SLACK_BOT_TOKEN` | No | Enables Slack channel |
-| `SLACK_APP_TOKEN` | No | Slack socket mode token |
-
-*Required if using Telegram. At least one channel must be configured.
 
 ### Settings (`config.yaml`)
 
-See [`config.example.yaml`](config.example.yaml) for all options with comments. Key sections:
+See [`config.example.yaml`](config.example.yaml) for all options. Key sections:
 
 ```yaml
-# LLM backend
 llm:
   base_url: "http://localhost:8001/v1"
   model: "Qwen/Qwen3-VL-30B-A3B-Instruct"
   max_tokens: 4096
   temperature: 0.7
 
-# Who can use the bot
 admin_users:
-  telegram: [123456789]
-  whatsapp: ["60123456789"]
+  telegram: ["123456789"]
 
-# Rate limiting
 rate_limit_per_minute: 20
 
-# Skills configuration
-skills:
-  shell_allowed_commands: [ls, cat, grep, find, df, ...]
-  workspace_dir: "~/amanclaw-workspace"
-  skill_timeout_seconds: 30
+plugins:
+  dir: "./plugins"
+  hot_reload: false
 
-# Learning engine
-learning:
-  enabled: true
-  proactive_checkins: true
-
-# Security rules
 security:
-  injection_rules: "default"  # or "owasp_agentic"
+  injection_rules: "default"
   sanitize_output: true
-
-# MCP servers (optional)
-mcp_servers:
-  filesystem:
-    command: "npx"
-    args: ["-y", "@modelcontextprotocol/server-filesystem", "/home/user/docs"]
 ```
 
 ### Environment Overrides
 
-All optional — override config.yaml values via environment:
-
 | Variable | Purpose |
 |----------|---------|
-| `LLM_BASE_URL` | Override LLM endpoint |
 | `MEMORY_DB_PATH` | Override SQLite database path |
-| `LOG_LEVEL` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
-| `LOG_FILE` | Path for rotating log file |
-| `LOG_FORMAT` | `text` or `json` (for Docker) |
-| `WEBHOOK_SECRET` | Secret token for webhook mode |
-| `WA_BRIDGE_URL` | WhatsApp bridge URL |
+| `LOG_FORMAT` | `text` or `json` |
+| `RUST_LOG` | Log level filter (e.g. `amanclaw=debug`) |
 
 ---
 
@@ -228,11 +231,8 @@ All optional — override config.yaml values via environment:
 ### Docker (recommended)
 
 ```bash
-# Build and run
+cd rust
 docker compose up -d
-
-# With WhatsApp bridge
-docker compose --profile whatsapp up -d
 
 # View logs
 docker compose logs -f
@@ -241,89 +241,57 @@ docker compose logs -f
 docker compose down
 ```
 
-The container runs as non-root with:
+The container runs as non-root with hardened security:
 - All capabilities dropped (`cap_drop: ALL`)
 - Read-only filesystem
-- No new privileges (`no-new-privileges`)
-- Memory limit (512MB)
-- CPU limit (1.0)
-- Temp filesystem mounted noexec
+- No new privileges
+- 512MB memory / 1.0 CPU limit
 
-Data persists in `./data/`. For JSON logging in Docker, set `LOG_FORMAT=json` in `.env`.
-
-### Webhook Mode
-
-For production behind a reverse proxy (nginx, Caddy):
-
-```yaml
-# config.yaml
-webhook:
-  enabled: true
-  url: "https://your-domain.com"
-  listen: "0.0.0.0"
-  port: 8443
-```
-
-Set `WEBHOOK_SECRET` in `.env`. Requires HTTPS.
-
-### Systemd (bare metal)
+### Systemd (bare metal / Raspberry Pi)
 
 ```bash
-# Create service user
-sudo useradd --system --create-home amanclaw
+# Copy binary and config
+mkdir -p ~/amanclaw/plugins ~/amanclaw/data
+cp target/release/amanclaw ~/amanclaw/
+cp config.yaml .env ~/amanclaw/
 
-# Copy files
-sudo cp -r . /opt/amanclaw
-sudo cp deploy/amanclaw.service /etc/systemd/system/
+# Create service
+sudo tee /etc/systemd/system/amanclaw.service << 'EOF'
+[Unit]
+Description=AmanClaw Bot
+After=network.target
 
-# Set permissions
-sudo chown -R amanclaw:amanclaw /opt/amanclaw
-sudo chmod 600 /opt/amanclaw/.env
+[Service]
+Type=simple
+User=your-user
+WorkingDirectory=/home/your-user/amanclaw
+ExecStart=/home/your-user/amanclaw/amanclaw
+EnvironmentFile=/home/your-user/amanclaw/.env
+Restart=on-failure
+RestartSec=5
 
-# Enable and start
+[Install]
+WantedBy=multi-user.target
+EOF
+
 sudo systemctl daemon-reload
 sudo systemctl enable --now amanclaw
-
-# Check status
-sudo systemctl status amanclaw
-sudo journalctl -u amanclaw -f
 ```
 
-The systemd unit includes hardening: `NoNewPrivileges`, `ProtectSystem=strict`, `MemoryDenyWriteExecute`, restricted write paths, and resource limits.
+### Cross-Compilation (for Raspberry Pi)
 
----
+Build on your dev machine, deploy to Pi:
 
-## Adding a New Skill
+```bash
+# Install cross-compilation target
+rustup target add aarch64-unknown-linux-gnu
 
-Skills are Python functions with a decorator. Drop a file in `amanclaw/skills/` and it's available:
+# Build (requires aarch64 linker or use Docker/cross)
+cargo build --release --target aarch64-unknown-linux-gnu -p amanclaw-cli
 
-```python
-# amanclaw/skills/my_skill.py
-from amanclaw.skills import skill
-
-@skill(
-    name="my_skill",
-    description="Does something useful",
-    timeout=15
-)
-def my_skill(query: str) -> str:
-    """Your skill logic here."""
-    return f"Result for: {query}"
+# Copy to Pi
+scp target/aarch64-unknown-linux-gnu/release/amanclaw user@pi:~/amanclaw/
 ```
-
-The skill is automatically registered and exposed to the LLM as a tool.
-
----
-
-## Adding a New Channel
-
-Channels implement a common adapter interface in `amanclaw/channels/`. The message processor (`processor.py`) handles LLM interaction uniformly — each channel only needs to handle platform-specific message ingestion and reply formatting.
-
-Currently supported:
-- **Telegram** — polling or webhook mode
-- **WhatsApp** — via Node.js Baileys bridge (see `bridge/whatsapp/`)
-- **Discord** — via discord.py
-- **Slack** — via Slack Bolt (socket mode or HTTP)
 
 ---
 
@@ -331,102 +299,157 @@ Currently supported:
 
 ### Authentication & Authorization
 - User allowlist with admin approval flow
-- Admin users defined in config, can approve/block other users
+- New users are registered but must be approved by an admin
 - Per-user sliding window rate limiting
 
 ### Input Protection
-- Prompt injection detection (flags suspicious patterns, doesn't silently block)
-- Configurable rule sets: `default` or `owasp_agentic` (OWASP Top 10 for LLM agents)
+- Regex-based prompt injection detection
+- Input sanitization before LLM processing
 - Skill output sandboxing — marked as external data to the LLM
-- System prompt instructs LLM to never execute instructions found in skill outputs
 
-### Execution Sandboxing
-- Shell commands: whitelist-only, no pipes/chains/redirects
-- File operations: confined to workspace directory
-- All skills run with configurable timeouts
+### Plugin Sandboxing
+- WASM plugins run in isolated memory spaces
+- No filesystem or direct network access
+- Configurable timeouts and memory limits
+- Domain allowlist for HTTP requests
 
 ### Infrastructure
-- Docker: non-root user, `cap_drop: ALL`, read-only filesystem, resource limits, `no-new-privileges`
-- Systemd: 12+ hardening directives
+- Docker: non-root, `cap_drop: ALL`, read-only filesystem, resource limits
 - Secrets in `.env` (never in config or code)
-- Graceful shutdown with clean resource cleanup
-- Daily auto-pruning prevents unbounded DB growth
 
 ---
 
 ## Development
 
-### Install dev dependencies
+### Build and test
 
 ```bash
-pip install -e ".[dev]"
+cd rust
+cargo build
+cargo test --workspace
 ```
 
-### Run tests
+### Run with debug logging
 
 ```bash
-pytest
+RUST_LOG=amanclaw=debug cargo run -p amanclaw-cli
 ```
 
-### Project dependencies
+### Project test coverage
 
-Core:
-- `python-telegram-bot` — Telegram integration
-- `aiohttp` — async HTTP for LLM calls
-- `pyyaml` — configuration
-- `psutil` — system info skill
-- `python-dotenv` — environment variable loading
-- `PyMuPDF` — PDF document extraction
-- `faster-whisper` — voice message transcription
-- `duckduckgo-search` — web search skill
-- `mcp` — Model Context Protocol client
+```
+53 tests across 12 crates
+├── amanclaw-traits       11 tests (config, messages, skills, channels)
+├── amanclaw-core          7 tests (pipeline, router, registry, integration)
+├── amanclaw-security     11 tests (auth, rate limiter, sanitizer)
+├── amanclaw-memory        4 tests (history, facts, upsert, counting)
+├── amanclaw-llm           2 tests (LLM client, thinking tag stripping)
+├── amanclaw-wasm-runtime  7 tests (loader, host state, sandbox config)
+├── skill-sysinfo          2 tests
+├── skill-websearch        2 tests
+├── skill-shell            4 tests
+└── channel-telegram       1 test
+```
 
-Optional:
-- `discord.py` — Discord channel
-- `slack-bolt` / `slack-sdk` — Slack channel
+---
+
+## Contributing
+
+Contributions are welcome! Here's how to get started:
+
+### Getting Set Up
+
+```bash
+# Fork and clone
+git clone https://github.com/YOUR_USERNAME/amanclaw.git
+cd amanclaw/rust
+
+# Build and verify tests pass
+cargo build
+cargo test --workspace
+
+# Create a feature branch
+git checkout -b feature/my-feature
+```
+
+### Making Changes
+
+1. **Write tests first** — we use TDD. Add failing tests, then implement
+2. **Run the full test suite** — `cargo test --workspace`
+3. **Keep commits focused** — one logical change per commit
+4. **Use conventional commits** — `feat:`, `fix:`, `docs:`, `chore:`
+
+### Pull Request Process
+
+1. Fork the repo and create your branch from `master`
+2. Add tests for any new functionality
+3. Ensure `cargo test --workspace` passes with zero failures
+4. Ensure `cargo clippy` has no warnings
+5. Update documentation if you changed public APIs
+6. Open a PR with a clear description of what and why
+
+### Areas Where Help Is Appreciated
+
+| Area | Description | Difficulty |
+|------|-------------|------------|
+| **New skill plugins** | Web scraping, calendar, weather, translation, etc. | Easy |
+| **Channel adapters** | Discord, Slack, WhatsApp, Matrix, Signal | Medium |
+| **Python/JS plugin SDK** | componentize-py and jco integration | Medium |
+| **WASM runtime integration** | Wire PluginLoader to actually instantiate .wasm files | Medium |
+| **Tool calling** | LLM tool call parsing and skill execution loop | Medium |
+| **Vision support** | Image handling in messages | Medium |
+| **Conversation summarization** | Auto-compress long conversations | Medium |
+| **Hot reload** | Watch plugin directory and reload on changes | Medium |
+| **Admin commands** | `/approve`, `/block`, `/clear`, `/learned` | Easy |
+| **Documentation** | Tutorials, examples, architecture docs | Easy |
+| **Security review** | Audit injection detection, auth flow, sandbox | Hard |
+| **i18n / localization** | Malay, Mandarin, and other languages | Easy |
+
+### Writing a Plugin
+
+The easiest way to contribute is by writing a new skill plugin. See the [Plugin Author Guide](rust/docs/plugin-guide.md) for step-by-step instructions in Rust, Python, and JavaScript.
+
+---
+
+## Roadmap
+
+- [x] Core engine with async pipeline
+- [x] Telegram channel adapter
+- [x] LLM client (OpenAI-compatible)
+- [x] SQLite conversation memory
+- [x] Security (auth, rate limiting, injection detection)
+- [x] WASM plugin runtime (loader, sandbox, SDK)
+- [x] Built-in skills (sysinfo, websearch, shell)
+- [x] Docker & systemd deployment
+- [ ] Full WASM plugin instantiation and execution
+- [ ] LLM tool calling loop (skill execution)
+- [ ] Discord, Slack, WhatsApp channels
+- [ ] Admin commands (`/approve`, `/block`, `/stats`)
+- [ ] Vision support (image analysis)
+- [ ] Conversation auto-summarization
+- [ ] Plugin hot reload
+- [ ] Python and JavaScript plugin SDKs
+- [ ] MCP server integration
+- [ ] Learning engine (user preferences)
 
 ---
 
 ## FAQ
 
 **Q: What LLM should I use?**
-Any OpenAI-compatible API works. For local: Ollama, vLLM, LM Studio, LocalAI. For cloud: OpenAI, Anthropic (via compatible proxy), Together AI, Groq, etc.
+Any OpenAI-compatible API. Local: Ollama, vLLM, LM Studio. Cloud: OpenAI, Together AI, Groq, etc.
 
 **Q: Can I use this with multiple people?**
-Yes. Add user IDs to `admin_users` in config. Non-admin users go through an approval flow — they request access, admins approve via the bot.
+Yes. Add user IDs to `admin_users` in config. Non-admin users go through an approval flow.
 
-**Q: How do I add WhatsApp?**
-Enable the WhatsApp bridge in `docker-compose.yml` using the `whatsapp` profile, configure it in `config.yaml`, and scan the QR code on first run. See `bridge/whatsapp/` for details.
+**Q: How much resources does it need?**
+~2MB RAM, <1% CPU idle on a Raspberry Pi 4. It's Rust — it's fast.
+
+**Q: Can I write plugins in Python?**
+Yes! Plugins use the WASM Component Model. Write in Python, compile with [componentize-py](https://github.com/bytecodealliance/componentize-py), and drop the `.wasm` file in the plugins directory.
 
 **Q: Is my data stored?**
-Conversations are stored in a local SQLite database (`memory.db`). Nothing leaves your server except LLM API calls. Old messages are auto-pruned daily.
-
-**Q: How do I connect MCP servers?**
-Add them to the `mcp_servers` section in `config.yaml`, or use the `/mcp` command in chat to manage them at runtime.
-
----
-
-## Contributing
-
-Contributions are welcome! Here's how:
-
-1. Fork the repo
-2. Create a feature branch (`git checkout -b feature/my-feature`)
-3. Make your changes
-4. Run tests (`pytest`)
-5. Commit with a descriptive message
-6. Push and open a Pull Request
-
-Please keep PRs focused — one feature or fix per PR.
-
-### Areas where help is appreciated
-
-- New skills (integrations with useful APIs)
-- New channel adapters (Matrix, Signal, etc.)
-- Documentation and examples
-- Security review and hardening
-- Test coverage
-- i18n / localization (especially Malay and Mandarin)
+Conversations are stored in a local SQLite database. Nothing leaves your server except LLM API calls.
 
 ---
 
@@ -438,6 +461,6 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-Built with care from Puncak Alam. Made possible by the open-source Python ecosystem and the communities behind python-telegram-bot, Baileys, and the Model Context Protocol.
+Built with care from Puncak Alam, Malaysia. Made possible by the Rust ecosystem and the communities behind teloxide, wasmtime, tokio, and the WASM Component Model.
 
 *Malaysia boleh!* 🇲🇾
