@@ -8,6 +8,7 @@ use amanclaw_llm::client::{LlmClient, LlmResponse};
 use crate::registry::PluginRegistry;
 use anyhow::Result;
 use std::sync::Mutex;
+use base64::Engine as Base64Engine;
 
 const MAX_TOOL_ROUNDS: usize = 5;
 const SUMMARIZE_THRESHOLD: i64 = 40;
@@ -157,7 +158,18 @@ impl Pipeline {
 
         let mut messages = vec![serde_json::json!({"role": "system", "content": system})];
         messages.extend_from_slice(&history_json);
-        messages.push(serde_json::json!({"role": "user", "content": clean_text}));
+
+        // Build user message — multimodal if image is present
+        if let Some(ref image_data) = msg.image_data {
+            let b64 = base64::engine::general_purpose::STANDARD.encode(image_data);
+            let content = serde_json::json!([
+                {"type": "text", "text": if clean_text.is_empty() { "What's in this image?" } else { &clean_text }},
+                {"type": "image_url", "image_url": {"url": format!("data:image/jpeg;base64,{}", b64)}}
+            ]);
+            messages.push(serde_json::json!({"role": "user", "content": content}));
+        } else {
+            messages.push(serde_json::json!({"role": "user", "content": clean_text}));
+        }
 
         // 5. Tool calling loop
         let tools = registry.get_tool_definitions();

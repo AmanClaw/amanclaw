@@ -421,16 +421,16 @@ The easiest way to contribute is by writing a new skill plugin. See the [Plugin 
 - [x] WASM plugin runtime (loader, sandbox, SDK)
 - [x] Built-in skills (sysinfo, websearch, shell)
 - [x] Docker & systemd deployment
+- [x] LLM tool calling loop (skill execution)
+- [x] Admin commands (`/approve`, `/block`, `/stats`, `/users`)
+- [x] Conversation auto-summarization
+- [x] Learning engine (`/remember`, `/forget`, `/learned`)
+- [x] Vision support (image analysis via multimodal LLM)
+- [x] Plugin hot reload (filesystem watcher)
 - [ ] Full WASM plugin instantiation and execution
-- [ ] LLM tool calling loop (skill execution)
 - [ ] Discord, Slack, WhatsApp channels
-- [ ] Admin commands (`/approve`, `/block`, `/stats`)
-- [ ] Vision support (image analysis)
-- [ ] Conversation auto-summarization
-- [ ] Plugin hot reload
 - [ ] Python and JavaScript plugin SDKs
 - [ ] MCP server integration
-- [ ] Learning engine (user preferences)
 
 ---
 
