@@ -45,7 +45,7 @@ pub struct Engine {
 }
 
 impl Engine {
-    pub async fn new(config: AppConfig) -> Result<Self> {
+    pub async fn new(mut config: AppConfig) -> Result<Self> {
         // Initialize subsystems
         let db_path = std::env::var("MEMORY_DB_PATH").unwrap_or_else(|_| "memory.db".into());
         let memory = SqliteMemory::new(&db_path).await?;
@@ -102,6 +102,22 @@ impl Engine {
             let script_skills = amanclaw_script_runtime::load_script_plugins(&script_configs).await;
             for skill in script_skills {
                 registry.register(skill);
+            }
+        }
+
+        // Load SOUL.md files for agents that have them configured
+        let soul_dir = std::path::Path::new(&config.skills.soul_dir);
+        for (_id, profile) in config.agents.iter_mut() {
+            if let Some(ref filename) = profile.soul_file {
+                match crate::soul::SoulLoader::load(soul_dir, filename) {
+                    Ok(resolved) => {
+                        profile.system_prompt = resolved.prompt;
+                        tracing::info!(agent = %profile.id, file = %filename, "Loaded SOUL.md");
+                    }
+                    Err(e) => {
+                        tracing::warn!(agent = %profile.id, error = %e, "Failed to load SOUL.md, using inline prompt");
+                    }
+                }
             }
         }
 
