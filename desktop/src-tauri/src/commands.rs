@@ -378,6 +378,7 @@ pub async fn get_users(
 
 #[tauri::command]
 pub async fn approve_user(
+    app: AppHandle,
     state: State<'_, SharedState>,
     user_id: String,
     platform: String,
@@ -386,14 +387,25 @@ pub async fn approve_user(
     if let Some(handle) = &st.engine_handle {
         let mut auth = handle.auth.lock().unwrap();
         auth.approve_user(&user_id, &platform);
-        Ok(())
     } else {
-        Err("Engine not running".into())
+        return Err("Engine not running".into());
     }
+
+    // Persist to config.yaml so user survives restarts
+    if let Ok(mut cfg) = config::load_config(&app) {
+        let users = cfg.admin_users.entry(platform).or_insert_with(Vec::new);
+        if !users.contains(&user_id) {
+            users.push(user_id);
+        }
+        let _ = config::save_config(&app, &cfg);
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
 pub async fn block_user(
+    app: AppHandle,
     state: State<'_, SharedState>,
     user_id: String,
     platform: String,
@@ -402,10 +414,19 @@ pub async fn block_user(
     if let Some(handle) = &st.engine_handle {
         let mut auth = handle.auth.lock().unwrap();
         auth.block_user(&user_id, &platform);
-        Ok(())
     } else {
-        Err("Engine not running".into())
+        return Err("Engine not running".into());
     }
+
+    // Remove from admin_users in config so block persists across restarts
+    if let Ok(mut cfg) = config::load_config(&app) {
+        if let Some(users) = cfg.admin_users.get_mut(&platform) {
+            users.retain(|id| id != &user_id);
+        }
+        let _ = config::save_config(&app, &cfg);
+    }
+
+    Ok(())
 }
 
 // --- Data dir ---
