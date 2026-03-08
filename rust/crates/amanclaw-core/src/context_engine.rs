@@ -1,6 +1,8 @@
 use amanclaw_traits::context::{ContextEngine, ContextRequest, ContextResult, ExchangeEvent};
 use amanclaw_traits::memory::MemoryBackend;
+use amanclaw_traits::vector::VectorStore;
 use amanclaw_llm::client::{LlmClient, LlmResponse};
+use amanclaw_llm::embeddings::EmbeddingClient;
 use crate::registry::PluginRegistry;
 use anyhow::Result;
 use std::sync::Arc;
@@ -10,6 +12,8 @@ use base64::Engine as Base64Engine;
 /// history + facts + summary + optional RAG + tool filtering.
 pub struct StandardContextEngine {
     memory: Arc<dyn MemoryBackend>,
+    vector_store: Option<Arc<dyn VectorStore>>,
+    embedding_client: Option<Arc<EmbeddingClient>>,
     llm: Arc<LlmClient>,
     registry: Arc<PluginRegistry>,
     base_system_prompt: String,
@@ -21,8 +25,10 @@ impl StandardContextEngine {
         llm: Arc<LlmClient>,
         registry: Arc<PluginRegistry>,
         base_system_prompt: String,
+        vector_store: Option<Arc<dyn VectorStore>>,
+        embedding_client: Option<Arc<EmbeddingClient>>,
     ) -> Self {
-        Self { memory, llm, registry, base_system_prompt }
+        Self { memory, llm, registry, base_system_prompt, vector_store, embedding_client }
     }
 }
 
@@ -57,16 +63,54 @@ impl ContextEngine for StandardContextEngine {
             }
         }
 
-        // 4. Build message array
+        // 4. RAG retrieval if enabled
+        if profile.context.rag_enabled && !profile.context.rag_collections.is_empty() {
+            if let Some(ref vs) = self.vector_store {
+                let mut all_results = Vec::new();
+
+                if let Some(ref ec) = self.embedding_client {
+                    // Embedding-based search
+                    if let Ok(embedding) = ec.embed_one(&request.user_message).await {
+                        for collection in &profile.context.rag_collections {
+                            if let Ok(results) = vs.search_by_embedding(
+                                collection, &embedding, &request.user_message, profile.context.rag_top_k,
+                            ).await {
+                                all_results.extend(results);
+                            }
+                        }
+                    }
+                } else {
+                    // Fallback: text search without embeddings
+                    for collection in &profile.context.rag_collections {
+                        if let Ok(results) = vs.search(
+                            collection, &request.user_message, profile.context.rag_top_k,
+                        ).await {
+                            all_results.extend(results);
+                        }
+                    }
+                }
+
+                if !all_results.is_empty() {
+                    all_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+                    all_results.truncate(profile.context.rag_top_k);
+                    system.push_str("\n\n## Relevant knowledge");
+                    for doc in &all_results {
+                        system.push_str(&format!("\n- {}", doc.content));
+                    }
+                }
+            }
+        }
+
+        // 5. Build message array
         let mut messages = vec![serde_json::json!({"role": "system", "content": system})];
 
-        // 5. Add history
+        // 6. Add history
         let history = self.memory.get_history(ns, user_id, profile.context.history_limit).await?;
         for m in &history {
             messages.push(serde_json::json!({"role": m.role, "content": m.content}));
         }
 
-        // 6. Add user message (multimodal if image)
+        // 7. Add user message (multimodal if image)
         if let Some(ref image_data) = request.image_data {
             let b64 = base64::engine::general_purpose::STANDARD.encode(image_data);
             let text = if request.user_message.is_empty() {
@@ -83,7 +127,7 @@ impl ContextEngine for StandardContextEngine {
             messages.push(serde_json::json!({"role": "user", "content": request.user_message}));
         }
 
-        // 7. Filter tools by agent profile
+        // 8. Filter tools by agent profile
         let tools = self.registry.get_filtered_tool_definitions(&profile.allowed_skills);
 
         Ok(ContextResult { messages, tools })
@@ -188,7 +232,6 @@ mod tests {
     #[tokio::test]
     async fn test_standard_context_engine_builds_context() {
         let memory = Arc::new(MockMemory::new());
-        let registry = Arc::new(PluginRegistry::new());
 
         let profile = AgentProfile::default_agent();
         let ns = &profile.memory_namespace;

@@ -129,6 +129,18 @@ impl VectorStore for SqliteVectorStore {
         }
         Ok(())
     }
+
+    async fn upsert_with_embeddings(
+        &self, collection: &str, docs: &[Document], embeddings: &[Vec<f32>],
+    ) -> Result<()> {
+        SqliteVectorStore::upsert_with_embeddings(self, collection, docs, embeddings).await
+    }
+
+    async fn search_by_embedding(
+        &self, collection: &str, query_embedding: &[f32], _query_text: &str, limit: usize,
+    ) -> Result<Vec<SearchResult>> {
+        SqliteVectorStore::search_by_embedding(self, collection, query_embedding, limit).await
+    }
 }
 
 // --- Embedding helpers ---

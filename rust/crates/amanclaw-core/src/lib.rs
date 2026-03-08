@@ -6,11 +6,14 @@ pub mod context_engine;
 use amanclaw_traits::config::AppConfig;
 use amanclaw_traits::context::ContextEngine;
 use amanclaw_traits::memory::MemoryBackend;
+use amanclaw_traits::vector::VectorStore;
 use amanclaw_traits::channel::Channel;
 use amanclaw_memory::sqlite::SqliteMemory;
+use amanclaw_memory::vector::SqliteVectorStore;
 use amanclaw_security::auth::Auth;
 use amanclaw_security::rate_limiter::RateLimiter;
 use amanclaw_llm::client::LlmClient;
+use amanclaw_llm::embeddings::EmbeddingClient;
 use crate::context_engine::StandardContextEngine;
 use amanclaw_channel_telegram::TelegramChannel;
 use amanclaw_channel_discord::DiscordChannel;
@@ -113,12 +116,29 @@ impl Engine {
         let pool = memory.pool().clone();
         let memory_arc: Arc<dyn MemoryBackend> = Arc::new(memory);
         let llm_arc = Arc::new(llm);
+
+        // Optional: create vector store (always available since we use SQLite)
+        let vector_store: Option<Arc<dyn VectorStore>> = Some(Arc::new(
+            SqliteVectorStore::new(pool.clone())
+        ));
+
+        // Optional: create embedding client if configured
+        let embedding_client = config.embeddings.as_ref().map(|ec| {
+            Arc::new(EmbeddingClient::new(
+                ec.base_url.clone(),
+                ec.model.clone(),
+                ec.api_key.clone(),
+            ))
+        });
+
         let context_engine: Arc<dyn ContextEngine> = Arc::new(
             StandardContextEngine::new(
                 memory_arc.clone(),
                 llm_arc.clone(),
                 registry.clone(),
                 amanclaw_llm::prompts::SYSTEM_PROMPT_BASE.to_string(),
+                vector_store,
+                embedding_client.clone(),
             )
         );
         let pipeline = Pipeline::with_services(auth_arc.clone(), rate_limiter, context_engine, memory_arc, llm_arc);
