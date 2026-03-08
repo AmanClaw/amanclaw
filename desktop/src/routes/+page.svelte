@@ -12,18 +12,28 @@
 
 	let loaded = $state(false);
 
+	async function refreshStatus() {
+		try {
+			const status = await api.getStatus();
+			botStatus.set({ ...$botStatus, ...(status as any) });
+		} catch (_) {}
+	}
+
 	onMount(async () => {
 		try {
 			const firstRun = await api.checkFirstRun();
 			isFirstRun.set(firstRun);
 			if (!firstRun) {
-				const status = await api.getStatus();
-				botStatus.set({ ...$botStatus, ...(status as any) });
+				await refreshStatus();
 			}
 		} catch (e) {
 			// Not connected yet
 		}
 		loaded = true;
+
+		// Poll status every 3 seconds to stay in sync with engine
+		const interval = setInterval(refreshStatus, 3000);
+		return () => clearInterval(interval);
 	});
 
 	async function handleStart() {

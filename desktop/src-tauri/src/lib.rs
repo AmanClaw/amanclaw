@@ -53,8 +53,8 @@ pub fn run() {
                                             let mut st = state_clone.write().await;
                                             st.engine_status = state::EngineStatus::Error(e.to_string());
                                         } else {
-                                            let mut st = state_clone.write().await;
-                                            st.engine_status = state::EngineStatus::Stopped;
+                                            // No active channels — keep Running status
+                                            tracing::info!("Engine run loop exited (no active channels)");
                                         }
                                     });
 

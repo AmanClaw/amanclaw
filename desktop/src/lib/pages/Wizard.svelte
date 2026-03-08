@@ -22,8 +22,11 @@
 				llmModel: model,
 				llmApiKey: apiKey,
 			});
-			error = 'Config saved! Starting engine...';
-			await api.startEngine();
+			try {
+				await api.startEngine();
+			} catch (_) {
+				// Engine may already be running from auto-start — that's OK
+			}
 			isFirstRun.set(false);
 			currentPage.set('dashboard');
 		} catch (e: any) {

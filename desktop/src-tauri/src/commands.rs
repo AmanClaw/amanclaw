@@ -166,8 +166,9 @@ pub async fn start_engine(
             st.engine_status = EngineStatus::Error(e.to_string());
             tracing::error!(error = %e, "Engine error");
         } else {
-            let mut st = state_clone.write().await;
-            st.engine_status = EngineStatus::Stopped;
+            // engine.run() returns Ok when no channels are active (rx closed).
+            // Keep status as Running — the engine is initialized and handles are valid.
+            tracing::info!("Engine run loop exited (no active channels)");
         }
     });
 
