@@ -1044,20 +1044,20 @@ The easiest way to contribute is by writing a new skill plugin. See the [WASM Pl
 - [x] Slack channel adapter (Socket Mode)
 - [x] Python and JavaScript (AssemblyScript) plugin SDKs
 
-### Phase 1: Islamic Community Skills (In Progress)
+### Phase 1: Islamic Community Skills (Done)
 
-- [ ] skill-solat — Prayer times via JAKIM e-Solat API (Rust)
-- [ ] skill-quran — Quran search & lookup via Quran.com API (Rust)
-- [ ] skill-qiblat — Qiblat direction calculation (Rust)
-- [ ] skill-hijri — Islamic calendar & date conversion (Rust)
-- [ ] skill-doa — Doa & zikir collection (Rust)
-- [ ] skill-hadith — Hadith search via sunnah.com (Python)
-- [ ] skill-halal — JAKIM halal verification (Python)
-- [ ] skill-zakat — Zakat calculator (Python)
-- [ ] skill-masjid — Mosque finder via Google Places (Python)
-- [ ] skill-khutbah — Weekly JAKIM khutbah (Python)
-- [ ] skill-jakim — JAKIM services & fatwa search (Python)
-- [ ] Multi-community model (per-group zone, language, skills config)
+- [x] skill-solat — Prayer times via JAKIM e-Solat API (Rust)
+- [x] skill-quran — Quran search & lookup via Quran.com API (Rust)
+- [x] skill-qiblat — Qiblat direction calculation (Rust)
+- [x] skill-hijri — Islamic calendar & date conversion (Rust)
+- [x] skill-doa — Doa & zikir collection (Rust)
+- [x] skill-hadith — Hadith search via sunnah.com (Python)
+- [x] skill-halal — JAKIM halal verification (Python)
+- [x] skill-zakat — Zakat calculator (Python)
+- [x] skill-masjid — Mosque finder via Google Places (Python)
+- [x] skill-khutbah — Weekly JAKIM khutbah (Python)
+- [x] skill-jakim — JAKIM services & fatwa search (Python)
+- [x] Multi-community model (per-group zone, language, skills config)
 
 ### Phase 2: Community Onboarding
 
