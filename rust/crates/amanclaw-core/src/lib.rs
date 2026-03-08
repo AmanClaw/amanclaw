@@ -19,7 +19,8 @@ use crate::registry::PluginRegistry;
 use anyhow::Result;
 use tokio::sync::mpsc;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use sqlx::SqlitePool;
 
 pub struct Engine {
     #[allow(dead_code)]
@@ -29,6 +30,8 @@ pub struct Engine {
     channels: Vec<Arc<dyn Channel>>,
     rx: mpsc::Receiver<amanclaw_traits::message::IncomingMessage>,
     tx: mpsc::Sender<amanclaw_traits::message::IncomingMessage>,
+    auth: Arc<Mutex<Auth>>,
+    pool: SqlitePool,
 }
 
 impl Engine {
@@ -83,7 +86,9 @@ impl Engine {
         }
 
         let registry = Arc::new(registry);
-        let pipeline = Pipeline::with_services(auth, rate_limiter, memory, llm);
+        let auth_arc = Arc::new(Mutex::new(auth));
+        let pool = memory.pool().clone();
+        let pipeline = Pipeline::with_services(auth_arc.clone(), rate_limiter, memory, llm);
         let (tx, rx) = mpsc::channel(256);
 
         // Start channel adapters
@@ -141,12 +146,27 @@ impl Engine {
 
         tracing::info!(skills = registry.skill_count(), "Engine initialized");
 
-        Ok(Self { config, pipeline, registry, channels, rx, tx })
+        Ok(Self { config, pipeline, registry, channels, rx, tx, auth: auth_arc, pool })
     }
 
     /// Get a sender for channels to push messages into the engine.
     pub fn sender(&self) -> mpsc::Sender<amanclaw_traits::message::IncomingMessage> {
         self.tx.clone()
+    }
+
+    /// Get the shared auth instance for use by the management API.
+    pub fn auth(&self) -> &Arc<Mutex<Auth>> {
+        &self.auth
+    }
+
+    /// Get the SQLite pool for use by the management API.
+    pub fn pool(&self) -> &SqlitePool {
+        &self.pool
+    }
+
+    /// Get the plugin registry.
+    pub fn registry(&self) -> &Arc<PluginRegistry> {
+        &self.registry
     }
 
     pub async fn run(mut self) -> Result<()> {

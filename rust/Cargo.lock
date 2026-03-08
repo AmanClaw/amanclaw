@@ -45,6 +45,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
+name = "amanclaw-api"
+version = "0.1.0"
+dependencies = [
+ "amanclaw-core",
+ "amanclaw-memory",
+ "amanclaw-security",
+ "amanclaw-traits",
+ "anyhow",
+ "axum",
+ "chrono",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "tower-http",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "amanclaw-channel-discord"
 version = "0.1.0"
 dependencies = [
@@ -118,6 +138,7 @@ dependencies = [
 name = "amanclaw-cli"
 version = "0.1.0"
 dependencies = [
+ "amanclaw-api",
  "amanclaw-core",
  "amanclaw-traits",
  "anyhow",
@@ -159,6 +180,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "sqlx",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -4193,6 +4215,7 @@ dependencies = [
  "tower",
  "tower-layer",
  "tower-service",
+ "tracing",
 ]
 
 [[package]]

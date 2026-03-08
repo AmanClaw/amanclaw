@@ -7,7 +7,7 @@ use amanclaw_memory::sqlite::SqliteMemory;
 use amanclaw_llm::client::{LlmClient, LlmResponse};
 use crate::registry::PluginRegistry;
 use anyhow::Result;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use base64::Engine as Base64Engine;
 
 const MAX_TOOL_ROUNDS: usize = 5;
@@ -17,7 +17,7 @@ const SUMMARIZE_KEEP_RECENT: i64 = 10;
 /// Message processing pipeline.
 pub enum Pipeline {
     Full {
-        auth: Mutex<Auth>,
+        auth: Arc<Mutex<Auth>>,
         rate_limiter: Mutex<RateLimiter>,
         memory: SqliteMemory,
         llm: LlmClient,
@@ -31,13 +31,13 @@ impl Pipeline {
     }
 
     pub fn with_services(
-        auth: Auth,
+        auth: Arc<Mutex<Auth>>,
         rate_limiter: RateLimiter,
         memory: SqliteMemory,
         llm: LlmClient,
     ) -> Self {
         Self::Full {
-            auth: Mutex::new(auth),
+            auth,
             rate_limiter: Mutex::new(rate_limiter),
             memory,
             llm,

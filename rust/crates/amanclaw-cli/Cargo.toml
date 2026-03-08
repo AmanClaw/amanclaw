@@ -9,6 +9,7 @@ path = "src/main.rs"
 
 [dependencies]
 amanclaw-core = { path = "../amanclaw-core" }
+amanclaw-api = { path = "../amanclaw-api" }
 amanclaw-traits = { path = "../amanclaw-traits" }
 tokio = { workspace = true }
 tracing = { workspace = true }

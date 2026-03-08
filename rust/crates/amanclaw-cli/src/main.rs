@@ -1,6 +1,7 @@
 use amanclaw_core::Engine;
 use anyhow::{Context, Result};
 use std::path::PathBuf;
+use std::sync::Arc;
 use tracing_subscriber::EnvFilter;
 
 fn setup_logging(log_format: Option<&str>) {
@@ -54,6 +55,40 @@ async fn main() -> Result<()> {
 
     // Build and run engine
     let engine = Engine::new(config).await?;
+
+    // Start management API if configured
+    if let Ok(port_str) = std::env::var("API_PORT") {
+        if let Ok(port) = port_str.parse::<u16>() {
+            let api_token = std::env::var("API_TOKEN")
+                .unwrap_or_else(|_| {
+                    let token = format!(
+                        "amanclaw-{:x}-{}",
+                        std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_millis(),
+                        std::process::id()
+                    );
+                    tracing::info!(token = %token, "Generated API token (set API_TOKEN to override)");
+                    token
+                });
+            let api_state = amanclaw_api::state::ApiState {
+                registry: engine.registry().clone(),
+                pool: engine.pool().clone(),
+                api_token,
+                bot_status: Arc::new(tokio::sync::RwLock::new(
+                    amanclaw_api::state::BotStatus::new(),
+                )),
+                auth: engine.auth().clone(),
+            };
+            tokio::spawn(async move {
+                if let Err(e) = amanclaw_api::run_api_server(api_state, port).await {
+                    tracing::error!("Management API error: {}", e);
+                }
+            });
+            tracing::info!(port, "Management API started");
+        }
+    }
 
     // Graceful shutdown on Ctrl+C
     tokio::select! {
