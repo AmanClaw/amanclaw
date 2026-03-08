@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id TEXT NOT NULL,
     platform TEXT NOT NULL,
+    namespace TEXT NOT NULL DEFAULT 'default',
     role TEXT NOT NULL,
     content TEXT NOT NULL,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -21,13 +22,16 @@ CREATE TABLE IF NOT EXISTS facts (
 CREATE TABLE IF NOT EXISTS summaries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id TEXT NOT NULL,
+    namespace TEXT NOT NULL DEFAULT 'default',
     summary TEXT NOT NULL,
     message_count INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_user ON messages(user_id);
+CREATE INDEX IF NOT EXISTS idx_messages_ns_user ON messages(namespace, user_id);
 CREATE INDEX IF NOT EXISTS idx_facts_user ON facts(user_id);
+CREATE INDEX IF NOT EXISTS idx_summaries_ns_user ON summaries(namespace, user_id);
 
 CREATE TABLE IF NOT EXISTS communities (
     id TEXT PRIMARY KEY,
@@ -54,4 +58,13 @@ CREATE TABLE IF NOT EXISTS community_admins (
     added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (community_id, user_id)
 );
+"#;
+
+/// Migration SQL for existing databases that lack namespace columns.
+/// Safe to run multiple times — errors ignored if columns already exist.
+pub const MIGRATE_NS_SQL: &str = r#"
+ALTER TABLE messages ADD COLUMN namespace TEXT NOT NULL DEFAULT 'default';
+ALTER TABLE summaries ADD COLUMN namespace TEXT NOT NULL DEFAULT 'default';
+CREATE INDEX IF NOT EXISTS idx_messages_ns_user ON messages(namespace, user_id);
+CREATE INDEX IF NOT EXISTS idx_summaries_ns_user ON summaries(namespace, user_id);
 "#;
