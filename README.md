@@ -382,6 +382,256 @@ plugins:
 
 ---
 
+## LLM Providers
+
+AmanClaw works with **any OpenAI-compatible API**. It calls `POST {base_url}/chat/completions` with Bearer token auth. This means you can use local models, cloud APIs, or any proxy that speaks this format.
+
+### Local Models (Free, Private)
+
+#### Ollama
+
+Run open-source models locally. Best for getting started.
+
+```bash
+# Install and run a model
+ollama run qwen3:8b
+```
+
+```yaml
+# config.yaml
+llm:
+  base_url: "http://localhost:11434/v1"
+  model: "qwen3:8b"
+```
+
+```bash
+# .env — no API key needed
+LLM_API_KEY=ollama
+```
+
+Recommended models: `qwen3:8b`, `llama3.1:8b`, `mistral`, `deepseek-r1:8b`, `gemma3:12b`
+
+#### vLLM
+
+High-throughput serving for production. Supports tool calling natively.
+
+```bash
+vllm serve Qwen/Qwen3-30B-A3B --port 8001
+```
+
+```yaml
+llm:
+  base_url: "http://localhost:8001/v1"
+  model: "Qwen/Qwen3-30B-A3B"
+```
+
+#### LM Studio
+
+Desktop app with GUI. Download models from Hugging Face, click "Start Server".
+
+```yaml
+llm:
+  base_url: "http://localhost:1234/v1"
+  model: "loaded-model-name"
+```
+
+#### LocalAI
+
+Drop-in OpenAI replacement with GGUF model support.
+
+```bash
+docker run -p 8080:8080 -v ./models:/models localai/localai
+```
+
+```yaml
+llm:
+  base_url: "http://localhost:8080/v1"
+  model: "your-model"
+```
+
+#### llama.cpp Server
+
+Minimal C++ inference server. Lowest resource usage.
+
+```bash
+./llama-server -m model.gguf --port 8080
+```
+
+```yaml
+llm:
+  base_url: "http://localhost:8080/v1"
+  model: "model"
+```
+
+### Cloud Providers
+
+#### OpenAI
+
+```yaml
+llm:
+  base_url: "https://api.openai.com/v1"
+  model: "gpt-4o"
+```
+
+```bash
+LLM_API_KEY=sk-your-openai-key
+```
+
+#### Anthropic (via OpenAI-compatible proxy)
+
+Anthropic's native API is not OpenAI-compatible. Use a proxy like [LiteLLM](https://github.com/BerriAI/litellm):
+
+```bash
+litellm --model anthropic/claude-sonnet-4-20250514 --port 4000
+```
+
+```yaml
+llm:
+  base_url: "http://localhost:4000/v1"
+  model: "anthropic/claude-sonnet-4-20250514"
+```
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-your-key
+LLM_API_KEY=sk-1234  # LiteLLM proxy key
+```
+
+Or use any other proxy that translates OpenAI format to Anthropic's API (OpenRouter, AWS Bedrock proxy, etc.).
+
+#### Qwen (Alibaba Cloud / DashScope)
+
+Qwen models via Alibaba's DashScope API (OpenAI-compatible endpoint):
+
+```yaml
+llm:
+  base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  model: "qwen-plus"
+```
+
+```bash
+LLM_API_KEY=sk-your-dashscope-key
+```
+
+Available models: `qwen-turbo`, `qwen-plus`, `qwen-max`, `qwen-vl-max` (vision)
+
+#### Kimi (Moonshot AI)
+
+```yaml
+llm:
+  base_url: "https://api.moonshot.cn/v1"
+  model: "moonshot-v1-8k"
+```
+
+```bash
+LLM_API_KEY=sk-your-moonshot-key
+```
+
+Available models: `moonshot-v1-8k`, `moonshot-v1-32k`, `moonshot-v1-128k`
+
+#### DeepSeek
+
+```yaml
+llm:
+  base_url: "https://api.deepseek.com/v1"
+  model: "deepseek-chat"
+```
+
+```bash
+LLM_API_KEY=sk-your-deepseek-key
+```
+
+Available models: `deepseek-chat`, `deepseek-reasoner`
+
+#### Groq (Fast Inference)
+
+```yaml
+llm:
+  base_url: "https://api.groq.com/openai/v1"
+  model: "llama-3.1-70b-versatile"
+```
+
+```bash
+LLM_API_KEY=gsk_your-groq-key
+```
+
+#### Together AI
+
+```yaml
+llm:
+  base_url: "https://api.together.xyz/v1"
+  model: "meta-llama/Llama-3.1-70B-Instruct-Turbo"
+```
+
+```bash
+LLM_API_KEY=your-together-key
+```
+
+#### OpenRouter (Multi-Provider Gateway)
+
+Access 200+ models from one API. Pay per token across providers.
+
+```yaml
+llm:
+  base_url: "https://openrouter.ai/api/v1"
+  model: "anthropic/claude-sonnet-4-20250514"  # or any model on OpenRouter
+```
+
+```bash
+LLM_API_KEY=sk-or-your-openrouter-key
+```
+
+#### Hugging Face (Inference API)
+
+Use models hosted on Hugging Face's serverless inference:
+
+```yaml
+llm:
+  base_url: "https://api-inference.huggingface.co/v1"
+  model: "meta-llama/Llama-3.1-8B-Instruct"
+```
+
+```bash
+LLM_API_KEY=hf_your-huggingface-token
+```
+
+For dedicated endpoints (Inference Endpoints), use the endpoint URL as `base_url`.
+
+### Feature Compatibility
+
+Not all providers support all features equally:
+
+| Feature | Requirement | Providers |
+| ------- | ----------- | --------- |
+| **Basic chat** | `/v1/chat/completions` | All listed above |
+| **Tool calling** | `tool_calls` in response | OpenAI, vLLM, Groq, Together, DeepSeek, Qwen, Ollama (most models) |
+| **Vision** | Multimodal `content` array | OpenAI (gpt-4o), Qwen-VL, LLaVA via Ollama, vLLM with VL models |
+| **Streaming** | Not used by AmanClaw | N/A |
+
+> **Tip:** For the best experience with tool calling and vision, use models that natively support OpenAI's function calling format. Qwen3, GPT-4o, and Llama 3.1+ work well.
+
+### Using LiteLLM as a Universal Proxy
+
+[LiteLLM](https://github.com/BerriAI/litellm) can proxy 100+ providers behind a single OpenAI-compatible endpoint:
+
+```bash
+pip install litellm
+litellm --model ollama/qwen3:8b --port 4000
+# or
+litellm --model anthropic/claude-sonnet-4-20250514 --port 4000
+# or
+litellm --model deepseek/deepseek-chat --port 4000
+```
+
+```yaml
+llm:
+  base_url: "http://localhost:4000/v1"
+  model: "ollama/qwen3:8b"
+```
+
+This is the easiest way to use providers that don't natively support the OpenAI format.
+
+---
+
 ## Deployment
 
 ### Docker (recommended)
@@ -609,7 +859,7 @@ The easiest way to contribute is by writing a new skill plugin. See the [WASM Pl
 ## FAQ
 
 **Q: What LLM should I use?**
-Any OpenAI-compatible API. Local: Ollama, vLLM, LM Studio. Cloud: OpenAI, Together AI, Groq, etc.
+Any OpenAI-compatible API works. See the [LLM Providers](#llm-providers) section for detailed setup guides. Quick picks: Ollama (free, local), Groq (fast, free tier), OpenAI GPT-4o (best tool calling), Qwen3 (best open-source).
 
 **Q: Can I use this with multiple people?**
 Yes. Add user IDs to `admin_users` in config. Non-admin users go through an approval flow.
