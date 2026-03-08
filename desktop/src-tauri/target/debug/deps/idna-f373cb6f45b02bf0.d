@@ -1,0 +1,10 @@
+/Users/aman-asmuei/Personals/aman-office/secureclaw-simple/.worktrees/desktop-admin-app/desktop/src-tauri/target/debug/deps/idna-f373cb6f45b02bf0.d: /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/idna-1.1.0/src/lib.rs /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/idna-1.1.0/src/deprecated.rs /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/idna-1.1.0/src/punycode.rs /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/idna-1.1.0/src/uts46.rs
+
+/Users/aman-asmuei/Personals/aman-office/secureclaw-simple/.worktrees/desktop-admin-app/desktop/src-tauri/target/debug/deps/libidna-f373cb6f45b02bf0.rlib: /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/idna-1.1.0/src/lib.rs /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/idna-1.1.0/src/deprecated.rs /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/idna-1.1.0/src/punycode.rs /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/idna-1.1.0/src/uts46.rs
+
+/Users/aman-asmuei/Personals/aman-office/secureclaw-simple/.worktrees/desktop-admin-app/desktop/src-tauri/target/debug/deps/libidna-f373cb6f45b02bf0.rmeta: /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/idna-1.1.0/src/lib.rs /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/idna-1.1.0/src/deprecated.rs /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/idna-1.1.0/src/punycode.rs /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/idna-1.1.0/src/uts46.rs
+
+/Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/idna-1.1.0/src/lib.rs:
+/Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/idna-1.1.0/src/deprecated.rs:
+/Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/idna-1.1.0/src/punycode.rs:
+/Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/idna-1.1.0/src/uts46.rs:

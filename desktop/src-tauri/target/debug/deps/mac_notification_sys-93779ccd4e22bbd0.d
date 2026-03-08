@@ -1,0 +1,9 @@
+/Users/aman-asmuei/Personals/aman-office/secureclaw-simple/.worktrees/desktop-admin-app/desktop/src-tauri/target/debug/deps/mac_notification_sys-93779ccd4e22bbd0.d: /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.10/src/lib.rs /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.10/src/error.rs /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.10/src/notification.rs
+
+/Users/aman-asmuei/Personals/aman-office/secureclaw-simple/.worktrees/desktop-admin-app/desktop/src-tauri/target/debug/deps/libmac_notification_sys-93779ccd4e22bbd0.rlib: /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.10/src/lib.rs /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.10/src/error.rs /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.10/src/notification.rs
+
+/Users/aman-asmuei/Personals/aman-office/secureclaw-simple/.worktrees/desktop-admin-app/desktop/src-tauri/target/debug/deps/libmac_notification_sys-93779ccd4e22bbd0.rmeta: /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.10/src/lib.rs /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.10/src/error.rs /Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.10/src/notification.rs
+
+/Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.10/src/lib.rs:
+/Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.10/src/error.rs:
+/Users/aman-asmuei/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/mac-notification-sys-0.6.10/src/notification.rs:
