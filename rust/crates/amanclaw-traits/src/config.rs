@@ -125,7 +125,13 @@ pub struct SkillsConfig {
     /// List of skill names to disable (not registered with the engine).
     #[serde(default)]
     pub disabled: Vec<String>,
+
+    /// Directory containing SOUL.md agent personality files.
+    #[serde(default = "default_soul_dir")]
+    pub soul_dir: String,
 }
+
+fn default_soul_dir() -> String { "./souls".into() }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpServerConfig {

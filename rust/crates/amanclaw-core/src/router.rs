@@ -88,6 +88,7 @@ mod tests {
             system_prompt: format!("{} prompt", id),
             allowed_skills: vec![],
             llm_override: None,
+            soul_file: None,
             memory_namespace: id.into(),
             context: ContextConfig::default(),
         }

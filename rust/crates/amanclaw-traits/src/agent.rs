@@ -57,6 +57,10 @@ pub struct AgentProfile {
     #[serde(default)]
     pub llm_override: Option<LlmConfig>,
 
+    /// Path to a SOUL.md file (relative to soul_dir). Overrides system_prompt if set.
+    #[serde(default)]
+    pub soul_file: Option<String>,
+
     /// Memory namespace — isolates conversation history.
     /// Defaults to the agent id.
     #[serde(default)]
@@ -75,6 +79,7 @@ impl AgentProfile {
             system_prompt: String::new(), // Empty means use base prompt
             allowed_skills: Vec::new(),
             llm_override: None,
+            soul_file: None,
             memory_namespace: "default".into(),
             context: ContextConfig::default(),
         }
@@ -102,6 +107,21 @@ mod tests {
         assert_eq!(config.summarize_keep_recent, 10);
         assert!(!config.rag_enabled);
         assert_eq!(config.rag_top_k, 3);
+    }
+
+    #[test]
+    fn test_agent_profile_with_soul_file() {
+        let yaml = r#"
+id: ustazbot
+name: UstazBot
+system_prompt: ""
+soul_file: "ustazbot.md"
+allowed_skills:
+  - solat
+memory_namespace: ustaz
+"#;
+        let profile: AgentProfile = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(profile.soul_file.as_deref(), Some("ustazbot.md"));
     }
 
     #[test]
