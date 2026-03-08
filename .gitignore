@@ -2,20 +2,8 @@
 .env
 config.yaml
 
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.egg-info/
-dist/
-build/
-.eggs/
-
-# Virtual environments
-.venv/
-venv/
-env/
-.env/
+# Rust
+rust/target/
 
 # SQLite database
 *.db
@@ -31,12 +19,8 @@ env/
 .DS_Store
 Thumbs.db
 
-# Data directory (Docker volumes)
+# Data directory
 data/
-
-# Node.js (WhatsApp bridge)
-node_modules/
-bridge/whatsapp/auth_state/
 
 # Logs
 *.log
