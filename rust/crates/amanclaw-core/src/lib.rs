@@ -131,6 +131,51 @@ impl Engine {
             ))
         });
 
+        // Index knowledge bases if configured
+        if let (Some(vs), Some(ec)) = (&vector_store, &embedding_client) {
+            for (name, kb_config) in &config.knowledge_bases {
+                let source_path = std::path::Path::new(&kb_config.source);
+                if source_path.exists() {
+                    tracing::info!(name, collection = %kb_config.collection, "Loading knowledge base");
+                    match std::fs::read_to_string(source_path) {
+                        Ok(content) => {
+                            match serde_json::from_str::<Vec<amanclaw_traits::vector::Document>>(&content) {
+                                Ok(docs) => {
+                                    let texts: Vec<&str> = docs.iter().map(|d| d.content.as_str()).collect();
+                                    let mut offset = 0;
+                                    for chunk in texts.chunks(32) {
+                                        match ec.embed(chunk).await {
+                                            Ok(embeddings) => {
+                                                let chunk_docs: Vec<_> = docs[offset..offset + chunk.len()].to_vec();
+                                                if let Err(e) = vs.upsert_with_embeddings(
+                                                    &kb_config.collection, &chunk_docs, &embeddings,
+                                                ).await {
+                                                    tracing::error!(name, error = %e, "Failed to index knowledge base chunk");
+                                                }
+                                            }
+                                            Err(e) => {
+                                                tracing::error!(name, error = %e, "Failed to generate embeddings");
+                                            }
+                                        }
+                                        offset += chunk.len();
+                                    }
+                                    tracing::info!(name, docs = docs.len(), "Knowledge base indexed");
+                                }
+                                Err(e) => {
+                                    tracing::error!(name, error = %e, "Failed to parse knowledge base JSON");
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!(name, error = %e, "Failed to read knowledge base file");
+                        }
+                    }
+                } else {
+                    tracing::warn!(name, path = %kb_config.source, "Knowledge base file not found");
+                }
+            }
+        }
+
         let context_engine: Arc<dyn ContextEngine> = Arc::new(
             StandardContextEngine::new(
                 memory_arc.clone(),
