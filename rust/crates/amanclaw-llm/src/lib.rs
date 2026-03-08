@@ -1,3 +1,4 @@
 pub mod client;
 pub mod prompts;
 pub mod tools;
+pub mod embeddings;

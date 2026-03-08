@@ -31,7 +31,40 @@ pub struct AppConfig {
 
     #[serde(default)]
     pub routing: RoutingConfig,
+
+    #[serde(default)]
+    pub embeddings: Option<EmbeddingConfig>,
+
+    #[serde(default)]
+    pub vector: Option<VectorConfig>,
+
+    #[serde(default)]
+    pub knowledge_bases: HashMap<String, KnowledgeBaseConfig>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EmbeddingConfig {
+    pub base_url: String,
+    pub model: String,
+    #[serde(default)]
+    pub api_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VectorConfig {
+    #[serde(default = "default_vector_backend")]
+    pub backend: String,
+    #[serde(default)]
+    pub qdrant_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KnowledgeBaseConfig {
+    pub collection: String,
+    pub source: String,
+}
+
+fn default_vector_backend() -> String { "sqlite-vec".into() }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScriptPluginConfig {
