@@ -1,15 +1,16 @@
 use amanclaw_traits::agent::AgentProfile;
+use amanclaw_traits::context::{ContextEngine, ContextRequest, ExchangeEvent};
+use amanclaw_traits::memory::MemoryBackend;
 use amanclaw_traits::message::{IncomingMessage, OutgoingMessage};
 use amanclaw_traits::skill::SkillInput;
 use amanclaw_security::auth::{Auth, UserState};
 use amanclaw_security::rate_limiter::RateLimiter;
 use amanclaw_security::sanitizer::check_injection;
-use amanclaw_memory::sqlite::SqliteMemory;
 use amanclaw_llm::client::{LlmClient, LlmResponse};
+use crate::context_engine::maybe_summarize;
 use crate::registry::PluginRegistry;
 use anyhow::Result;
 use std::sync::{Arc, Mutex};
-use base64::Engine as Base64Engine;
 
 const MAX_TOOL_ROUNDS: usize = 5;
 
@@ -18,8 +19,9 @@ pub enum Pipeline {
     Full {
         auth: Arc<Mutex<Auth>>,
         rate_limiter: Mutex<RateLimiter>,
-        memory: SqliteMemory,
-        llm: LlmClient,
+        context_engine: Arc<dyn ContextEngine>,
+        memory: Arc<dyn MemoryBackend>,
+        llm: Arc<LlmClient>,
     },
     Stub,
 }
@@ -32,12 +34,14 @@ impl Pipeline {
     pub fn with_services(
         auth: Arc<Mutex<Auth>>,
         rate_limiter: RateLimiter,
-        memory: SqliteMemory,
-        llm: LlmClient,
+        context_engine: Arc<dyn ContextEngine>,
+        memory: Arc<dyn MemoryBackend>,
+        llm: Arc<LlmClient>,
     ) -> Self {
         Self::Full {
             auth,
             rate_limiter: Mutex::new(rate_limiter),
+            context_engine,
             memory,
             llm,
         }
@@ -46,8 +50,8 @@ impl Pipeline {
     pub async fn process(&self, msg: IncomingMessage, registry: &PluginRegistry, profile: &AgentProfile) -> Result<Option<OutgoingMessage>> {
         match self {
             Self::Stub => self.process_stub(msg).await,
-            Self::Full { auth, rate_limiter, memory, llm } => {
-                Self::process_full(auth, rate_limiter, memory, llm, registry, msg, profile).await
+            Self::Full { auth, rate_limiter, context_engine, memory, llm } => {
+                Self::process_full(auth, rate_limiter, context_engine, memory, llm, registry, msg, profile).await
             }
         }
     }
@@ -64,8 +68,9 @@ impl Pipeline {
     async fn process_full(
         auth: &Mutex<Auth>,
         rate_limiter: &Mutex<RateLimiter>,
-        memory: &SqliteMemory,
-        llm: &LlmClient,
+        context_engine: &Arc<dyn ContextEngine>,
+        memory: &Arc<dyn MemoryBackend>,
+        llm: &Arc<LlmClient>,
         registry: &PluginRegistry,
         msg: IncomingMessage,
         profile: &AgentProfile,
@@ -73,6 +78,7 @@ impl Pipeline {
         let user_id = &msg.user_id;
         let platform = &msg.platform;
         let text = msg.text.trim();
+        let ns = &profile.memory_namespace;
 
         // Handle /myid before auth
         if text == "/myid" || text == "/start" {
@@ -111,7 +117,7 @@ impl Pipeline {
 
         // Handle commands
         if text.starts_with('/') {
-            if let Some(reply) = Self::handle_command(auth, memory, &msg, &state).await? {
+            if let Some(reply) = Self::handle_command(auth, memory.as_ref(), &msg, &state).await? {
                 return Ok(Some(reply));
             }
         }
@@ -132,76 +138,38 @@ impl Pipeline {
             tracing::warn!(user_id, "Flagged message");
         }
 
-        // 4. Build context (with summary + facts)
-        let history = memory.get_history(user_id, profile.context.history_limit).await?;
-        let history_json: Vec<serde_json::Value> = history.iter().map(|m| {
-            serde_json::json!({"role": m.role, "content": m.content})
-        }).collect();
-
-        let now = chrono::Local::now().format("%Y-%m-%d %H:%M %A").to_string();
-        let mut system = amanclaw_llm::prompts::SYSTEM_PROMPT_BASE.replace("{datetime}", &now);
-
-        // Prepend summary if available
-        if let Ok(Some(summary)) = memory.get_summary(user_id).await {
-            system.push_str(&format!("\n\n## Previous conversation summary\n{}", summary));
-        }
-
-        // Append known facts about the user
-        if let Ok(facts) = memory.get_facts(user_id).await {
-            if !facts.is_empty() {
-                system.push_str("\n\n## Known facts about this user");
-                for (k, v) in &facts {
-                    system.push_str(&format!("\n- {}: {}", k, v));
-                }
-            }
-        }
-
-        let mut messages = vec![serde_json::json!({"role": "system", "content": system})];
-        messages.extend_from_slice(&history_json);
-
-        // Build user message — multimodal if image is present
-        if let Some(ref image_data) = msg.image_data {
-            let b64 = base64::engine::general_purpose::STANDARD.encode(image_data);
-            let content = serde_json::json!([
-                {"type": "text", "text": if clean_text.is_empty() { "What's in this image?" } else { &clean_text }},
-                {"type": "image_url", "image_url": {"url": format!("data:image/jpeg;base64,{}", b64)}}
-            ]);
-            messages.push(serde_json::json!({"role": "user", "content": content}));
-        } else {
-            messages.push(serde_json::json!({"role": "user", "content": clean_text}));
-        }
+        // 4. Build context via ContextEngine
+        let ctx_request = ContextRequest {
+            user_id: user_id.clone(),
+            platform: platform.clone(),
+            namespace: ns.clone(),
+            user_message: clean_text.to_string(),
+            image_data: msg.image_data.clone(),
+            agent_profile: profile.clone(),
+        };
+        let ctx = context_engine.build_context(ctx_request).await?;
+        let mut messages = ctx.messages;
+        let tools = ctx.tools;
 
         // 5. Tool calling loop
-        let tools = registry.get_filtered_tool_definitions(&profile.allowed_skills);
         let response = Self::tool_calling_loop(llm, registry, &mut messages, &tools, user_id, platform).await?;
 
-        // 6. Save exchange
-        memory.save_exchange(user_id, platform, &msg.text, &response).await?;
+        // 6. Save exchange via ContextEngine
+        context_engine.on_exchange_complete(ExchangeEvent {
+            user_id: user_id.clone(),
+            platform: platform.clone(),
+            namespace: ns.clone(),
+            user_message: msg.text.clone(),
+            assistant_response: response.clone(),
+        }).await?;
 
         // 7. Auto-summarize if history is too long
-        if memory.needs_summarization(user_id, profile.context.summarize_threshold).await.unwrap_or(false) {
-            let sum_history = memory.get_history(user_id, 100).await?;
-            let sum_text: Vec<String> = sum_history.iter()
-                .map(|m| format!("{}: {}", m.role, m.content))
-                .collect();
-            let sum_prompt = format!(
-                "Summarize the following conversation concisely. Focus on key topics, decisions, and important context. Reply with ONLY the summary:\n\n{}",
-                sum_text.join("\n")
-            );
-            let sum_messages = vec![
-                serde_json::json!({"role": "system", "content": "You are a conversation summarizer. Output only a concise summary."}),
-                serde_json::json!({"role": "user", "content": sum_prompt}),
-            ];
-            match llm.call(&sum_messages, &[]).await {
-                Ok(LlmResponse::Text(summary)) => {
-                    if let Err(e) = memory.save_summary_and_prune(user_id, &summary, profile.context.summarize_keep_recent).await {
-                        tracing::error!(error = %e, "Failed to save summary");
-                    }
-                }
-                _ => {
-                    tracing::warn!("Failed to generate summary for {}", user_id);
-                }
-            }
+        if let Err(e) = maybe_summarize(
+            memory.as_ref(), llm, ns, user_id,
+            profile.context.summarize_threshold,
+            profile.context.summarize_keep_recent,
+        ).await {
+            tracing::error!(error = %e, "Failed to auto-summarize");
         }
 
         Ok(Some(OutgoingMessage {
@@ -284,21 +252,22 @@ impl Pipeline {
 
     async fn handle_command(
         auth: &Mutex<Auth>,
-        memory: &SqliteMemory,
+        memory: &dyn MemoryBackend,
         msg: &IncomingMessage,
         state: &UserState,
     ) -> Result<Option<OutgoingMessage>> {
         let text = msg.text.trim();
         let parts: Vec<&str> = text.splitn(3, ' ').collect();
         let cmd = parts[0];
+        let ns = "default"; // Commands use default namespace
 
         let reply = match cmd {
             "/clear" => {
-                memory.clear_history(&msg.user_id).await?;
+                memory.clear_history(ns, &msg.user_id).await?;
                 Some("Conversation history cleared.".into())
             }
             "/stats" => {
-                let count = memory.get_message_count(&msg.user_id).await?;
+                let count = memory.get_message_count(ns, &msg.user_id).await?;
                 Some(format!("Messages in history: {}", count))
             }
             "/approve" if *state == UserState::Admin => {

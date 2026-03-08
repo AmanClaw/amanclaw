@@ -4,11 +4,14 @@ pub mod registry;
 pub mod context_engine;
 
 use amanclaw_traits::config::AppConfig;
+use amanclaw_traits::context::ContextEngine;
+use amanclaw_traits::memory::MemoryBackend;
 use amanclaw_traits::channel::Channel;
 use amanclaw_memory::sqlite::SqliteMemory;
 use amanclaw_security::auth::Auth;
 use amanclaw_security::rate_limiter::RateLimiter;
 use amanclaw_llm::client::LlmClient;
+use crate::context_engine::StandardContextEngine;
 use amanclaw_channel_telegram::TelegramChannel;
 use amanclaw_channel_discord::DiscordChannel;
 use amanclaw_channel_whatsapp::WhatsAppChannel;
@@ -108,7 +111,17 @@ impl Engine {
         let registry = Arc::new(registry);
         let auth_arc = Arc::new(Mutex::new(auth));
         let pool = memory.pool().clone();
-        let pipeline = Pipeline::with_services(auth_arc.clone(), rate_limiter, memory, llm);
+        let memory_arc: Arc<dyn MemoryBackend> = Arc::new(memory);
+        let llm_arc = Arc::new(llm);
+        let context_engine: Arc<dyn ContextEngine> = Arc::new(
+            StandardContextEngine::new(
+                memory_arc.clone(),
+                llm_arc.clone(),
+                registry.clone(),
+                amanclaw_llm::prompts::SYSTEM_PROMPT_BASE.to_string(),
+            )
+        );
+        let pipeline = Pipeline::with_services(auth_arc.clone(), rate_limiter, context_engine, memory_arc, llm_arc);
         let (tx, rx) = mpsc::channel(256);
 
         // Start channel adapters

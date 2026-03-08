@@ -142,6 +142,7 @@ pub async fn maybe_summarize(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use amanclaw_traits::agent::AgentProfile;
     use amanclaw_traits::memory::HistoryMessage;
     use std::collections::HashMap;
     use std::sync::Mutex;
