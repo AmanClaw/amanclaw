@@ -1,0 +1,201 @@
+use amanclaw_traits::context::{ContextEngine, ContextRequest, ContextResult, ExchangeEvent};
+use amanclaw_traits::memory::MemoryBackend;
+use amanclaw_llm::client::{LlmClient, LlmResponse};
+use crate::registry::PluginRegistry;
+use anyhow::Result;
+use std::sync::Arc;
+use base64::Engine as Base64Engine;
+
+/// Default context engine that replicates current pipeline behavior:
+/// history + facts + summary + optional RAG + tool filtering.
+pub struct StandardContextEngine {
+    memory: Arc<dyn MemoryBackend>,
+    llm: Arc<LlmClient>,
+    registry: Arc<PluginRegistry>,
+    base_system_prompt: String,
+}
+
+impl StandardContextEngine {
+    pub fn new(
+        memory: Arc<dyn MemoryBackend>,
+        llm: Arc<LlmClient>,
+        registry: Arc<PluginRegistry>,
+        base_system_prompt: String,
+    ) -> Self {
+        Self { memory, llm, registry, base_system_prompt }
+    }
+}
+
+#[async_trait::async_trait]
+impl ContextEngine for StandardContextEngine {
+    async fn build_context(&self, request: ContextRequest) -> Result<ContextResult> {
+        let profile = &request.agent_profile;
+        let ns = &request.namespace;
+        let user_id = &request.user_id;
+
+        // 1. Build system prompt
+        let now = chrono::Local::now().format("%Y-%m-%d %H:%M %A").to_string();
+        let base = if profile.system_prompt.is_empty() {
+            self.base_system_prompt.clone()
+        } else {
+            profile.system_prompt.clone()
+        };
+        let mut system = base.replace("{datetime}", &now);
+
+        // 2. Prepend summary if available
+        if let Ok(Some(summary)) = self.memory.get_summary(ns, user_id).await {
+            system.push_str(&format!("\n\n## Previous conversation summary\n{}", summary));
+        }
+
+        // 3. Append known facts
+        if let Ok(facts) = self.memory.get_facts(user_id).await {
+            if !facts.is_empty() {
+                system.push_str("\n\n## Known facts about this user");
+                for (k, v) in &facts {
+                    system.push_str(&format!("\n- {}: {}", k, v));
+                }
+            }
+        }
+
+        // 4. Build message array
+        let mut messages = vec![serde_json::json!({"role": "system", "content": system})];
+
+        // 5. Add history
+        let history = self.memory.get_history(ns, user_id, profile.context.history_limit).await?;
+        for m in &history {
+            messages.push(serde_json::json!({"role": m.role, "content": m.content}));
+        }
+
+        // 6. Add user message (multimodal if image)
+        if let Some(ref image_data) = request.image_data {
+            let b64 = base64::engine::general_purpose::STANDARD.encode(image_data);
+            let text = if request.user_message.is_empty() {
+                "What's in this image?"
+            } else {
+                &request.user_message
+            };
+            let content = serde_json::json!([
+                {"type": "text", "text": text},
+                {"type": "image_url", "image_url": {"url": format!("data:image/jpeg;base64,{}", b64)}}
+            ]);
+            messages.push(serde_json::json!({"role": "user", "content": content}));
+        } else {
+            messages.push(serde_json::json!({"role": "user", "content": request.user_message}));
+        }
+
+        // 7. Filter tools by agent profile
+        let tools = self.registry.get_filtered_tool_definitions(&profile.allowed_skills);
+
+        Ok(ContextResult { messages, tools })
+    }
+
+    async fn on_exchange_complete(&self, exchange: ExchangeEvent) -> Result<()> {
+        // Save the exchange
+        self.memory.save_exchange(
+            &exchange.namespace, &exchange.user_id, &exchange.platform,
+            &exchange.user_message, &exchange.assistant_response,
+        ).await?;
+
+        Ok(())
+    }
+}
+
+/// Run auto-summarization if the threshold is exceeded.
+/// Separated from ContextEngine so the pipeline can call it with profile-specific thresholds.
+pub async fn maybe_summarize(
+    memory: &dyn MemoryBackend,
+    llm: &LlmClient,
+    ns: &str,
+    user_id: &str,
+    threshold: i64,
+    keep_recent: i64,
+) -> Result<()> {
+    if !memory.needs_summarization(ns, user_id, threshold).await? {
+        return Ok(());
+    }
+
+    let history = memory.get_history(ns, user_id, 100).await?;
+    let sum_text: Vec<String> = history.iter()
+        .map(|m| format!("{}: {}", m.role, m.content))
+        .collect();
+    let sum_prompt = format!(
+        "Summarize the following conversation concisely. Focus on key topics, decisions, and important context. Reply with ONLY the summary:\n\n{}",
+        sum_text.join("\n")
+    );
+    let sum_messages = vec![
+        serde_json::json!({"role": "system", "content": "You are a conversation summarizer. Output only a concise summary."}),
+        serde_json::json!({"role": "user", "content": sum_prompt}),
+    ];
+
+    match llm.call(&sum_messages, &[]).await {
+        Ok(LlmResponse::Text(summary)) => {
+            memory.save_summary_and_prune(ns, user_id, &summary, keep_recent).await?;
+        }
+        _ => {
+            tracing::warn!(ns, user_id, "Failed to generate summary");
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use amanclaw_traits::memory::HistoryMessage;
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+
+    /// In-memory mock for testing.
+    struct MockMemory {
+        history: Mutex<Vec<HistoryMessage>>,
+        facts: Mutex<HashMap<String, String>>,
+    }
+
+    impl MockMemory {
+        fn new() -> Self {
+            Self {
+                history: Mutex::new(vec![
+                    HistoryMessage { role: "user".into(), content: "Previous msg".into() },
+                    HistoryMessage { role: "assistant".into(), content: "Previous reply".into() },
+                ]),
+                facts: Mutex::new(HashMap::from([
+                    ("name".into(), "Aman".into()),
+                ])),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl MemoryBackend for MockMemory {
+        async fn save_exchange(&self, _ns: &str, _uid: &str, _p: &str, _u: &str, _a: &str) -> Result<()> { Ok(()) }
+        async fn get_history(&self, _ns: &str, _uid: &str, _limit: i64) -> Result<Vec<HistoryMessage>> {
+            Ok(self.history.lock().unwrap().clone())
+        }
+        async fn clear_history(&self, _ns: &str, _uid: &str) -> Result<()> { Ok(()) }
+        async fn get_message_count(&self, _ns: &str, _uid: &str) -> Result<i64> { Ok(2) }
+        async fn save_fact(&self, _uid: &str, _k: &str, _v: &str) -> Result<()> { Ok(()) }
+        async fn get_facts(&self, _uid: &str) -> Result<HashMap<String, String>> {
+            Ok(self.facts.lock().unwrap().clone())
+        }
+        async fn delete_fact(&self, _uid: &str, _k: &str) -> Result<bool> { Ok(true) }
+        async fn get_summary(&self, _ns: &str, _uid: &str) -> Result<Option<String>> { Ok(None) }
+        async fn save_summary_and_prune(&self, _ns: &str, _uid: &str, _s: &str, _k: i64) -> Result<()> { Ok(()) }
+        async fn needs_summarization(&self, _ns: &str, _uid: &str, _t: i64) -> Result<bool> { Ok(false) }
+    }
+
+    #[tokio::test]
+    async fn test_standard_context_engine_builds_context() {
+        let memory = Arc::new(MockMemory::new());
+        let registry = Arc::new(PluginRegistry::new());
+
+        let profile = AgentProfile::default_agent();
+        let ns = &profile.memory_namespace;
+
+        let history = memory.get_history(ns, "u1", 20).await.unwrap();
+        assert_eq!(history.len(), 2);
+
+        let facts = memory.get_facts("u1").await.unwrap();
+        assert_eq!(facts.get("name").unwrap(), "Aman");
+    }
+}

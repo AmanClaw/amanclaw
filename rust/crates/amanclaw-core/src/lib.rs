@@ -1,6 +1,7 @@
 pub mod pipeline;
 pub mod router;
 pub mod registry;
+pub mod context_engine;
 
 use amanclaw_traits::config::AppConfig;
 use amanclaw_traits::channel::Channel;
