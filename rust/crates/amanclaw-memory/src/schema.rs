@@ -69,6 +69,22 @@ CREATE TABLE IF NOT EXISTS vector_documents (
 );
 
 CREATE INDEX IF NOT EXISTS idx_vector_collection ON vector_documents(collection);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS vector_documents_fts
+USING fts5(content, tokenize='unicode61 remove_diacritics 2', content='vector_documents', content_rowid='rowid');
+
+CREATE TRIGGER IF NOT EXISTS vector_documents_ai AFTER INSERT ON vector_documents BEGIN
+    INSERT INTO vector_documents_fts(rowid, content) VALUES (new.rowid, new.content);
+END;
+
+CREATE TRIGGER IF NOT EXISTS vector_documents_ad AFTER DELETE ON vector_documents BEGIN
+    INSERT INTO vector_documents_fts(vector_documents_fts, rowid, content) VALUES('delete', old.rowid, old.content);
+END;
+
+CREATE TRIGGER IF NOT EXISTS vector_documents_au AFTER UPDATE ON vector_documents BEGIN
+    INSERT INTO vector_documents_fts(vector_documents_fts, rowid, content) VALUES('delete', old.rowid, old.content);
+    INSERT INTO vector_documents_fts(rowid, content) VALUES (new.rowid, new.content);
+END;
 "#;
 
 /// Migration statements for existing databases that lack namespace columns.
