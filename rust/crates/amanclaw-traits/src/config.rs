@@ -40,6 +40,9 @@ pub struct AppConfig {
 
     #[serde(default)]
     pub knowledge_bases: HashMap<String, KnowledgeBaseConfig>,
+
+    #[serde(default)]
+    pub cron: CronConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -175,6 +178,58 @@ pub struct RoutingMatch {
     #[serde(default)]
     pub group_id: Option<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CronConfig {
+    #[serde(default = "default_cron_timezone")]
+    pub timezone: String,
+
+    #[serde(default)]
+    pub jobs: HashMap<String, CronJobConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CronJobConfig {
+    pub name: String,
+    pub schedule: String,
+
+    #[serde(default)]
+    pub timezone: Option<String>,
+
+    #[serde(rename = "type")]
+    pub job_type: String,
+
+    #[serde(default)]
+    pub skill: Option<String>,
+
+    #[serde(default)]
+    pub input: Option<String>,
+
+    #[serde(default)]
+    pub prompt: Option<String>,
+
+    #[serde(default)]
+    pub template: Option<String>,
+
+    #[serde(default)]
+    pub targets: Vec<CronTargetConfig>,
+
+    #[serde(default)]
+    pub agent: Option<String>,
+
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CronTargetConfig {
+    pub platform: String,
+    pub chat_id: String,
+    #[serde(default)]
+    pub topic_id: Option<String>,
+}
+
+fn default_cron_timezone() -> String { "Asia/Kuala_Lumpur".into() }
 
 fn default_agent_id() -> String { "default".into() }
 fn default_rate_limit() -> u32 { 20 }

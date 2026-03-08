@@ -62,6 +62,8 @@ impl Pipeline {
             text: format!("[pipeline placeholder] Received: {}", msg.text),
             parse_mode: None,
             reply_to: None,
+            platform: None,
+            topic_id: None,
         }))
     }
 
@@ -88,6 +90,8 @@ impl Pipeline {
                 text: reply,
                 parse_mode: Some("Markdown".into()),
                 reply_to: None,
+                platform: None,
+                topic_id: None,
             }));
         }
 
@@ -102,6 +106,8 @@ impl Pipeline {
                     text: "Welcome! You've been registered. An admin needs to approve your access.".into(),
                     parse_mode: None,
                     reply_to: None,
+                    platform: None,
+                    topic_id: None,
                 }));
             }
             UserState::Pending => {
@@ -110,6 +116,8 @@ impl Pipeline {
                     text: "Your registration is pending approval.".into(),
                     parse_mode: None,
                     reply_to: None,
+                    platform: None,
+                    topic_id: None,
                 }));
             }
             UserState::Admin | UserState::Approved => {}
@@ -129,6 +137,8 @@ impl Pipeline {
                 text: "Slow down — too many messages. Try again in a minute.".into(),
                 parse_mode: None,
                 reply_to: None,
+                platform: None,
+                topic_id: None,
             }));
         }
 
@@ -177,6 +187,8 @@ impl Pipeline {
             text: response,
             parse_mode: None,
             reply_to: None,
+            platform: None,
+            topic_id: None,
         }))
     }
 
@@ -342,6 +354,8 @@ impl Pipeline {
             text,
             parse_mode: None,
             reply_to: None,
+            platform: None,
+            topic_id: None,
         }))
     }
 }
@@ -363,6 +377,9 @@ mod tests {
             reply_to: None,
             topic_id: None,
             channel_context: None,
+            is_cron: false,
+            is_webhook: false,
+            is_subagent: false,
         }
     }
 

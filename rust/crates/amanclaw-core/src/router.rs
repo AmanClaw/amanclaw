@@ -78,6 +78,9 @@ mod tests {
             reply_to: None,
             topic_id: topic_id.map(Into::into),
             channel_context: channel_ctx.map(Into::into),
+            is_cron: false,
+            is_webhook: false,
+            is_subagent: false,
         }
     }
 

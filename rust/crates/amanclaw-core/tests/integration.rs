@@ -60,6 +60,9 @@ plugins:
         reply_to: None,
         topic_id: None,
         channel_context: None,
+        is_cron: false,
+        is_webhook: false,
+        is_subagent: false,
     }).await.unwrap();
 
     // Drop sender to close the channel and let engine exit
@@ -118,6 +121,9 @@ plugins:
         reply_to: None,
         topic_id: None,
         channel_context: None,
+        is_cron: false,
+        is_webhook: false,
+        is_subagent: false,
     }).await.unwrap();
 
     drop(tx);

@@ -29,6 +29,9 @@ impl EventHandler for Handler {
             reply_to: None,
             topic_id: None,
             channel_context: None,
+            is_cron: false,
+            is_webhook: false,
+            is_subagent: false,
         };
         let _ = self.tx.send(incoming).await;
     }

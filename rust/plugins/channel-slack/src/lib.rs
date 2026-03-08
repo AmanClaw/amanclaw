@@ -290,6 +290,9 @@ async fn run_socket_mode(
                 reply_to: event.thread_ts,
                 topic_id: None,
                 channel_context: None,
+                is_cron: false,
+                is_webhook: false,
+                is_subagent: false,
             };
 
             let _ = tx.send(incoming).await;

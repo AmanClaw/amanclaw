@@ -239,6 +239,9 @@ async fn handle_webhook(
                                     reply_to: None,
                                     topic_id: None,
                                     channel_context: None,
+                                    is_cron: false,
+                                    is_webhook: false,
+                                    is_subagent: false,
                                 };
 
                                 let _ = state.tx.send(incoming).await;

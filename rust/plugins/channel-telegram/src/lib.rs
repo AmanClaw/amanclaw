@@ -44,6 +44,9 @@ impl Channel for TelegramChannel {
                             reply_to: None,
                             topic_id: None,
                             channel_context: None,
+                            is_cron: false,
+                            is_webhook: false,
+                            is_subagent: false,
                         };
                         let _ = tx.send(incoming).await;
                     }
