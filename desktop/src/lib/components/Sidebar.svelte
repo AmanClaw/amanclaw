@@ -6,6 +6,7 @@
 		{ id: 'communities', label: 'Communities', icon: '⊡' },
 		{ id: 'skills', label: 'Skills', icon: '⚡' },
 		{ id: 'users', label: 'Users', icon: '⊙' },
+		{ id: 'mcp', label: 'MCP Servers', icon: '⬡' },
 		{ id: 'content', label: 'Content', icon: '☰' },
 		{ id: 'logs', label: 'Logs', icon: '▤' },
 	];

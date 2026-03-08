@@ -8,14 +8,26 @@
 	import Settings from '$lib/pages/Settings.svelte';
 	import Logs from '$lib/pages/Logs.svelte';
 	import Content from '$lib/pages/Content.svelte';
+	import McpServers from '$lib/pages/McpServers.svelte';
 	import Wizard from '$lib/pages/Wizard.svelte';
 
 	let loaded = $state(false);
 
 	async function refreshStatus() {
 		try {
-			const status = await api.getStatus();
-			botStatus.set({ ...$botStatus, ...(status as any) });
+			const [status, communities, skills, users] = await Promise.all([
+				api.getStatus(),
+				api.getCommunities().catch(() => ({ count: 0 })),
+				api.getSkills().catch(() => ({ count: 0 })),
+				api.getUsers().catch(() => ({ count: 0 })),
+			]);
+			botStatus.set({
+				...$botStatus,
+				...(status as any),
+				communities: (communities as any).count ?? 0,
+				skills: (skills as any).count ?? 0,
+				users: (users as any).count ?? 0,
+			});
 		} catch (_) {}
 	}
 
@@ -84,6 +96,8 @@
 	<Settings />
 {:else if $currentPage === 'logs'}
 	<Logs />
+{:else if $currentPage === 'mcp'}
+	<McpServers />
 {:else if $currentPage === 'content'}
 	<Content />
 {:else}

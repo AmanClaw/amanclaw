@@ -38,4 +38,15 @@ export const api = {
 		invoke('approve_user', { userId, platform }),
 	blockUser: (userId: string, platform: string) =>
 		invoke('block_user', { userId, platform }),
+
+	// MCP Servers
+	getMcpServers: () => invoke('get_mcp_servers'),
+	saveMcpServer: (params: {
+		name: string;
+		command?: string;
+		args?: string[];
+		env?: Record<string, string>;
+		url?: string;
+	}) => invoke('save_mcp_server', params),
+	deleteMcpServer: (name: string) => invoke('delete_mcp_server', { name }),
 };

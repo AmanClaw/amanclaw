@@ -1,6 +1,6 @@
 use crate::config;
 use crate::state::{AppMode, AppState, EngineHandle, EngineStatus};
-use amanclaw_traits::config::{AppConfig, LlmConfig};
+use amanclaw_traits::config::{AppConfig, LlmConfig, McpServerConfig};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::{AppHandle, State};
@@ -323,10 +323,20 @@ pub async fn get_skills(
                 let skills: Vec<serde_json::Value> = handle.registry.iter_skills()
                     .map(|(name, skill)| {
                         let meta = skill.metadata();
+                        let source = if meta.version == "mcp" {
+                            "mcp"
+                        } else if name.contains("__") {
+                            "mcp"
+                        } else {
+                            "builtin"
+                        };
                         serde_json::json!({
                             "name": name,
                             "description": meta.description,
                             "version": meta.version,
+                            "timeout_ms": meta.timeout_ms,
+                            "source": source,
+                            "parameters": skill.parameters_schema(),
                         })
                     })
                     .collect();
@@ -453,4 +463,69 @@ pub async fn get_logs(
         })
     }).collect();
     Ok(serde_json::json!(logs))
+}
+
+// --- MCP Servers ---
+
+#[tauri::command]
+pub async fn get_mcp_servers(
+    app: AppHandle,
+) -> Result<serde_json::Value, String> {
+    if !config::has_config(&app) {
+        return Ok(serde_json::json!({ "servers": {} }));
+    }
+    let cfg = config::load_config(&app)?;
+    let servers: serde_json::Map<String, serde_json::Value> = cfg.mcp_servers.iter()
+        .map(|(name, sc)| {
+            let transport = if sc.url.is_some() { "http" } else { "stdio" };
+            (name.clone(), serde_json::json!({
+                "command": sc.command,
+                "args": sc.args,
+                "env": sc.env,
+                "url": sc.url,
+                "transport": transport,
+            }))
+        })
+        .collect();
+    Ok(serde_json::json!({ "servers": servers }))
+}
+
+#[tauri::command]
+pub async fn save_mcp_server(
+    app: AppHandle,
+    state: State<'_, SharedState>,
+    name: String,
+    command: Option<String>,
+    args: Option<Vec<String>>,
+    env: Option<HashMap<String, String>>,
+    url: Option<String>,
+) -> Result<(), String> {
+    let mut cfg = config::load_config(&app)?;
+    cfg.mcp_servers.insert(name, McpServerConfig {
+        command,
+        args: args.unwrap_or_default(),
+        env: env.unwrap_or_default(),
+        url,
+    });
+    config::save_config(&app, &cfg)?;
+
+    // Update in-memory config
+    let mut st = state.write().await;
+    st.config = Some(cfg);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn delete_mcp_server(
+    app: AppHandle,
+    state: State<'_, SharedState>,
+    name: String,
+) -> Result<(), String> {
+    let mut cfg = config::load_config(&app)?;
+    cfg.mcp_servers.remove(&name);
+    config::save_config(&app, &cfg)?;
+
+    let mut st = state.write().await;
+    st.config = Some(cfg);
+    Ok(())
 }

@@ -112,6 +112,9 @@ pub fn run() {
             commands::get_logs,
             commands::approve_user,
             commands::block_user,
+            commands::get_mcp_servers,
+            commands::save_mcp_server,
+            commands::delete_mcp_server,
         ])
         .run(tauri::generate_context!())
         .expect("error running AmanClaw Desktop");
