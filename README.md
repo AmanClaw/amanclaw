@@ -427,7 +427,7 @@ The easiest way to contribute is by writing a new skill plugin. See the [Plugin 
 - [x] Learning engine (`/remember`, `/forget`, `/learned`)
 - [x] Vision support (image analysis via multimodal LLM)
 - [x] Plugin hot reload (filesystem watcher)
-- [ ] Full WASM plugin instantiation and execution
+- [x] Full WASM plugin instantiation and execution
 - [x] Discord channel adapter
 - [x] WhatsApp Cloud API channel adapter
 - [ ] Slack channel
