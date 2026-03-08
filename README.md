@@ -1,8 +1,8 @@
 # AmanClaw
 
-A high-performance, modular AI assistant built with Rust. Connect it to Telegram, Discord, Slack, or WhatsApp — powered by any OpenAI-compatible LLM backend. Extend it with WASM plugins written in Rust.
+A high-performance, modular AI assistant built with Rust for Malaysian Muslim communities. Connect it to Telegram, Discord, Slack, or WhatsApp — powered by any OpenAI-compatible LLM backend. Comes with 11 Islamic skills (solat, Quran, halal, zakat, and more) out of the box.
 
-Built in Malaysia. Open source. No bloat.
+Built in Malaysia. Open source. No bloat. Bilingual BM + English.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.85+-orange.svg)](https://www.rust-lang.org/)
@@ -31,9 +31,12 @@ One binary. One SQLite database. One config file. ~2MB RAM on a Raspberry Pi.
 ## Features
 
 - **Blazing fast** — Rust async runtime, ~2MB memory footprint, instant startup
+- **Islamic community skills** — Prayer times (JAKIM), Quran, Halal check, Zakat calculator, Qiblat, Hijri calendar, Doa & Zikir, Hadith, Masjid finder, Khutbah, JAKIM services
+- **Multi-community** — One instance serves many groups with per-community config (zone, language, skills)
 - **Plugin system** — WASM plugins (Rust/AssemblyScript) + script plugins (Python/JS) + built-in Rust skills
 - **Multi-channel** — Telegram, Discord, WhatsApp (official + unofficial), Slack
 - **Any LLM backend** — vLLM, Ollama, LM Studio, LocalAI, OpenAI, Anthropic, etc.
+- **Bilingual** — Bahasa Melayu + English with natural rojak-style responses
 - **Tool calling** — LLM function calling with multi-round tool execution loop (max 5 rounds)
 - **Vision support** — Send images to multimodal LLMs via base64 encoding
 - **Security-first** — User allowlist, rate limiting, prompt injection detection, output sanitization
@@ -164,6 +167,36 @@ rust/
 | `/approve <user_id>` | Approve a pending user | Admin |
 | `/block <user_id>` | Block a user | Admin |
 | `/users` | List all registered users | Admin |
+
+### Islamic Commands
+
+| Command | Description |
+| ------- | ----------- |
+| `/solat` | Today's prayer times for your community zone |
+| `/solat <zone>` | Prayer times for a specific JAKIM zone (e.g. SGR01) |
+| `/quran <surah>:<ayat>` | Look up a Quran verse with translation |
+| `/cari <keyword>` | Search Quran and Hadith |
+| `/halal <name>` | Check halal status via JAKIM database |
+| `/zakat` | Interactive zakat calculator (fitrah, pendapatan, simpanan, emas) |
+| `/qiblat` | Qiblat direction from your location |
+| `/doa <category>` | Doa and zikir lookup (harian, pagi, petang, musafir, etc.) |
+| `/masjid` | Find nearest masjid/surau |
+| `/hijri` | Today's Hijri date and upcoming Islamic events |
+| `/khutbah` | Latest weekly JAKIM khutbah |
+
+Natural language also works: "Bila waktu Maghrib?", "Is KFC halal?", "Doa sebelum makan"
+
+### Community Admin Commands
+
+| Command | Description |
+| ------- | ----------- |
+| `/admin` | Claim admin for this group (during onboarding) |
+| `/setzone <zone>` | Change prayer time zone (e.g. `/setzone SGR01`) |
+| `/setlang <bm\|en\|rojak>` | Set community language |
+| `/enable <skill>` | Enable a skill for this community |
+| `/disable <skill>` | Disable a skill for this community |
+| `/notify <on\|off>` | Toggle push notifications (solat reminders, daily doa, etc.) |
+| `/community` | Show current community settings |
 
 ---
 
@@ -427,6 +460,66 @@ Key features:
 
 ---
 
+## Islamic Community Skills
+
+AmanClaw comes with 11 Islamic skills designed for Malaysian Muslim communities. All skills use official JAKIM (Jabatan Kemajuan Islam Malaysia) data sources where applicable.
+
+### Built-in Skills (Rust)
+
+| Skill | Description | Data Source |
+| ----- | ----------- | ----------- |
+| `solat` | Prayer times by JAKIM zone, proactive azan reminders | JAKIM e-Solat API |
+| `quran` | Verse lookup, search, tafsir (BM + English), daily verse | Quran.com API |
+| `qiblat` | Qiblat direction and distance to Kaaba | Great Circle calculation |
+| `hijri` | Hijri date conversion, Islamic events, Ramadan countdown | Hijri algorithm + JAKIM |
+| `doa` | Daily doa, morning/evening azkar, categorized collection | Local database |
+
+### Script Plugins (Python)
+
+| Skill | Description | Data Source |
+| ----- | ----------- | ----------- |
+| `hadith` | Search hadith by keyword across major collections | sunnah.com API |
+| `halal` | Verify product/restaurant halal status by name or cert number | JAKIM Halal Portal |
+| `zakat` | Calculate zakat fitrah, pendapatan, simpanan, emas | JAKIM rates |
+| `masjid` | Find nearest masjid/surau by location | Google Places API |
+| `khutbah` | Latest weekly Friday khutbah from JAKIM | JAKIM portal |
+| `jakim` | JAKIM services directory, fatwa search, events calendar | JAKIM portal |
+
+### Multi-Community Support
+
+One AmanClaw instance can serve many community groups (masjid committees, usrah groups, school Islamic societies). Each community gets:
+
+- **Prayer zone** — JAKIM zone for accurate solat times (e.g. SGR01, WLY01, JHR02)
+- **Language preference** — BM, English, or rojak (natural mix)
+- **Skill selection** — Enable/disable specific skills per community
+- **Push notifications** — Solat reminders, daily doa, weekly khutbah
+
+Communities self-onboard when the bot is added to a group. An in-chat wizard guides the admin through zone, language, and skills setup.
+
+### JAKIM Prayer Zones
+
+All 14 states + WP are supported with their JAKIM zone codes:
+
+| State | Zones |
+| ----- | ----- |
+| Johor | JHR01-JHR04 |
+| Kedah | KDH01-KDH07 |
+| Kelantan | KTN01-KTN02 |
+| Melaka | MLK01 |
+| Negeri Sembilan | NGS01-NGS02 |
+| Pahang | PHG01-PHG05 |
+| Perak | PRK01-PRK07 |
+| Perlis | PLS01 |
+| Pulau Pinang | PNG01 |
+| Sabah | SBH01-SBH09 |
+| Sarawak | SWK01-SWK09 |
+| Selangor | SGR01-SGR03 |
+| Terengganu | TRG01-TRG04 |
+| WP KL/Putrajaya | WLY01 |
+| WP Labuan | WLY02 |
+
+---
+
 ## Configuration
 
 ### Secrets (`.env`)
@@ -441,6 +534,8 @@ Never commit this file. Set `chmod 600 .env`.
 | `WHATSAPP_ACCESS_TOKEN` | For WhatsApp | WhatsApp Cloud API token |
 | `WHATSAPP_PHONE_NUMBER_ID` | For WhatsApp | WhatsApp phone number ID |
 | `WAHA_API_URL` | For WAHA | WAHA bridge base URL |
+| `SUNNAH_API_KEY` | For Hadith | sunnah.com API key |
+| `GOOGLE_PLACES_API_KEY` | For Masjid | Google Places API key |
 
 ### Settings (`config.yaml`)
 
@@ -907,13 +1002,14 @@ git checkout -b feature/my-feature
 
 | Area | Description | Difficulty |
 | ---- | ----------- | ---------- |
-| **New skill plugins** | Web scraping, calendar, weather, translation, etc. | Easy |
+| **Islamic skill plugins** | Improve doa collection, add more hadith sources, refine halal scraping | Easy |
+| **New skill plugins** | Weather, translation, news, etc. | Easy |
 | **LINE / Viber adapter** | Channel adapters for more messaging platforms | Medium |
-| **Python/JS plugin SDK** | componentize-py and jco integration for WASM | Medium |
-| **MCP server** | Expose skills as Model Context Protocol tools | Medium |
+| **Web dashboard** | Admin panel for community settings (Phase 2) | Medium |
 | **Documentation** | Tutorials, examples, architecture docs | Easy |
 | **Security review** | Audit injection detection, auth flow, sandbox | Hard |
-| **i18n / localization** | Malay, Mandarin, and other languages | Easy |
+| **i18n / localization** | Improve BM translations, add Jawi script support | Easy |
+| **JAKIM API research** | Document and test official JAKIM API endpoints | Easy |
 
 ### Writing a Plugin
 
@@ -922,6 +1018,8 @@ The easiest way to contribute is by writing a new skill plugin. See the [WASM Pl
 ---
 
 ## Roadmap
+
+### Core Platform (Done)
 
 - [x] Core engine with async pipeline
 - [x] Telegram channel adapter
@@ -945,6 +1043,44 @@ The easiest way to contribute is by writing a new skill plugin. See the [WASM Pl
 - [x] MCP client bridge (consume external MCP server tools)
 - [x] Slack channel adapter (Socket Mode)
 - [x] Python and JavaScript (AssemblyScript) plugin SDKs
+
+### Phase 1: Islamic Community Skills (In Progress)
+
+- [ ] skill-solat — Prayer times via JAKIM e-Solat API (Rust)
+- [ ] skill-quran — Quran search & lookup via Quran.com API (Rust)
+- [ ] skill-qiblat — Qiblat direction calculation (Rust)
+- [ ] skill-hijri — Islamic calendar & date conversion (Rust)
+- [ ] skill-doa — Doa & zikir collection (Rust)
+- [ ] skill-hadith — Hadith search via sunnah.com (Python)
+- [ ] skill-halal — JAKIM halal verification (Python)
+- [ ] skill-zakat — Zakat calculator (Python)
+- [ ] skill-masjid — Mosque finder via Google Places (Python)
+- [ ] skill-khutbah — Weekly JAKIM khutbah (Python)
+- [ ] skill-jakim — JAKIM services & fatwa search (Python)
+- [ ] Multi-community model (per-group zone, language, skills config)
+
+### Phase 2: Community Onboarding
+
+- [ ] In-chat onboarding wizard (bot added to group → setup flow)
+- [ ] Web dashboard for community admins (dashboard.amanclaw.my)
+- [ ] Proactive notifications (solat reminders, daily doa, weekly khutbah)
+
+### Phase 3: AmanClaw Cloud
+
+- [ ] Managed hosting platform for non-technical communities
+- [ ] Freemium model (free: solat/doa/hijri/qiblat, paid: halal/quran/zakat)
+- [ ] Self-hosted open source + managed cloud
+
+### Phase 4: Specialized Bots
+
+- [ ] UstazBot — Islamic Q&A focused bot
+- [ ] HalalBot — Halal verification focused bot
+- [ ] SolatBot — Prayer times & reminders focused bot
+
+### Phase 5: Plugin Marketplace
+
+- [ ] Open source skill marketplace for community contributions
+- [ ] Skill discovery and installation via bot commands
 
 ---
 
