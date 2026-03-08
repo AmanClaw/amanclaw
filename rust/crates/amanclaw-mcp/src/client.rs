@@ -55,6 +55,54 @@ impl McpClient {
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped());
 
+        // On macOS, GUI apps don't inherit the full shell PATH.
+        // Ensure common tool directories are in PATH so npx/uvx/node can be found.
+        {
+            let current_path = std::env::var("PATH").unwrap_or_default();
+            let mut extra: Vec<String> = Vec::new();
+
+            let standard = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"];
+            for p in &standard {
+                if !current_path.contains(p) {
+                    extra.push(p.to_string());
+                }
+            }
+
+            // Check for nvm/volta/fnm node installations
+            if let Ok(home) = std::env::var("HOME") {
+                let home_dirs = [
+                    format!("{}/.local/bin", home),
+                    format!("{}/.volta/bin", home),
+                ];
+                for dir in &home_dirs {
+                    if std::path::Path::new(dir).is_dir() && !current_path.contains(dir.as_str()) {
+                        extra.push(dir.clone());
+                    }
+                }
+                // nvm: find latest node version
+                let nvm_dir = format!("{}/.nvm/versions/node", home);
+                if let Ok(entries) = std::fs::read_dir(&nvm_dir) {
+                    let mut versions: Vec<_> = entries
+                        .filter_map(|e| e.ok())
+                        .filter(|e| e.path().is_dir())
+                        .collect();
+                    versions.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
+                    if let Some(latest) = versions.first() {
+                        let bin = latest.path().join("bin").to_string_lossy().to_string();
+                        if !current_path.contains(&bin) {
+                            extra.push(bin);
+                        }
+                    }
+                }
+            }
+
+            if !extra.is_empty() {
+                let new_path = format!("{}:{}", current_path, extra.join(":"));
+                cmd.env("PATH", new_path);
+                tracing::debug!(server = %server_name, path = %extra.join(":"), "Extended PATH for MCP server");
+            }
+        }
+
         // Set environment variables, resolving ${VAR} from process env
         for (key, value) in env {
             let resolved = if value.starts_with("${") && value.ends_with('}') {

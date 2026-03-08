@@ -12,6 +12,7 @@
 	let installing = $state<string | null>(null);
 	let showRestart = $state(false);
 	let marketplaceCategory = $state('all');
+	let engineRunning = $state(false);
 
 	// --- Marketplace Catalog ---
 	interface MarketplaceItem {
@@ -70,8 +71,8 @@
 			description: 'Query and analyze SQLite databases with business intelligence capabilities.',
 			category: 'Databases',
 			author: 'Anthropic',
-			command: 'npx',
-			args: ['-y', '@modelcontextprotocol/server-sqlite', '/path/to/db.sqlite'],
+			command: 'uvx',
+			args: ['mcp-server-sqlite', '--db-path', '/path/to/db.sqlite'],
 			tags: ['database', 'sql', 'analytics'],
 		},
 		{
@@ -97,8 +98,8 @@
 			description: 'Fetch and convert web content to markdown for easy consumption.',
 			category: 'Web',
 			author: 'Anthropic',
-			command: 'npx',
-			args: ['-y', '@modelcontextprotocol/server-fetch'],
+			command: 'uvx',
+			args: ['mcp-server-fetch'],
 			tags: ['http', 'web', 'markdown', 'scrape'],
 		},
 		{
@@ -189,6 +190,21 @@
 		return sorted;
 	});
 
+	// MCP servers installed in config but not yet active (no skills loaded from them)
+	const pendingServers = $derived(() => {
+		const activeServerNames = new Set(
+			skills.filter((s: any) => s.source === 'mcp').map((s: any) => s.name.split('__')[0])
+		);
+		return Object.entries(installedServers)
+			.filter(([name]) => !activeServerNames.has(name))
+			.map(([name, server]) => ({
+				name,
+				server,
+				// If engine is running but no skills from this server → connection failed
+				failed: engineRunning && !activeServerNames.has(name),
+			}));
+	});
+
 	// --- Actions ---
 	function toggleExpand(name: string) {
 		expandedSkill = expandedSkill === name ? null : name;
@@ -266,9 +282,20 @@
 
 	async function handleRestart() {
 		try {
-			await api.restartEngine();
+			if (engineRunning) {
+				await api.restartEngine();
+			} else {
+				await api.startEngine();
+			}
 			showRestart = false;
-			setTimeout(loadSkills, 2000);
+			// Reload skills and status after engine starts
+			await loadEngineStatus();
+			await loadSkills();
+			// Retry after a delay in case MCP servers are slow to connect
+			setTimeout(async () => {
+				await loadSkills();
+				await loadEngineStatus();
+			}, 3000);
 		} catch (_) {}
 	}
 
@@ -288,10 +315,21 @@
 		} catch (_) {}
 	}
 
+	async function loadEngineStatus() {
+		try {
+			const data = await api.getStatus() as any;
+			engineRunning = data.engine_status === 'running';
+		} catch (_) {}
+	}
+
 	onMount(() => {
 		loadSkills();
 		loadInstalledServers();
-		const interval = setInterval(loadSkills, 10000);
+		loadEngineStatus();
+		const interval = setInterval(() => {
+			loadSkills();
+			loadEngineStatus();
+		}, 10000);
 		return () => clearInterval(interval);
 	});
 </script>
@@ -303,7 +341,7 @@
 			<h2 class="text-xl font-semibold text-gray-900 tracking-tight">Skills</h2>
 			<p class="text-sm text-gray-500 mt-1">
 				{#if tab === 'installed'}
-					{skills.length} active skill{skills.length !== 1 ? 's' : ''}
+					{skills.length} active skill{skills.length !== 1 ? 's' : ''}{#if pendingServers().length > 0}, {pendingServers().length} pending{/if}
 				{:else}
 					Browse and install skill packages
 				{/if}
@@ -342,7 +380,7 @@
 	{#if tab === 'installed'}
 		{#if loading}
 			<p class="text-sm text-gray-500">Loading...</p>
-		{:else if skills.length === 0}
+		{:else if skills.length === 0 && pendingServers().length === 0}
 			<div class="text-center py-16 bg-gray-50 rounded-xl border border-gray-200">
 				<p class="text-sm text-gray-500">No skills registered</p>
 				<p class="text-xs text-gray-400 mt-1">Start the engine or install skills from the Marketplace</p>
@@ -446,6 +484,55 @@
 						</div>
 					</div>
 				{/each}
+			</div>
+		{/if}
+
+		<!-- Pending MCP servers (installed but not yet active) -->
+		{#if pendingServers().length > 0}
+			<div class="mt-6">
+				<h3 class="text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-2">
+					{#if pendingServers().some(s => s.failed)}
+						Connection Issues ({pendingServers().length})
+					{:else}
+						Pending Restart ({pendingServers().length})
+					{/if}
+				</h3>
+				<div class="space-y-1">
+					{#each pendingServers() as { name: serverName, server, failed }}
+						<div class="bg-white rounded-lg border border-dashed {failed ? 'border-red-300' : 'border-yellow-300'} overflow-hidden">
+							<div class="flex items-center justify-between p-3">
+								<div class="flex items-center gap-3 min-w-0">
+									{#if failed}
+										<span class="inline-flex px-1.5 py-0.5 text-[10px] font-medium rounded bg-red-100 text-red-700">
+											Failed
+										</span>
+									{:else}
+										<span class="inline-flex px-1.5 py-0.5 text-[10px] font-medium rounded bg-yellow-100 text-yellow-700">
+											Pending
+										</span>
+									{/if}
+									<div class="min-w-0">
+										<p class="text-sm font-medium text-gray-900 truncate">{serverName}</p>
+										<p class="text-xs text-gray-400 truncate mt-0.5 font-mono">
+											{server.command} {(server.args || []).join(' ')}
+										</p>
+										{#if failed}
+											<p class="text-xs text-red-500 mt-1">Failed to connect. Check that the command is available in your PATH.</p>
+										{/if}
+									</div>
+								</div>
+								<div class="flex items-center gap-2 shrink-0 ml-3">
+									<button onclick={() => uninstallServer(serverName)}
+										class="text-xs text-red-400 hover:text-red-600">Remove</button>
+									<button onclick={handleRestart}
+										class="px-2.5 py-1 text-[10px] font-medium rounded-md {failed ? 'bg-gray-700' : 'bg-yellow-600'} text-white hover:opacity-90 transition-colors">
+										{engineRunning ? 'Retry' : 'Start Engine'}
+									</button>
+								</div>
+							</div>
+						</div>
+					{/each}
+				</div>
 			</div>
 		{/if}
 
