@@ -121,6 +121,7 @@ dependencies = [
  "amanclaw-channel-whatsapp",
  "amanclaw-channel-whatsapp-web",
  "amanclaw-llm",
+ "amanclaw-mcp",
  "amanclaw-memory",
  "amanclaw-security",
  "amanclaw-skill-shell",
@@ -156,6 +157,21 @@ dependencies = [
  "tokio",
  "tracing",
  "wiremock",
+]
+
+[[package]]
+name = "amanclaw-mcp"
+version = "0.1.0"
+dependencies = [
+ "amanclaw-traits",
+ "anyhow",
+ "async-trait",
+ "axum",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tower",
+ "tracing",
 ]
 
 [[package]]

@@ -9,6 +9,7 @@ members = [
     "crates/amanclaw-llm",
     "crates/amanclaw-wasm-runtime",
     "crates/amanclaw-plugin-sdk",
+    "crates/amanclaw-mcp",
     "plugins/skill-sysinfo",
     "plugins/skill-websearch",
     "plugins/skill-shell",

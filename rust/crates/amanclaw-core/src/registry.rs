@@ -42,6 +42,10 @@ impl PluginRegistry {
             .collect()
     }
 
+    pub fn iter_skills(&self) -> impl Iterator<Item = (&String, &Arc<dyn Skill>)> {
+        self.skills.iter()
+    }
+
     pub fn get_skill_metadata(&self, name: &str) -> Option<SkillMetadata> {
         self.skills.get(name).map(|s| s.metadata())
     }

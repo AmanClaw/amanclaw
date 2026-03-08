@@ -12,6 +12,7 @@ use amanclaw_channel_telegram::TelegramChannel;
 use amanclaw_channel_discord::DiscordChannel;
 use amanclaw_channel_whatsapp::WhatsAppChannel;
 use amanclaw_channel_whatsapp_web::WhatsAppWebChannel;
+use amanclaw_mcp::handler::McpHandler;
 use crate::pipeline::Pipeline;
 use crate::registry::PluginRegistry;
 use anyhow::Result;
@@ -82,6 +83,24 @@ impl Engine {
             whatsapp_web.start(tx.clone()).await?;
             channels.push(Arc::new(whatsapp_web));
             tracing::info!("WhatsApp Web (WAHA) channel started");
+        }
+
+        // Start MCP server if configured
+        if let Ok(port_str) = std::env::var("MCP_HTTP_PORT") {
+            if let Ok(port) = port_str.parse::<u16>() {
+                let mut mcp_handler = McpHandler::new("amanclaw", env!("CARGO_PKG_VERSION"));
+                // Register all skills with MCP
+                for (_name, skill) in registry.iter_skills() {
+                    mcp_handler.register_skill(skill.clone());
+                }
+                let mcp_handler = Arc::new(mcp_handler);
+                tokio::spawn(async move {
+                    if let Err(e) = amanclaw_mcp::http::run_http(mcp_handler, port).await {
+                        tracing::error!(error = %e, "MCP HTTP server error");
+                    }
+                });
+                tracing::info!(port, "MCP HTTP server started");
+            }
         }
 
         tracing::info!(skills = registry.skill_count(), "Engine initialized");
