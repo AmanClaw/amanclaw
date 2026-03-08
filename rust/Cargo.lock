@@ -193,6 +193,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "amanclaw-skill-echo-wasm"
+version = "0.1.0"
+dependencies = [
+ "amanclaw-plugin-sdk",
+ "serde_json",
+]
+
+[[package]]
 name = "amanclaw-skill-shell"
 version = "0.1.0"
 dependencies = [
@@ -242,6 +250,7 @@ version = "0.1.0"
 dependencies = [
  "amanclaw-traits",
  "anyhow",
+ "async-trait",
  "notify",
  "reqwest 0.12.28",
  "serde",

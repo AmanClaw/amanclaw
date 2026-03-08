@@ -8,7 +8,6 @@ use amanclaw_memory::sqlite::SqliteMemory;
 use amanclaw_security::auth::Auth;
 use amanclaw_security::rate_limiter::RateLimiter;
 use amanclaw_llm::client::LlmClient;
-use amanclaw_wasm_runtime::loader::PluginLoader;
 use amanclaw_channel_telegram::TelegramChannel;
 use amanclaw_channel_discord::DiscordChannel;
 use amanclaw_channel_whatsapp::WhatsAppChannel;
@@ -47,9 +46,9 @@ impl Engine {
 
         // Load WASM plugins
         let plugin_dir = Path::new(&config.plugins.dir);
-        if let Ok(loader) = PluginLoader::new(plugin_dir) {
-            let plugins = loader.discover()?;
-            tracing::info!(count = plugins.len(), "Discovered WASM plugins");
+        let wasm_skills = amanclaw_wasm_runtime::runtime::load_all_plugins(plugin_dir);
+        for skill in wasm_skills {
+            registry.register(skill);
         }
 
         let registry = Arc::new(registry);

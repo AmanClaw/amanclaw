@@ -16,6 +16,7 @@ members = [
     "plugins/channel-discord",
     "plugins/channel-whatsapp",
     "plugins/channel-whatsapp-web",
+    "plugins/skill-echo-wasm",
 ]
 
 [workspace.package]

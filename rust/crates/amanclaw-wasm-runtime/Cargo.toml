@@ -8,6 +8,7 @@ amanclaw-traits = { path = "../amanclaw-traits" }
 wasmtime = "29"
 wasmtime-wasi = "29"
 notify = { version = "7", default-features = false, features = ["macos_fsevent"] }
+async-trait = "0.1"
 tokio = { workspace = true }
 tracing = { workspace = true }
 serde = { workspace = true }
