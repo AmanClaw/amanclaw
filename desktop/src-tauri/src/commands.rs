@@ -193,6 +193,7 @@ pub async fn start_engine(
             auth,
             pool,
             registry,
+            subagent_manager: None,
         });
     }
 

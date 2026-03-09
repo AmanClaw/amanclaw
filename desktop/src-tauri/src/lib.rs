@@ -76,6 +76,7 @@ pub fn run() {
                                         auth,
                                         pool,
                                         registry,
+                                        subagent_manager: None,
                                     });
                                     tracing::info!("Engine auto-started successfully");
                                 }

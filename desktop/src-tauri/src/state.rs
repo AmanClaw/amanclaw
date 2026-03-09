@@ -27,6 +27,8 @@ pub struct EngineHandle {
     pub pool: sqlx::SqlitePool,
     /// Plugin registry for skill listing.
     pub registry: Arc<amanclaw_core::registry::PluginRegistry>,
+    /// Sub-agent manager (None if sub-agents disabled).
+    pub subagent_manager: Option<Arc<amanclaw_core::subagent::SubAgentManager>>,
 }
 
 #[derive(Debug, Clone, Serialize)]

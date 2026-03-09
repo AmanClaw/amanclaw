@@ -88,8 +88,22 @@
 	<Wizard />
 {:else if $currentPage === 'communities'}
 	<Communities />
+{:else if $currentPage === 'agents'}
+	<div class="p-8"><p class="text-sm text-gray-400">Agents — Coming soon</p></div>
 {:else if $currentPage === 'skills'}
 	<Skills />
+{:else if $currentPage === 'marketplace'}
+	<div class="p-8"><p class="text-sm text-gray-400">Marketplace — Coming soon</p></div>
+{:else if $currentPage === 'cron'}
+	<div class="p-8"><p class="text-sm text-gray-400">Cron Jobs — Coming soon</p></div>
+{:else if $currentPage === 'webhooks'}
+	<div class="p-8"><p class="text-sm text-gray-400">Webhooks — Coming soon</p></div>
+{:else if $currentPage === 'gateway'}
+	<div class="p-8"><p class="text-sm text-gray-400">Gateway — Coming soon</p></div>
+{:else if $currentPage === 'subagents'}
+	<div class="p-8"><p class="text-sm text-gray-400">Sub-Agents — Coming soon</p></div>
+{:else if $currentPage === 'knowledgebases'}
+	<div class="p-8"><p class="text-sm text-gray-400">Knowledge Bases — Coming soon</p></div>
 {:else if $currentPage === 'users'}
 	<Users />
 {:else if $currentPage === 'settings'}

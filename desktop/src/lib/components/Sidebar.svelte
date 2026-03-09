@@ -4,10 +4,17 @@
 	const pages = [
 		{ id: 'dashboard', label: 'Dashboard', icon: '⊞' },
 		{ id: 'communities', label: 'Communities', icon: '⊡' },
+		{ id: 'agents', label: 'Agents', icon: '◉' },
 		{ id: 'skills', label: 'Skills', icon: '⚡' },
+		{ id: 'marketplace', label: 'Marketplace', icon: '◈' },
+		{ id: 'cron', label: 'Cron Jobs', icon: '⏱' },
+		{ id: 'webhooks', label: 'Webhooks', icon: '⇌' },
+		{ id: 'gateway', label: 'Gateway', icon: '⚡' },
+		{ id: 'subagents', label: 'Sub-Agents', icon: '⊛' },
+		{ id: 'knowledgebases', label: 'Knowledge Bases', icon: '▦' },
+		{ id: 'content', label: 'Content', icon: '☰' },
 		{ id: 'users', label: 'Users', icon: '⊙' },
 		{ id: 'mcp', label: 'MCP Servers', icon: '⬡' },
-		{ id: 'content', label: 'Content', icon: '☰' },
 		{ id: 'logs', label: 'Logs', icon: '▤' },
 	];
 
