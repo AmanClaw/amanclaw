@@ -22,6 +22,10 @@ notify = { version = "7", default-features = false, features = ["macos_fsevent"]
 metrics-exporter-prometheus = "0.16"
 axum = { version = "0.8", features = ["json"] }
 serde = { workspace = true }
+serde_json = { workspace = true }
+reqwest = { workspace = true }
+amanclaw-skill-index = { path = "../amanclaw-skill-index" }
+toml = "0.8"
 
 [dev-dependencies]
 tempfile = "3"
