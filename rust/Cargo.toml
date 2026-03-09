@@ -12,6 +12,7 @@ members = [
     "crates/amanclaw-mcp",
     "crates/amanclaw-api",
     "crates/amanclaw-gateway",
+    "crates/amanclaw-registry",
     "crates/amanclaw-script-runtime",
     "plugins/skill-sysinfo",
     "plugins/skill-shell",
