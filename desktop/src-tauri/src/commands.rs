@@ -159,27 +159,33 @@ pub async fn start_engine(
     // Set env vars for channel adapters (they read from env)
     apply_env_vars(&secrets, &db_path.to_string_lossy());
 
-    // Initialize engine
-    let engine = amanclaw_core::Engine::new(cfg.clone())
+    // Initialize and start engine actor
+    let result = amanclaw_core::Engine::start(cfg.clone())
         .await
         .map_err(|e| format!("Engine init failed: {}", e))?;
 
-    // Grab handles before moving engine into the task
-    let auth = engine.auth().clone();
-    let pool = engine.pool().clone();
-    let registry = engine.registry().clone();
+    // Grab handles from the start result
+    let auth = result.auth.clone();
+    let pool = result.pool.clone();
+    let registry = result.registry.clone();
 
-    // Spawn engine in background
+    // Spawn a wrapper task that monitors the engine actor
     let state_clone = state.inner().clone();
     let join_handle = tokio::spawn(async move {
-        if let Err(e) = engine.run().await {
-            let mut st = state_clone.write().await;
-            st.engine_status = EngineStatus::Error(e.to_string());
-            tracing::error!(error = %e, "Engine error");
-        } else {
-            // engine.run() returns Ok when no channels are active (rx closed).
-            // Keep status as Running — the engine is initialized and handles are valid.
-            tracing::info!("Engine run loop exited (no active channels)");
+        match result.join.await {
+            Ok(Ok(())) => {
+                tracing::info!("Engine run loop exited (no active channels)");
+            }
+            Ok(Err(e)) => {
+                let mut st = state_clone.write().await;
+                st.engine_status = EngineStatus::Error(e.to_string());
+                tracing::error!(error = %e, "Engine error");
+            }
+            Err(e) => {
+                let mut st = state_clone.write().await;
+                st.engine_status = EngineStatus::Error(format!("Engine task panicked: {}", e));
+                tracing::error!(error = %e, "Engine task panicked");
+            }
         }
     });
 

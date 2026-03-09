@@ -70,6 +70,11 @@ impl PluginRegistry {
         self.skills.get(name).map(|s| s.metadata())
     }
 
+    /// List metadata for all registered skills.
+    pub fn list_skill_metadata(&self) -> Vec<SkillMetadata> {
+        self.skills.values().map(|s| s.metadata()).collect()
+    }
+
     pub async fn execute(&self, name: &str, input: SkillInput) -> Option<SkillResult> {
         if let Some(skill) = self.skills.get(name) {
             Some(skill.execute(input).await)

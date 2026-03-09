@@ -36,20 +36,14 @@ plugins:
 
     let config: AppConfig = serde_yaml::from_str(&yaml).unwrap();
 
-    // Engine should initialize successfully
-    let engine = Engine::new(config).await;
-    assert!(engine.is_ok(), "Engine failed to initialize: {:?}", engine.err());
+    // Engine should start successfully
+    let result = Engine::start(config).await;
+    assert!(result.is_ok(), "Engine failed to start: {:?}", result.err());
 
-    let engine = engine.unwrap();
+    let result = result.unwrap();
 
-    // Get a sender and send a test message
-    let tx = engine.sender();
-
-    // Spawn engine in background
-    let handle = tokio::spawn(engine.run());
-
-    // Send a message from an admin user
-    tx.send(amanclaw_traits::message::IncomingMessage {
+    // Send a message from an admin user via the handle
+    result.handle.send_message(amanclaw_traits::message::IncomingMessage {
         user_id: "12345".into(),
         chat_id: "12345".into(),
         platform: "telegram".into(),
@@ -66,12 +60,15 @@ plugins:
         is_subagent: false,
     }).await.unwrap();
 
-    // Drop sender to close the channel and let engine exit
-    drop(tx);
+    // Small delay to let message process
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+    // Shutdown the engine
+    result.handle.shutdown().await.unwrap();
 
     // Engine should complete without error
-    let result = handle.await.unwrap();
-    assert!(result.is_ok());
+    let join_result = result.join.await.unwrap();
+    assert!(join_result.is_ok());
 }
 
 #[tokio::test]
@@ -104,13 +101,10 @@ plugins:
 "#, mock_server.uri());
 
     let config: AppConfig = serde_yaml::from_str(&yaml).unwrap();
-    let engine = Engine::new(config).await.unwrap();
-    let tx = engine.sender();
-
-    let handle = tokio::spawn(engine.run());
+    let result = Engine::start(config).await.unwrap();
 
     // Send message from unknown user — should get registration message
-    tx.send(amanclaw_traits::message::IncomingMessage {
+    result.handle.send_message(amanclaw_traits::message::IncomingMessage {
         user_id: "unknown_user".into(),
         chat_id: "unknown_user".into(),
         platform: "telegram".into(),
@@ -127,9 +121,10 @@ plugins:
         is_subagent: false,
     }).await.unwrap();
 
-    drop(tx);
-    let result = handle.await.unwrap();
-    assert!(result.is_ok());
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    result.handle.shutdown().await.unwrap();
+    let join_result = result.join.await.unwrap();
+    assert!(join_result.is_ok());
 }
 
 #[tokio::test]
@@ -161,12 +156,10 @@ plugins:
 "#, mock_server.uri());
 
     let config: AppConfig = serde_yaml::from_str(&yaml).unwrap();
-    let engine = Engine::new(config).await.unwrap();
-    let tx = engine.sender();
-    let handle = tokio::spawn(engine.run());
+    let result = Engine::start(config).await.unwrap();
 
     // Send a cron message from non-admin user — should bypass auth
-    tx.send(amanclaw_traits::message::IncomingMessage {
+    result.handle.send_message(amanclaw_traits::message::IncomingMessage {
         user_id: "cron-system".into(),
         chat_id: "some-chat".into(),
         platform: "telegram".into(),
@@ -183,9 +176,10 @@ plugins:
         is_subagent: false,
     }).await.unwrap();
 
-    drop(tx);
-    let result = handle.await.unwrap();
-    assert!(result.is_ok());
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    result.handle.shutdown().await.unwrap();
+    let join_result = result.join.await.unwrap();
+    assert!(join_result.is_ok());
 }
 
 #[tokio::test]

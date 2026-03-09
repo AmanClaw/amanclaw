@@ -53,8 +53,8 @@ async fn main() -> Result<()> {
 
     tracing::info!(model = %config.llm.model, base_url = %config.llm.base_url, "Config loaded");
 
-    // Build and run engine
-    let engine = Engine::new(config).await?;
+    // Build and start engine actor
+    let result = Engine::start(config).await?;
 
     // Start management API if configured
     if let Ok(port_str) = std::env::var("API_PORT") {
@@ -73,13 +73,13 @@ async fn main() -> Result<()> {
                     token
                 });
             let api_state = amanclaw_api::state::ApiState {
-                registry: engine.registry().clone(),
-                pool: engine.pool().clone(),
+                registry: result.registry.clone(),
+                pool: result.pool.clone(),
                 api_token,
                 bot_status: Arc::new(tokio::sync::RwLock::new(
                     amanclaw_api::state::BotStatus::new(),
                 )),
-                auth: engine.auth().clone(),
+                auth: result.auth.clone(),
                 webhook_router: None,
                 gateway: None,
             };
@@ -94,11 +94,15 @@ async fn main() -> Result<()> {
 
     // Graceful shutdown on Ctrl+C
     tokio::select! {
-        result = engine.run() => {
-            result.context("Engine exited with error")?;
+        join_result = result.join => {
+            match join_result {
+                Ok(inner) => inner.context("Engine exited with error")?,
+                Err(e) => anyhow::bail!("Engine task panicked: {}", e),
+            }
         }
         _ = tokio::signal::ctrl_c() => {
             tracing::info!("Shutdown signal received");
+            let _ = result.handle.shutdown().await;
         }
     }
 

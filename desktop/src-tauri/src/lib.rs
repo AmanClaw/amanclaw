@@ -50,20 +50,26 @@ pub fn run() {
 
                     match config::load_config(&app_handle) {
                         Ok(cfg) => {
-                            match amanclaw_core::Engine::new(cfg.clone()).await {
-                                Ok(engine) => {
-                                    let auth = engine.auth().clone();
-                                    let pool = engine.pool().clone();
-                                    let registry = engine.registry().clone();
+                            match amanclaw_core::Engine::start(cfg.clone()).await {
+                                Ok(result) => {
+                                    let auth = result.auth.clone();
+                                    let pool = result.pool.clone();
+                                    let registry = result.registry.clone();
 
                                     let state_clone = state.clone();
                                     let join_handle = tokio::spawn(async move {
-                                        if let Err(e) = engine.run().await {
-                                            let mut st = state_clone.write().await;
-                                            st.engine_status = state::EngineStatus::Error(e.to_string());
-                                        } else {
-                                            // No active channels — keep Running status
-                                            tracing::info!("Engine run loop exited (no active channels)");
+                                        match result.join.await {
+                                            Ok(Ok(())) => {
+                                                tracing::info!("Engine run loop exited (no active channels)");
+                                            }
+                                            Ok(Err(e)) => {
+                                                let mut st = state_clone.write().await;
+                                                st.engine_status = state::EngineStatus::Error(e.to_string());
+                                            }
+                                            Err(e) => {
+                                                let mut st = state_clone.write().await;
+                                                st.engine_status = state::EngineStatus::Error(format!("Engine task panicked: {}", e));
+                                            }
                                         }
                                     });
 
