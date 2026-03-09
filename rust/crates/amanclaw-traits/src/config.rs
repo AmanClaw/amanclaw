@@ -46,6 +46,12 @@ pub struct AppConfig {
 
     #[serde(default)]
     pub webhooks: WebhookConfig,
+
+    #[serde(default)]
+    pub gateway: GatewayConfig,
+
+    #[serde(default)]
+    pub subagents: SubAgentConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -337,6 +343,53 @@ impl Default for WebhookTransformConfig {
         }
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct GatewayConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_heartbeat")]
+    pub heartbeat_interval_secs: u64,
+    #[serde(default = "default_max_connections")]
+    pub max_connections: usize,
+    #[serde(default = "default_stale_timeout")]
+    pub stale_session_timeout_secs: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubAgentConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default = "default_max_per_session")]
+    pub max_per_session: usize,
+    #[serde(default = "default_max_global")]
+    pub max_global: usize,
+    #[serde(default = "default_max_depth")]
+    pub max_depth: usize,
+    #[serde(default = "default_subagent_timeout")]
+    pub default_timeout_secs: u64,
+}
+
+impl Default for SubAgentConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            max_per_session: default_max_per_session(),
+            max_global: default_max_global(),
+            max_depth: default_max_depth(),
+            default_timeout_secs: default_subagent_timeout(),
+        }
+    }
+}
+
+fn default_max_per_session() -> usize { 5 }
+fn default_max_global() -> usize { 20 }
+fn default_max_depth() -> usize { 2 }
+fn default_subagent_timeout() -> u64 { 120 }
+
+fn default_heartbeat() -> u64 { 30 }
+fn default_max_connections() -> usize { 50 }
+fn default_stale_timeout() -> u64 { 60 }
 
 fn default_webhook_base_path() -> String { "/hooks".into() }
 fn default_webhook_auth_type() -> String { "none".into() }

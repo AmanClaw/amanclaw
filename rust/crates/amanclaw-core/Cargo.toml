@@ -40,6 +40,7 @@ handlebars = "6"
 hmac = "0.12"
 sha2 = "0.10"
 hex = "0.4"
+uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
 tokio = { workspace = true }
