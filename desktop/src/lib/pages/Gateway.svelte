@@ -54,7 +54,7 @@
 	async function saveConfig() {
 		saving = true;
 		try {
-			await api.saveGatewayConfig({ enabled, heartbeatIntervalSecs, maxConnections, staleSessionTimeoutSecs });
+			await api.saveGatewayConfig({ enabled, heartbeat_interval_secs: heartbeatIntervalSecs, max_connections: maxConnections, stale_session_timeout_secs: staleSessionTimeoutSecs });
 		} catch (_) {}
 		saving = false;
 	}

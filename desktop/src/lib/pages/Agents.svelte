@@ -6,10 +6,10 @@
 	interface Agent {
 		id: string;
 		name: string;
-		systemPrompt: string;
-		soulFile?: string;
-		allowedSkills: string[];
-		memoryNamespace: string;
+		system_prompt: string;
+		soul_file?: string;
+		allowed_skills: string[];
+		memory_namespace: string;
 	}
 
 	interface RoutingRule {
@@ -72,10 +72,10 @@
 		selectedId = agent.id;
 		editId = agent.id;
 		editName = agent.name;
-		editMemoryNamespace = agent.memoryNamespace;
-		editAllowedSkills = agent.allowedSkills.join(', ');
-		editSystemPrompt = agent.systemPrompt;
-		editSoulFile = agent.soulFile || '';
+		editMemoryNamespace = agent.memory_namespace;
+		editAllowedSkills = agent.allowed_skills.join(', ');
+		editSystemPrompt = agent.system_prompt;
+		editSoulFile = agent.soul_file || '';
 		editSoulContent = '';
 		soulPreview = null;
 		isNew = false;
@@ -104,10 +104,10 @@
 			await api.saveAgent({
 				id: editId,
 				name: editName,
-				systemPrompt: editSystemPrompt,
-				soulFile: editSoulFile || undefined,
-				allowedSkills: skills,
-				memoryNamespace: editMemoryNamespace,
+				system_prompt: editSystemPrompt,
+				soul_file: editSoulFile || undefined,
+				allowed_skills: skills,
+				memory_namespace: editMemoryNamespace,
 			});
 			await loadAgents();
 			selectedId = editId;
@@ -242,17 +242,17 @@
 									: 'border-gray-200 bg-white hover:border-gray-300'}">
 							<p class="text-sm font-medium text-gray-900 truncate">{agent.name}</p>
 							<div class="flex items-center gap-2 mt-1.5">
-								{#if agent.soulFile}
+								{#if agent.soul_file}
 									<span class="inline-flex px-1.5 py-0.5 text-[10px] font-medium rounded bg-blue-100 text-blue-700 truncate max-w-[120px]">
-										{agent.soulFile}
+										{agent.soul_file}
 									</span>
 								{/if}
 								<span class="text-[10px] text-gray-400">
-									{agent.allowedSkills.length} skill{agent.allowedSkills.length !== 1 ? 's' : ''}
+									{agent.allowed_skills.length} skill{agent.allowed_skills.length !== 1 ? 's' : ''}
 								</span>
 							</div>
-							{#if agent.memoryNamespace}
-								<p class="text-[10px] text-gray-400 mt-1 font-mono truncate">{agent.memoryNamespace}</p>
+							{#if agent.memory_namespace}
+								<p class="text-[10px] text-gray-400 mt-1 font-mono truncate">{agent.memory_namespace}</p>
 							{/if}
 						</button>
 					{/each}

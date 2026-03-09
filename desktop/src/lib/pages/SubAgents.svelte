@@ -68,7 +68,7 @@
 	async function saveConfig() {
 		saving = true;
 		try {
-			await api.saveSubagentConfig({ enabled, maxPerSession, maxGlobal, maxDepth, defaultTimeoutSecs });
+			await api.saveSubagentConfig({ enabled, max_per_session: maxPerSession, max_global: maxGlobal, max_depth: maxDepth, default_timeout_secs: defaultTimeoutSecs });
 		} catch (_) {}
 		saving = false;
 	}

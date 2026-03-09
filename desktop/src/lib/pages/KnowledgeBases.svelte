@@ -47,9 +47,9 @@
 		savingEmbedding = true;
 		try {
 			await api.saveEmbeddingConfig({
-				baseUrl: baseUrl.trim(),
+				base_url: baseUrl.trim(),
 				model: model.trim(),
-				apiKey: apiKey.trim() || undefined,
+				api_key: apiKey.trim() || undefined,
 			});
 		} catch (_) {}
 		savingEmbedding = false;
@@ -68,7 +68,7 @@
 		try {
 			await api.saveVectorConfig({
 				backend,
-				qdrantUrl: backend === 'qdrant' ? qdrantUrl.trim() || undefined : undefined,
+				qdrant_url: backend === 'qdrant' ? qdrantUrl.trim() || undefined : undefined,
 			});
 		} catch (_) {}
 		savingVector = false;
