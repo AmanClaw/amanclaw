@@ -14,6 +14,7 @@ pub struct ApiState {
     pub auth: Arc<RwLock<Auth>>,
     pub webhook_router: Option<Arc<WebhookRouter>>,
     pub gateway: Option<Arc<amanclaw_gateway::GatewayState>>,
+    pub metrics_handle: Option<metrics_exporter_prometheus::PrometheusHandle>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]

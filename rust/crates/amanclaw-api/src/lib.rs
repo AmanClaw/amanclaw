@@ -34,6 +34,11 @@ pub fn api_router(state: ApiState) -> Router {
         .route("/hooks/{webhook_id}", post(routes::webhooks::receive_webhook))
         .with_state(state.clone());
 
+    // Metrics endpoint — no auth (for Prometheus scraping)
+    let metrics_routes = Router::new()
+        .route("/metrics", get(metrics_handler))
+        .with_state(state.clone());
+
     // WebSocket gateway — no auth middleware (uses JSON-RPC auth)
     let ws_routes = Router::new()
         .route("/ws", get(ws_upgrade))
@@ -42,9 +47,17 @@ pub fn api_router(state: ApiState) -> Router {
     Router::new()
         .merge(authed)
         .merge(webhook_routes)
+        .merge(metrics_routes)
         .merge(ws_routes)
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
+}
+
+async fn metrics_handler(State(state): State<ApiState>) -> String {
+    match &state.metrics_handle {
+        Some(handle) => handle.render(),
+        None => "# metrics not enabled\n".to_string(),
+    }
 }
 
 async fn ws_upgrade(

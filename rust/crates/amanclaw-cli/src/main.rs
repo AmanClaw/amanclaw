@@ -53,6 +53,11 @@ async fn main() -> Result<()> {
 
     tracing::info!(model = %config.llm.model, base_url = %config.llm.base_url, "Config loaded");
 
+    // Initialize Prometheus metrics exporter (non-fatal if it fails)
+    let metrics_handle = metrics_exporter_prometheus::PrometheusBuilder::new()
+        .install_recorder()
+        .ok();
+
     // Build and start engine actor
     let result = Engine::start(config).await?;
 
@@ -82,6 +87,7 @@ async fn main() -> Result<()> {
                 auth: result.auth.clone(),
                 webhook_router: None,
                 gateway: None,
+                metrics_handle: metrics_handle.clone(),
             };
             tokio::spawn(async move {
                 if let Err(e) = amanclaw_api::run_api_server(api_state, port).await {

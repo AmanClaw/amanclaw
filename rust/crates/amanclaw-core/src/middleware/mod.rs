@@ -5,6 +5,9 @@ pub mod sanitize;
 pub mod context;
 pub mod tool_calling;
 pub mod persist;
+pub mod metrics;
+
+pub use metrics::MetricsMiddleware;
 
 use amanclaw_traits::agent::AgentProfile;
 use amanclaw_traits::message::{IncomingMessage, OutgoingMessage};

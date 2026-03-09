@@ -14,6 +14,7 @@ use crate::middleware::sanitize::SanitizeMiddleware;
 use crate::middleware::context::ContextMiddleware;
 use crate::middleware::persist::PersistMiddleware;
 use crate::middleware::tool_calling::ToolCallingMiddleware;
+use crate::middleware::MetricsMiddleware;
 use crate::registry::PluginRegistry;
 use anyhow::Result;
 use std::sync::Arc;
@@ -39,6 +40,7 @@ impl Pipeline {
         emitter: Arc<dyn EventEmitter>,
     ) -> Self {
         let chain = MiddlewareChain::new(vec![
+            Box::new(MetricsMiddleware),
             Box::new(AuthMiddleware::new(auth.clone())),
             Box::new(CommandMiddleware::new(auth, memory.clone())),
             Box::new(RateLimitMiddleware::new(rate_limiter, emitter.clone())),
