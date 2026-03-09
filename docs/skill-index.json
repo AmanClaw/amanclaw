@@ -1,0 +1,127 @@
+{
+  "skills": [
+    {
+      "name": "skill-solat",
+      "version": "1.0.0",
+      "description": "Malaysian prayer times by JAKIM zone + global calculation (6 methods)",
+      "author": "amanclaw",
+      "repo": "AmanClaw/amanclaw",
+      "tier": "official",
+      "lang": "rust",
+      "tags": ["islamic", "prayer", "malaysia", "solat"]
+    },
+    {
+      "name": "skill-qiblat",
+      "version": "1.0.0",
+      "description": "Qibla direction calculator from any location",
+      "author": "amanclaw",
+      "repo": "AmanClaw/amanclaw",
+      "tier": "official",
+      "lang": "rust",
+      "tags": ["islamic", "qibla", "navigation"]
+    },
+    {
+      "name": "skill-hijri",
+      "version": "1.0.0",
+      "description": "Hijri-Gregorian date converter",
+      "author": "amanclaw",
+      "repo": "AmanClaw/amanclaw",
+      "tier": "official",
+      "lang": "rust",
+      "tags": ["islamic", "calendar", "hijri"]
+    },
+    {
+      "name": "skill-doa",
+      "version": "1.0.0",
+      "description": "Daily duas (supplications) with Arabic text and translation",
+      "author": "amanclaw",
+      "repo": "AmanClaw/amanclaw",
+      "tier": "official",
+      "lang": "rust",
+      "tags": ["islamic", "dua", "supplication"]
+    },
+    {
+      "name": "skill-quran",
+      "version": "1.0.0",
+      "description": "Quran verse lookup with translation",
+      "author": "amanclaw",
+      "repo": "AmanClaw/amanclaw",
+      "tier": "official",
+      "lang": "rust",
+      "tags": ["islamic", "quran"]
+    },
+    {
+      "name": "plugin-hadith",
+      "version": "1.0.0",
+      "description": "Hadith search across major collections",
+      "author": "amanclaw",
+      "repo": "AmanClaw/amanclaw",
+      "tier": "official",
+      "lang": "python",
+      "tags": ["islamic", "hadith"]
+    },
+    {
+      "name": "plugin-halal",
+      "version": "1.0.0",
+      "description": "JAKIM halal product verification",
+      "author": "amanclaw",
+      "repo": "AmanClaw/amanclaw",
+      "tier": "official",
+      "lang": "python",
+      "tags": ["islamic", "halal", "malaysia"]
+    },
+    {
+      "name": "plugin-zakat",
+      "version": "1.0.0",
+      "description": "Zakat calculator (income, savings, gold, silver)",
+      "author": "amanclaw",
+      "repo": "AmanClaw/amanclaw",
+      "tier": "official",
+      "lang": "python",
+      "tags": ["islamic", "zakat", "finance"]
+    },
+    {
+      "name": "plugin-masjid",
+      "version": "1.0.0",
+      "description": "Nearby mosque finder",
+      "author": "amanclaw",
+      "repo": "AmanClaw/amanclaw",
+      "tier": "official",
+      "lang": "python",
+      "tags": ["islamic", "mosque", "location"]
+    },
+    {
+      "name": "plugin-khutbah",
+      "version": "1.0.0",
+      "description": "Friday khutbah summaries and schedules",
+      "author": "amanclaw",
+      "repo": "AmanClaw/amanclaw",
+      "tier": "official",
+      "lang": "python",
+      "tags": ["islamic", "khutbah", "friday"]
+    },
+    {
+      "name": "plugin-jakim",
+      "version": "1.0.0",
+      "description": "JAKIM e-services integration",
+      "author": "amanclaw",
+      "repo": "AmanClaw/amanclaw",
+      "tier": "official",
+      "lang": "python",
+      "tags": ["islamic", "malaysia", "jakim"]
+    }
+  ],
+  "packs": {
+    "islamic": [
+      "skill-solat", "skill-qiblat", "skill-hijri", "skill-doa", "skill-quran",
+      "plugin-hadith", "plugin-halal", "plugin-zakat", "plugin-masjid",
+      "plugin-khutbah", "plugin-jakim"
+    ],
+    "islamic-core": [
+      "skill-solat", "skill-qiblat", "skill-hijri", "skill-doa", "skill-quran"
+    ],
+    "malaysian": [
+      "skill-solat", "plugin-halal", "plugin-jakim", "plugin-masjid"
+    ]
+  }
+}

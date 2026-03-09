@@ -196,4 +196,14 @@ mod tests {
         assert_eq!(format!("{}", SkillTier::Verified), "Verified");
         assert_eq!(format!("{}", SkillTier::Official), "Official");
     }
+
+    #[test]
+    fn test_parse_seed_index() {
+        let json = include_str!("../../../../docs/skill-index.json");
+        let idx: SkillIndex = serde_json::from_str(json).unwrap();
+        assert_eq!(idx.skills.len(), 11);
+        assert_eq!(idx.packs.len(), 3);
+        assert!(idx.find("skill-solat").is_some());
+        assert_eq!(idx.find("skill-solat").unwrap().tier, SkillTier::Official);
+    }
 }
