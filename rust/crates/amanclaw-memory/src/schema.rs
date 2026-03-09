@@ -85,6 +85,30 @@ CREATE TRIGGER IF NOT EXISTS vector_documents_au AFTER UPDATE ON vector_document
     INSERT INTO vector_documents_fts(vector_documents_fts, rowid, content) VALUES('delete', old.rowid, old.content);
     INSERT INTO vector_documents_fts(rowid, content) VALUES (new.rowid, new.content);
 END;
+
+CREATE TABLE IF NOT EXISTS cron_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    output TEXT,
+    duration_ms INTEGER,
+    executed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_cron_history_job ON cron_history(job_id, executed_at);
+
+CREATE TABLE IF NOT EXISTS webhook_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    webhook_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    source_ip TEXT,
+    payload_preview TEXT,
+    error TEXT,
+    duration_ms INTEGER,
+    received_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_webhook_history ON webhook_history(webhook_id, received_at);
 "#;
 
 /// Migration statements for existing databases that lack namespace columns.
