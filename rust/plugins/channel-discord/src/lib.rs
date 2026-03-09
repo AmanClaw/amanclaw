@@ -33,7 +33,15 @@ impl EventHandler for Handler {
             is_webhook: false,
             is_subagent: false,
         };
-        let _ = self.tx.send(incoming).await;
+        match self.tx.try_send(incoming) {
+            Ok(()) => {}
+            Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                tracing::warn!(platform = "discord", "Engine buffer full (backpressure)");
+            }
+            Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
+                tracing::error!(platform = "discord", "Engine channel closed");
+            }
+        }
     }
 
     async fn ready(&self, _ctx: Context, ready: Ready) {

@@ -295,7 +295,15 @@ async fn run_socket_mode(
                 is_subagent: false,
             };
 
-            let _ = tx.send(incoming).await;
+            match tx.try_send(incoming) {
+                Ok(()) => {}
+                Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                    tracing::warn!(platform = "slack", "Engine buffer full (backpressure)");
+                }
+                Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
+                    tracing::error!(platform = "slack", "Engine channel closed");
+                }
+            }
         }
 
         // Reconnect: get a new WebSocket URL
