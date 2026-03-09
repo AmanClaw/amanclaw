@@ -1,33 +1,33 @@
-use std::collections::HashMap;
+use dashmap::DashMap;
 use std::time::Instant;
 
-/// Sliding window rate limiter per user.
 pub struct RateLimiter {
     limit_per_minute: u32,
-    windows: HashMap<String, Vec<Instant>>,
+    windows: DashMap<String, Vec<Instant>>,
 }
 
 impl RateLimiter {
     pub fn new(limit_per_minute: u32) -> Self {
         Self {
             limit_per_minute,
-            windows: HashMap::new(),
+            windows: DashMap::new(),
         }
     }
 
-    /// Check if user is within rate limit. Returns true if allowed.
-    pub fn check(&mut self, user_id: &str) -> bool {
+    /// Check if user is within rate limit. Thread-safe, no external lock needed.
+    pub fn check(&self, user_id: &str) -> bool {
         let now = Instant::now();
-        let window = self.windows.entry(user_id.to_string()).or_default();
+        let cutoff = now - std::time::Duration::from_secs(60);
 
-        // Remove entries older than 60 seconds
-        window.retain(|t| now.duration_since(*t).as_secs() < 60);
+        let mut entry = self.windows.entry(user_id.to_string()).or_default();
+        let timestamps = entry.value_mut();
+        timestamps.retain(|t| *t > cutoff);
 
-        if window.len() >= self.limit_per_minute as usize {
+        if timestamps.len() >= self.limit_per_minute as usize {
             return false;
         }
 
-        window.push(now);
+        timestamps.push(now);
         true
     }
 }
@@ -38,7 +38,7 @@ mod tests {
 
     #[test]
     fn test_allows_under_limit() {
-        let mut limiter = RateLimiter::new(5); // 5 per minute
+        let limiter = RateLimiter::new(5); // 5 per minute
         for _ in 0..5 {
             assert!(limiter.check("user1"));
         }
@@ -46,7 +46,7 @@ mod tests {
 
     #[test]
     fn test_blocks_over_limit() {
-        let mut limiter = RateLimiter::new(3);
+        let limiter = RateLimiter::new(3);
         assert!(limiter.check("user1"));
         assert!(limiter.check("user1"));
         assert!(limiter.check("user1"));
@@ -55,7 +55,7 @@ mod tests {
 
     #[test]
     fn test_separate_users() {
-        let mut limiter = RateLimiter::new(2);
+        let limiter = RateLimiter::new(2);
         assert!(limiter.check("user1"));
         assert!(limiter.check("user1"));
         assert!(!limiter.check("user1"));

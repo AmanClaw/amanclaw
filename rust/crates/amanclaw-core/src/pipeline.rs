@@ -11,7 +11,7 @@ use amanclaw_llm::client::{LlmClient, LlmResponse};
 use crate::context_engine::maybe_summarize;
 use crate::registry::PluginRegistry;
 use anyhow::Result;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tokio::sync::RwLock;
 
 const MAX_TOOL_ROUNDS: usize = 5;
@@ -20,7 +20,7 @@ const MAX_TOOL_ROUNDS: usize = 5;
 pub enum Pipeline {
     Full {
         auth: Arc<RwLock<Auth>>,
-        rate_limiter: Mutex<RateLimiter>,
+        rate_limiter: RateLimiter,
         context_engine: Arc<dyn ContextEngine>,
         memory: Arc<dyn MemoryBackend>,
         llm: Arc<LlmClient>,
@@ -44,7 +44,7 @@ impl Pipeline {
     ) -> Self {
         Self::Full {
             auth,
-            rate_limiter: Mutex::new(rate_limiter),
+            rate_limiter,
             context_engine,
             memory,
             llm,
@@ -74,7 +74,7 @@ impl Pipeline {
 
     async fn process_full(
         auth: &RwLock<Auth>,
-        rate_limiter: &Mutex<RateLimiter>,
+        rate_limiter: &RateLimiter,
         context_engine: &Arc<dyn ContextEngine>,
         memory: &Arc<dyn MemoryBackend>,
         llm: &Arc<LlmClient>,
@@ -141,7 +141,7 @@ impl Pipeline {
             }
 
             // 2. Rate limit
-            if !rate_limiter.lock().unwrap().check(user_id) {
+            if !rate_limiter.check(user_id) {
                 emitter.emit("security.rate_limited", serde_json::json!({
                     "user_id": user_id, "platform": platform
                 }));

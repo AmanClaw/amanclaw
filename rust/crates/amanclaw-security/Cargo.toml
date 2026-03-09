@@ -9,6 +9,7 @@ tracing = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 regex = "1"
+dashmap = "6"
 
 [dev-dependencies]
 tokio = { workspace = true }
