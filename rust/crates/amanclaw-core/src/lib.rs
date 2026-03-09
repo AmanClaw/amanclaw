@@ -206,7 +206,8 @@ impl Engine {
                 embedding_client.clone(),
             )
         );
-        let pipeline = Pipeline::with_services(auth_arc.clone(), rate_limiter, context_engine, memory_arc, llm_arc);
+        let emitter: Arc<dyn amanclaw_traits::event::EventEmitter> = Arc::new(amanclaw_traits::event::NoopEmitter);
+        let pipeline = Pipeline::with_services(auth_arc.clone(), rate_limiter, context_engine, memory_arc, llm_arc, emitter);
         let (tx, rx) = mpsc::channel(256);
 
         // Start channel adapters

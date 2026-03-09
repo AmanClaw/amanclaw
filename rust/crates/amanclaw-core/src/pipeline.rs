@@ -3,6 +3,7 @@ use amanclaw_traits::context::{ContextEngine, ContextRequest, ExchangeEvent};
 use amanclaw_traits::memory::MemoryBackend;
 use amanclaw_traits::message::{IncomingMessage, OutgoingMessage};
 use amanclaw_traits::skill::SkillInput;
+use amanclaw_traits::event::EventEmitter;
 use amanclaw_security::auth::{Auth, UserState};
 use amanclaw_security::rate_limiter::RateLimiter;
 use amanclaw_security::sanitizer::check_injection;
@@ -22,6 +23,7 @@ pub enum Pipeline {
         context_engine: Arc<dyn ContextEngine>,
         memory: Arc<dyn MemoryBackend>,
         llm: Arc<LlmClient>,
+        emitter: Arc<dyn EventEmitter>,
     },
     Stub,
 }
@@ -37,6 +39,7 @@ impl Pipeline {
         context_engine: Arc<dyn ContextEngine>,
         memory: Arc<dyn MemoryBackend>,
         llm: Arc<LlmClient>,
+        emitter: Arc<dyn EventEmitter>,
     ) -> Self {
         Self::Full {
             auth,
@@ -44,14 +47,15 @@ impl Pipeline {
             context_engine,
             memory,
             llm,
+            emitter,
         }
     }
 
     pub async fn process(&self, msg: IncomingMessage, registry: &PluginRegistry, profile: &AgentProfile) -> Result<Option<OutgoingMessage>> {
         match self {
             Self::Stub => self.process_stub(msg).await,
-            Self::Full { auth, rate_limiter, context_engine, memory, llm } => {
-                Self::process_full(auth, rate_limiter, context_engine, memory, llm, registry, msg, profile).await
+            Self::Full { auth, rate_limiter, context_engine, memory, llm, emitter } => {
+                Self::process_full(auth, rate_limiter, context_engine, memory, llm, emitter, registry, msg, profile).await
             }
         }
     }
@@ -73,6 +77,7 @@ impl Pipeline {
         context_engine: &Arc<dyn ContextEngine>,
         memory: &Arc<dyn MemoryBackend>,
         llm: &Arc<LlmClient>,
+        emitter: &Arc<dyn EventEmitter>,
         registry: &PluginRegistry,
         msg: IncomingMessage,
         profile: &AgentProfile,
@@ -136,6 +141,9 @@ impl Pipeline {
 
             // 2. Rate limit
             if !rate_limiter.lock().unwrap().check(user_id) {
+                emitter.emit("security.rate_limited", serde_json::json!({
+                    "user_id": user_id, "platform": platform
+                }));
                 return Ok(Some(OutgoingMessage {
                     chat_id: msg.chat_id,
                     text: "Slow down — too many messages. Try again in a minute.".into(),
@@ -156,7 +164,14 @@ impl Pipeline {
         };
         if was_flagged {
             tracing::warn!(user_id, "Flagged message");
+            emitter.emit("security.injection", serde_json::json!({
+                "user_id": user_id, "platform": platform
+            }));
         }
+
+        emitter.emit("message.received", serde_json::json!({
+            "user_id": user_id, "platform": platform, "agent": profile.id
+        }));
 
         // 4. Build context via ContextEngine
         let ctx_request = ContextRequest {
@@ -191,6 +206,11 @@ impl Pipeline {
         ).await {
             tracing::error!(error = %e, "Failed to auto-summarize");
         }
+
+        emitter.emit("message.sent", serde_json::json!({
+            "user_id": user_id, "platform": platform, "agent": profile.id,
+            "response_len": response.len()
+        }));
 
         Ok(Some(OutgoingMessage {
             chat_id: msg.chat_id,
