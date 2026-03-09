@@ -1,3 +1,11 @@
+pub mod auth;
+pub mod command;
+pub mod rate_limit;
+pub mod sanitize;
+pub mod context;
+pub mod tool_calling;
+pub mod persist;
+
 use amanclaw_traits::agent::AgentProfile;
 use amanclaw_traits::message::{IncomingMessage, OutgoingMessage};
 use anyhow::Result;

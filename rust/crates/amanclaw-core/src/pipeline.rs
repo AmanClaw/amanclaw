@@ -1,14 +1,19 @@
 use amanclaw_traits::agent::AgentProfile;
-use amanclaw_traits::context::{ContextEngine, ContextRequest, ExchangeEvent};
+use amanclaw_traits::context::ContextEngine;
 use amanclaw_traits::memory::MemoryBackend;
 use amanclaw_traits::message::{IncomingMessage, OutgoingMessage};
-use amanclaw_traits::skill::SkillInput;
 use amanclaw_traits::event::EventEmitter;
-use amanclaw_security::auth::{Auth, UserState};
+use amanclaw_security::auth::Auth;
 use amanclaw_security::rate_limiter::RateLimiter;
-use amanclaw_security::sanitizer::check_injection;
-use amanclaw_llm::client::{LlmClient, LlmResponse};
-use crate::context_engine::maybe_summarize;
+use amanclaw_llm::client::LlmClient;
+use crate::middleware::{MiddlewareChain, PipelineContext};
+use crate::middleware::auth::AuthMiddleware;
+use crate::middleware::command::CommandMiddleware;
+use crate::middleware::rate_limit::RateLimitMiddleware;
+use crate::middleware::sanitize::SanitizeMiddleware;
+use crate::middleware::context::ContextMiddleware;
+use crate::middleware::persist::PersistMiddleware;
+use crate::middleware::tool_calling::ToolCallingMiddleware;
 use crate::registry::PluginRegistry;
 use anyhow::Result;
 use std::sync::Arc;
@@ -16,14 +21,7 @@ use tokio::sync::RwLock;
 
 /// Message processing pipeline.
 pub enum Pipeline {
-    Full {
-        auth: Arc<RwLock<Auth>>,
-        rate_limiter: RateLimiter,
-        context_engine: Arc<dyn ContextEngine>,
-        memory: Arc<dyn MemoryBackend>,
-        llm: Arc<LlmClient>,
-        emitter: Arc<dyn EventEmitter>,
-    },
+    Full { chain: MiddlewareChain },
     Stub,
 }
 
@@ -40,21 +38,25 @@ impl Pipeline {
         llm: Arc<LlmClient>,
         emitter: Arc<dyn EventEmitter>,
     ) -> Self {
-        Self::Full {
-            auth,
-            rate_limiter,
-            context_engine,
-            memory,
-            llm,
-            emitter,
-        }
+        let chain = MiddlewareChain::new(vec![
+            Box::new(AuthMiddleware::new(auth.clone())),
+            Box::new(CommandMiddleware::new(auth, memory.clone())),
+            Box::new(RateLimitMiddleware::new(rate_limiter, emitter.clone())),
+            Box::new(SanitizeMiddleware::new(emitter.clone())),
+            Box::new(ContextMiddleware::new(context_engine.clone())),
+            Box::new(PersistMiddleware::new(context_engine, memory, llm.clone(), emitter)),
+            Box::new(ToolCallingMiddleware::new(llm)),
+        ]);
+        Self::Full { chain }
     }
 
-    pub async fn process(&self, msg: IncomingMessage, registry: &PluginRegistry, profile: &AgentProfile) -> Result<Option<OutgoingMessage>> {
+    pub async fn process(&self, msg: IncomingMessage, registry: &Arc<PluginRegistry>, profile: &AgentProfile) -> Result<Option<OutgoingMessage>> {
         match self {
             Self::Stub => self.process_stub(msg).await,
-            Self::Full { auth, rate_limiter, context_engine, memory, llm, emitter } => {
-                Self::process_full(auth, rate_limiter, context_engine, memory, llm, emitter, registry, msg, profile).await
+            Self::Full { chain } => {
+                let mut ctx = PipelineContext::new(msg, profile.clone());
+                ctx.extensions.insert(Arc::clone(registry));
+                chain.execute(ctx).await
             }
         }
     }
@@ -63,325 +65,6 @@ impl Pipeline {
         Ok(Some(OutgoingMessage {
             chat_id: msg.chat_id,
             text: format!("[pipeline placeholder] Received: {}", msg.text),
-            parse_mode: None,
-            reply_to: None,
-            platform: None,
-            topic_id: None,
-        }))
-    }
-
-    async fn process_full(
-        auth: &RwLock<Auth>,
-        rate_limiter: &RateLimiter,
-        context_engine: &Arc<dyn ContextEngine>,
-        memory: &Arc<dyn MemoryBackend>,
-        llm: &Arc<LlmClient>,
-        emitter: &Arc<dyn EventEmitter>,
-        registry: &PluginRegistry,
-        msg: IncomingMessage,
-        profile: &AgentProfile,
-    ) -> Result<Option<OutgoingMessage>> {
-        let user_id = &msg.user_id;
-        let platform = &msg.platform;
-        let text = msg.text.trim();
-        let ns = &profile.memory_namespace;
-
-        // Internal messages (cron, webhook, subagent) skip auth, rate limit, and sanitization
-        let is_internal = msg.is_cron || msg.is_webhook || msg.is_subagent;
-
-        // Handle /myid before auth
-        if !is_internal && (text == "/myid" || text == "/start") {
-            let reply = format!("Your user ID: `{}`\nPlatform: {}", user_id, platform);
-            return Ok(Some(OutgoingMessage {
-                chat_id: msg.chat_id,
-                text: reply,
-                parse_mode: Some("Markdown".into()),
-                reply_to: None,
-                platform: None,
-                topic_id: None,
-            }));
-        }
-
-        if !is_internal {
-            // 1. Auth check
-            let state = auth.read().await.get_user_state(user_id, platform);
-            match state {
-                UserState::Blocked => return Ok(None),
-                UserState::New => {
-                    auth.write().await.register_user(user_id, platform);
-                    return Ok(Some(OutgoingMessage {
-                        chat_id: msg.chat_id,
-                        text: "Welcome! You've been registered. An admin needs to approve your access.".into(),
-                        parse_mode: None,
-                        reply_to: None,
-                        platform: None,
-                        topic_id: None,
-                    }));
-                }
-                UserState::Pending => {
-                    return Ok(Some(OutgoingMessage {
-                        chat_id: msg.chat_id,
-                        text: "Your registration is pending approval.".into(),
-                        parse_mode: None,
-                        reply_to: None,
-                        platform: None,
-                        topic_id: None,
-                    }));
-                }
-                UserState::Admin | UserState::Approved => {}
-            }
-
-            // Handle commands
-            if text.starts_with('/') {
-                if let Some(reply) = Self::handle_command(auth, memory.as_ref(), &msg, &state).await? {
-                    return Ok(Some(reply));
-                }
-            }
-
-            // 2. Rate limit
-            if !rate_limiter.check(user_id) {
-                emitter.emit("security.rate_limited", serde_json::json!({
-                    "user_id": user_id, "platform": platform
-                }));
-                return Ok(Some(OutgoingMessage {
-                    chat_id: msg.chat_id,
-                    text: "Slow down — too many messages. Try again in a minute.".into(),
-                    parse_mode: None,
-                    reply_to: None,
-                    platform: None,
-                    topic_id: None,
-                }));
-            }
-        }
-
-        // 3. Sanitize
-        let (clean_text, was_flagged) = if is_internal {
-            (msg.text.clone(), false)
-        } else {
-            let (ct, wf) = check_injection(&msg.text);
-            (ct.to_string(), wf)
-        };
-        if was_flagged {
-            tracing::warn!(user_id, "Flagged message");
-            emitter.emit("security.injection", serde_json::json!({
-                "user_id": user_id, "platform": platform
-            }));
-        }
-
-        emitter.emit("message.received", serde_json::json!({
-            "user_id": user_id, "platform": platform, "agent": profile.id
-        }));
-
-        // 4. Build context via ContextEngine
-        let ctx_request = ContextRequest {
-            user_id: user_id.clone(),
-            platform: platform.clone(),
-            namespace: ns.clone(),
-            user_message: clean_text.to_string(),
-            image_data: msg.image_data.clone(),
-            agent_profile: profile.clone(),
-        };
-        let ctx = context_engine.build_context(ctx_request).await?;
-        let mut messages = ctx.messages;
-        let tools = ctx.tools;
-
-        // 5. Tool calling loop
-        let response = Self::tool_calling_loop(llm, registry, &mut messages, &tools, user_id, platform, profile.context.max_tool_rounds).await?;
-
-        // 6. Save exchange via ContextEngine
-        context_engine.on_exchange_complete(ExchangeEvent {
-            user_id: user_id.clone(),
-            platform: platform.clone(),
-            namespace: ns.clone(),
-            user_message: msg.text.clone(),
-            assistant_response: response.clone(),
-        }).await?;
-
-        // 7. Auto-summarize if history is too long
-        if let Err(e) = maybe_summarize(
-            memory.as_ref(), llm, ns, user_id,
-            profile.context.summarize_threshold,
-            profile.context.summarize_keep_recent,
-        ).await {
-            tracing::error!(error = %e, "Failed to auto-summarize");
-        }
-
-        emitter.emit("message.sent", serde_json::json!({
-            "user_id": user_id, "platform": platform, "agent": profile.id,
-            "response_len": response.len()
-        }));
-
-        Ok(Some(OutgoingMessage {
-            chat_id: msg.chat_id,
-            text: response,
-            parse_mode: None,
-            reply_to: None,
-            platform: None,
-            topic_id: None,
-        }))
-    }
-
-    /// Execute the LLM tool calling loop: call LLM, execute tools, repeat until text response.
-    async fn tool_calling_loop(
-        llm: &LlmClient,
-        registry: &PluginRegistry,
-        messages: &mut Vec<serde_json::Value>,
-        tools: &[amanclaw_traits::skill::ToolDefinition],
-        user_id: &str,
-        platform: &str,
-        max_rounds: usize,
-    ) -> Result<String> {
-        for round in 0..max_rounds {
-            let (response, raw_message) = match llm.call_raw(messages, tools).await {
-                Ok(r) => r,
-                Err(e) => {
-                    tracing::error!(error = %e, "LLM error");
-                    return Ok("Something went wrong talking to the AI. Try again in a moment.".into());
-                }
-            };
-
-            match response {
-                LlmResponse::Text(text) => {
-                    return Ok(text);
-                }
-                LlmResponse::ToolCalls(calls) => {
-                    tracing::info!(round, count = calls.len(), "LLM requested tool calls");
-
-                    // Append assistant message with tool calls
-                    messages.push(raw_message);
-
-                    // Execute each tool call and append results
-                    for call in &calls {
-                        tracing::info!(tool = %call.name, id = %call.id, "Executing skill");
-
-                        let input = SkillInput {
-                            name: call.name.clone(),
-                            args: call.arguments.clone(),
-                            user_id: user_id.to_string(),
-                            platform: platform.to_string(),
-                        };
-
-                        let result = if let Some(r) = registry.execute(&call.name, input).await {
-                            if r.success {
-                                format!("[SKILL OUTPUT]\n{}", r.output)
-                            } else {
-                                format!("[SKILL ERROR]\n{}", r.error.unwrap_or_else(|| "Unknown error".into()))
-                            }
-                        } else {
-                            format!("Skill '{}' not found", call.name)
-                        };
-
-                        messages.push(serde_json::json!({
-                            "role": "tool",
-                            "tool_call_id": call.id,
-                            "content": result,
-                        }));
-                    }
-                }
-            }
-        }
-
-        // Exceeded max rounds — ask LLM for final answer without tools
-        match llm.call(messages, &[]).await {
-            Ok(LlmResponse::Text(text)) => Ok(text),
-            Ok(LlmResponse::ToolCalls(_)) => Ok("I got stuck in a tool loop. Please try rephrasing your question.".into()),
-            Err(e) => {
-                tracing::error!(error = %e, "LLM error in final round");
-                Ok("Something went wrong. Try again.".into())
-            }
-        }
-    }
-
-    async fn handle_command(
-        auth: &RwLock<Auth>,
-        memory: &dyn MemoryBackend,
-        msg: &IncomingMessage,
-        state: &UserState,
-    ) -> Result<Option<OutgoingMessage>> {
-        let text = msg.text.trim();
-        let parts: Vec<&str> = text.splitn(3, ' ').collect();
-        let cmd = parts[0];
-        let ns = "default"; // Commands use default namespace
-
-        let reply = match cmd {
-            "/clear" => {
-                memory.clear_history(ns, &msg.user_id).await?;
-                Some("Conversation history cleared.".into())
-            }
-            "/stats" => {
-                let count = memory.get_message_count(ns, &msg.user_id).await?;
-                Some(format!("Messages in history: {}", count))
-            }
-            "/approve" if *state == UserState::Admin => {
-                if let Some(target) = parts.get(1) {
-                    auth.write().await.approve_user(target, &msg.platform);
-                    Some(format!("User `{}` approved.", target))
-                } else {
-                    Some("Usage: /approve <user_id>".into())
-                }
-            }
-            "/block" if *state == UserState::Admin => {
-                if let Some(target) = parts.get(1) {
-                    auth.write().await.block_user(target, &msg.platform);
-                    Some(format!("User `{}` blocked.", target))
-                } else {
-                    Some("Usage: /block <user_id>".into())
-                }
-            }
-            "/users" if *state == UserState::Admin => {
-                let users = auth.read().await.list_users();
-                if users.is_empty() {
-                    Some("No registered users.".into())
-                } else {
-                    let mut lines = vec!["Registered users:".to_string()];
-                    for (uid, plat, st) in &users {
-                        lines.push(format!("  {} ({}) — {}", uid, plat, st));
-                    }
-                    Some(lines.join("\n"))
-                }
-            }
-            "/learned" => {
-                let facts = memory.get_facts(&msg.user_id).await?;
-                if facts.is_empty() {
-                    Some("I haven't learned anything about you yet.".into())
-                } else {
-                    let mut lines = vec!["Things I know about you:".to_string()];
-                    for (k, v) in &facts {
-                        lines.push(format!("  *{}*: {}", k, v));
-                    }
-                    Some(lines.join("\n"))
-                }
-            }
-            "/remember" => {
-                if parts.len() < 3 {
-                    Some("Usage: /remember <key> <value>\nExample: /remember name Aman".into())
-                } else {
-                    let key = parts[1];
-                    let value = parts[2];
-                    memory.save_fact(&msg.user_id, key, value).await?;
-                    Some(format!("Got it! I'll remember that your {} is: {}", key, value))
-                }
-            }
-            "/forget" => {
-                if let Some(key) = parts.get(1) {
-                    if memory.delete_fact(&msg.user_id, key).await? {
-                        Some(format!("Forgot your {}.", key))
-                    } else {
-                        Some(format!("I don't have anything stored for '{}'.", key))
-                    }
-                } else {
-                    Some("Usage: /forget <key>".into())
-                }
-            }
-            "/approve" | "/block" | "/users" => {
-                Some("Admin only command.".into())
-            }
-            _ => None,
-        };
-
-        Ok(reply.map(|text| OutgoingMessage {
-            chat_id: msg.chat_id.clone(),
-            text,
             parse_mode: None,
             reply_to: None,
             platform: None,
@@ -416,7 +99,7 @@ mod tests {
     #[tokio::test]
     async fn test_pipeline_processes_message() {
         let pipeline = Pipeline::new();
-        let registry = PluginRegistry::new();
+        let registry = Arc::new(PluginRegistry::new());
         let profile = amanclaw_traits::agent::AgentProfile::default_agent();
         let msg = make_test_message("Hello bot");
         let result = pipeline.process(msg, &registry, &profile).await;
