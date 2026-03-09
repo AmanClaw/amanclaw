@@ -1,0 +1,14 @@
+{
+  "name": "wa-bridge",
+  "version": "1.0.0",
+  "description": "WhatsApp Web bridge for AmanClaw (WAHA-compatible API)",
+  "main": "bridge.js",
+  "scripts": {
+    "start": "node bridge.js"
+  },
+  "dependencies": {
+    "whatsapp-web.js": "^1.26.1-alpha.3",
+    "qrcode-terminal": "^0.12.0",
+    "express": "^4.21.0"
+  }
+}

@@ -1,63 +1,44 @@
 #!/bin/bash
 set -euo pipefail
 
-# Deploy AmanClaw to Raspberry Pi via Docker
+# Deploy AmanClaw to Raspberry Pi
+# Strategy: Cross-compile on Mac via docker buildx, transfer image to Pi
 RASPI_HOST="aman@192.168.1.116"
 RASPI_PASS="p@ssw0rd@m@n"
 DEPLOY_DIR="/home/aman/amanclaw-docker"
+IMAGE_TAR="/tmp/amanclaw-arm64.tar"
+
 SSH="sshpass -p '$RASPI_PASS' ssh -o StrictHostKeyChecking=no $RASPI_HOST"
 SCP="sshpass -p '$RASPI_PASS' scp -o StrictHostKeyChecking=no"
 
-echo "==> Preparing deployment package..."
-TMPDIR=$(mktemp -d)
-trap "rm -rf $TMPDIR" EXIT
+# --- Step 1: Cross-compile Docker image for ARM64 ---
+echo "==> Building Docker image for linux/arm64 (cross-compile on Mac)..."
+docker buildx build \
+    --platform linux/arm64 \
+    --builder multiarch \
+    -t amanclaw:latest \
+    --output type=docker,dest="$IMAGE_TAR" \
+    -f rust/Dockerfile \
+    rust/
 
-# Copy Rust source (exclude target dir and git)
-rsync -a --exclude='target' --exclude='.git' --exclude='node_modules' \
-    rust/ "$TMPDIR/rust-src/"
+echo "==> Image built: $(du -h "$IMAGE_TAR" | cut -f1)"
 
-# Copy Python plugins
-mkdir -p "$TMPDIR/rust-src/python-plugins"
-cp plugins/*.py "$TMPDIR/rust-src/python-plugins/" 2>/dev/null || true
+# --- Step 2: Transfer image to Pi ---
+echo "==> Transferring image to Pi..."
+eval $SCP "$IMAGE_TAR" "$RASPI_HOST:/tmp/amanclaw-arm64.tar"
 
-# Copy Python SDK
-cp -r rust/sdks/python/amanclaw_sdk "$TMPDIR/rust-src/python-plugins/" 2>/dev/null || true
+# --- Step 3: Load image and deploy ---
+echo "==> Loading image and deploying on Pi..."
+eval $SSH "
+docker load < /tmp/amanclaw-arm64.tar
+rm -f /tmp/amanclaw-arm64.tar
 
-echo "==> Creating deployment docker-compose on Pi..."
-eval $SSH "mkdir -p $DEPLOY_DIR"
-
-# Transfer Rust source for building
-echo "==> Uploading source to Pi (this may take a moment)..."
-eval $SCP -r "$TMPDIR/rust-src" "$RASPI_HOST:$DEPLOY_DIR/rust-src"
-
-# Create Dockerfile on Pi
-eval $SSH "cat > $DEPLOY_DIR/Dockerfile" << 'DOCKERFILE'
-FROM rust:1.85-slim AS builder
-WORKDIR /app
-RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
-COPY rust-src/ .
-RUN cargo build --release -p amanclaw-cli
-
-FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    python3 \
-    && rm -rf /var/lib/apt/lists/*
-RUN useradd --system --create-home amanclaw
-WORKDIR /home/amanclaw
-COPY --from=builder /app/target/release/amanclaw /usr/local/bin/amanclaw
-COPY rust-src/python-plugins/ /home/amanclaw/plugins/
-RUN mkdir -p data && chown -R amanclaw:amanclaw /home/amanclaw
-USER amanclaw
-EXPOSE 8443
-CMD ["amanclaw"]
-DOCKERFILE
-
-# Create docker-compose.yml on Pi
-eval $SSH "cat > $DEPLOY_DIR/docker-compose.yml" << 'COMPOSEFILE'
+# Create docker-compose
+mkdir -p $DEPLOY_DIR
+cat > $DEPLOY_DIR/docker-compose.yml << 'COMPOSEFILE'
 services:
   amanclaw:
-    build: .
+    image: amanclaw:latest
     container_name: amanclaw
     restart: unless-stopped
     env_file: /home/aman/amanclaw/.env
@@ -65,31 +46,30 @@ services:
     volumes:
       - /home/aman/amanclaw/config.yaml:/home/amanclaw/config.yaml:ro
       - /home/aman/amanclaw/data:/home/amanclaw/data
+      - /home/aman/amanclaw/plugins:/home/amanclaw/plugins:ro
+      - /home/aman/amanclaw/memory.db:/home/amanclaw/memory.db
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    read_only: true
     tmpfs:
       - /tmp:noexec,nosuid,size=50M
     mem_limit: 512m
-    cpus: "1.0"
+    cpus: \"1.0\"
 COMPOSEFILE
 
-echo "==> Stopping existing amanclaw service..."
-eval $SSH "sudo systemctl stop amanclaw 2>/dev/null || true"
-eval $SSH "cd $DEPLOY_DIR && docker compose down 2>/dev/null || true"
+cd $DEPLOY_DIR && docker compose up -d
+"
 
-echo "==> Building Docker image on Pi (this will take a while on first build)..."
-eval $SSH "cd $DEPLOY_DIR && docker compose build"
-
-echo "==> Starting container..."
-eval $SSH "cd $DEPLOY_DIR && docker compose up -d"
-
+# --- Step 4: Verify ---
 echo "==> Checking status..."
 sleep 3
-eval $SSH "docker ps --filter name=amanclaw"
+eval $SSH "docker ps --filter name=amanclaw --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'"
+
+# Cleanup local tar
+rm -f "$IMAGE_TAR"
 
 echo ""
 echo "==> Deployment complete!"
 echo "    View logs: ssh $RASPI_HOST 'docker logs -f amanclaw'"
+echo "    WA bridge: ssh $RASPI_HOST 'sudo journalctl -u wa-bridge -f'"

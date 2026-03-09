@@ -15,14 +15,14 @@ llm:
 
 # Admin user IDs — can approve/block users and always have access.
 # Use /myid command to find your Telegram ID.
-# For WhatsApp, use the phone number (e.g. "60123456789").
+# For WhatsApp Web, use the phone number without '+' (e.g. "60123456789").
 admin_users:
-  telegram: []       # e.g. [123456789]
-  whatsapp: []       # e.g. ["60123456789"]
+  telegram: []         # e.g. [123456789]
+  whatsapp-web: []     # e.g. ["60123456789"]
 
 rate_limit_per_minute: 20
 
-memory_db: memory.db   # or set MEMORY_DB_PATH env var
+memory_db: data/memory.db   # or set MEMORY_DB_PATH env var
 
 # Skill settings
 skills:
@@ -58,14 +58,13 @@ learning:
   checkin_min_age_days: 14  # Only check facts older than this
   document_max_chars: 50000 # Max chars to ingest per document
 
-# WhatsApp (optional — requires the Baileys bridge)
-# See bridge/whatsapp/README.md for setup instructions.
-# whatsapp:
-#   enabled: false
-#   bridge_url: "http://localhost:3001"  # or set WA_BRIDGE_URL env var
-#   port: 3002                           # callback server port
-#   listen: "0.0.0.0"
-#   ignore_groups: true                  # ignore group messages
+# --- WhatsApp Web (optional — via wa-bridge) ---
+# Uses whatsapp-web.js with a WAHA-compatible API bridge.
+# See wa-bridge/README.md for setup instructions.
+# Env vars needed in .env:
+#   WAHA_API_URL=http://127.0.0.1:3000
+#   WAHA_SESSION=default
+#   WAHA_WEBHOOK_PORT=8081
 
 # --- Discord (optional) ---
 discord:
