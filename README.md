@@ -49,7 +49,9 @@ One binary. One SQLite database. One config file. ~2MB RAM on a Raspberry Pi.
 - **Conversation memory** — SQLite-backed history with auto-summarization and pruning
 - **RAG (Retrieval-Augmented Generation)** — Load knowledge bases at startup, index with embeddings, retrieve relevant context during conversations
 - **Learning engine** — Remembers facts about users across conversations (`/remember`, `/forget`, `/learned`)
-- **Skill scaffolding** — `amanclaw skill new my-skill --lang rust|python` generates complete skill projects from templates
+- **Skill ecosystem** — Search, install, and publish skills via GitHub-powered index with curated packs (islamic, malaysian, islamic-core)
+- **Skill quality tiers** — Community, Verified, and Official tiers with automated validation (`amanclaw skill publish`)
+- **Skill scaffolding** — `amanclaw skill new my-skill --lang rust|python` generates complete skill projects with CI, README, LICENSE, and tests
 - **Interactive playground** — `amanclaw playground` serves a local web UI for testing skills interactively
 - **Live reload** — `amanclaw dev --watch` watches plugins, souls, and config for changes
 - **WhatsApp interactive messages** — Buttons and list messages for rich WhatsApp UX (beyond plain text)
@@ -103,9 +105,24 @@ amanclaw dev --watch
 # Open interactive playground
 amanclaw playground
 
-# Create a new skill
+# Create a new skill (generates CI, README, LICENSE, tests)
 amanclaw skill new my-skill --lang rust
 amanclaw skill new my-skill --lang python
+
+# Search the skill index
+amanclaw skill search "prayer"
+
+# Install a skill from the index
+amanclaw skill install skill-solat
+
+# Install a curated skill pack
+amanclaw skill install-pack islamic
+
+# List available packs
+amanclaw skill packs
+
+# Validate a skill for publishing
+amanclaw skill publish ./my-skill
 ```
 
 ### 2. Configure secrets
@@ -172,9 +189,59 @@ AmanClaw includes a pure-Rust prayer time calculation engine — works offline, 
 
 ---
 
+## Skill Ecosystem
+
+AmanClaw has a GitHub-powered skill marketplace. No custom infrastructure — skills are GitHub repos with an `amanclaw-skill.toml` manifest.
+
+### Quality Tiers
+
+| Tier          | Badge         | Requirements                                          |
+|---------------|---------------|-------------------------------------------------------|
+| **Official**  | `[official]`  | Maintained by AmanClaw team, guaranteed compatibility |
+| **Verified**  | `[verified]`  | Tests pass, permissions declared, docs present        |
+| **Community** | `[community]` | Anyone can publish, no review required                |
+
+### Curated Packs
+
+```bash
+amanclaw skill install-pack islamic       # 11 skills: solat, quran, hadith, halal, zakat, etc.
+amanclaw skill install-pack islamic-core  # 5 core Rust skills: solat, qiblat, hijri, doa, quran
+amanclaw skill install-pack malaysian     # 4 Malaysia-specific: solat, halal, jakim, masjid
+```
+
+### Publishing a Skill
+
+```bash
+# 1. Create from template (generates CI, README, LICENSE, tests)
+amanclaw skill new my-skill --lang rust
+
+# 2. Develop and test
+cd skill-my-skill && cargo test
+
+# 3. Validate for publishing
+amanclaw skill publish .
+
+# 4. Push to GitHub, create a release, submit PR to skill-index
+```
+
+### SOUL.md Personas
+
+Define AI personalities in `souls/` directory:
+
+```bash
+souls/
+├── ustaz.md          # Islamic knowledge assistant
+├── masjid-admin.md   # Mosque management bot
+└── community.md      # General community assistant
+```
+
+Each persona defines personality, capabilities, and guidelines. The LLM uses these to shape its responses.
+
+---
+
 ## Architecture
 
-AmanClaw is a Cargo workspace with 28 crates (15 core + 13 plugins) plus a Tauri desktop app:
+AmanClaw is a Cargo workspace with 29 crates (16 core + 13 plugins) plus a Tauri desktop app:
 
 ```text
 rust/

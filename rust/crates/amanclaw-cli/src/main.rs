@@ -2,6 +2,8 @@ mod cli;
 mod dev_watcher;
 mod playground;
 mod scaffold;
+mod skill_installer;
+mod skill_publisher;
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -23,7 +25,7 @@ async fn main() -> Result<()> {
         Some(Command::Init) => cmd_init().await,
         Some(Command::Dev { watch }) => cmd_dev(&cli.config, watch).await,
         Some(Command::Check) => cmd_check(&cli.config),
-        Some(Command::Skill { action }) => cmd_skill(action),
+        Some(Command::Skill { action }) => cmd_skill(action).await,
         Some(Command::Playground { port }) => playground::run_playground(port).await,
         Some(Command::Run) | None => cmd_run(&cli.config).await,
     }
@@ -229,7 +231,7 @@ fn cmd_check(config_path: &str) -> Result<()> {
     }
 }
 
-fn cmd_skill(action: SkillAction) -> Result<()> {
+async fn cmd_skill(action: SkillAction) -> Result<()> {
     match action {
         SkillAction::New { name, lang, output } => {
             let project_dir = scaffold::scaffold_skill(&name, &lang, output.as_deref())?;
@@ -257,6 +259,115 @@ fn cmd_skill(action: SkillAction) -> Result<()> {
             if !status.success() {
                 anyhow::bail!("Tests failed for skill '{name}'");
             }
+            Ok(())
+        }
+        SkillAction::Search { query } => {
+            let client = amanclaw_skill_index::IndexClient::new();
+            let index = client.fetch_index().await?;
+            let results = index.search(&query);
+            if results.is_empty() {
+                println!("No skills found matching '{query}'.");
+            } else {
+                println!("Found {} skill(s) matching '{query}':\n", results.len());
+                for s in &results {
+                    println!(
+                        "{} {} v{} — {}",
+                        s.tier.badge(),
+                        s.name,
+                        s.version,
+                        s.description
+                    );
+                    println!(
+                        "  repo: {} | lang: {} | tags: {}",
+                        s.repo,
+                        s.lang,
+                        s.tags.join(", ")
+                    );
+                    println!();
+                }
+            }
+            Ok(())
+        }
+        SkillAction::Packs => {
+            let client = amanclaw_skill_index::IndexClient::new();
+            let index = client.fetch_index().await?;
+            let names = index.pack_names();
+            if names.is_empty() {
+                println!("No skill packs available.");
+            } else {
+                println!("Available skill packs:\n");
+                for name in &names {
+                    let count = index.packs.get(*name).map(|v| v.len()).unwrap_or(0);
+                    println!("  {name} ({count} skills)");
+                }
+                println!("\nInstall a pack: amanclaw skill install-pack <name>");
+            }
+            Ok(())
+        }
+        SkillAction::Install { name, plugins_dir } => {
+            let client = amanclaw_skill_index::IndexClient::new();
+            let index = client.fetch_index().await?;
+            let entry = index.find(&name);
+            let (repo, lang) = if let Some(e) = entry {
+                (e.repo.clone(), e.lang.clone())
+            } else {
+                let repo = skill_installer::resolve_repo(&name);
+                (repo, "rust".into())
+            };
+            println!("Installing {name} from {repo}...");
+            skill_installer::install_skill(&repo, &name, &lang, std::path::Path::new(&plugins_dir))
+                .await?;
+            Ok(())
+        }
+        SkillAction::InstallPack { pack, plugins_dir } => {
+            let client = amanclaw_skill_index::IndexClient::new();
+            let index = client.fetch_index().await?;
+            let skill_names = index.pack_skills(&pack).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Pack '{pack}' not found. Use 'amanclaw skill packs' to see available packs."
+                )
+            })?;
+            println!("Installing pack '{pack}' ({} skills)...\n", skill_names.len());
+            let dir = std::path::Path::new(&plugins_dir);
+            for skill_name in skill_names {
+                println!("Installing {skill_name}...");
+                let entry = index.find(skill_name);
+                let (repo, lang) = if let Some(e) = entry {
+                    (e.repo.clone(), e.lang.clone())
+                } else {
+                    let repo = skill_installer::resolve_repo(skill_name);
+                    (repo, "rust".into())
+                };
+                if let Err(e) =
+                    skill_installer::install_skill(&repo, skill_name, &lang, dir).await
+                {
+                    eprintln!("  Warning: Failed to install {skill_name}: {e}");
+                }
+            }
+            println!("\nPack '{pack}' installation complete.");
+            Ok(())
+        }
+        SkillAction::Publish { path } => {
+            let dir = std::path::Path::new(&path);
+            let result = skill_publisher::validate_skill(dir)?;
+            println!("Skill: {} v{}", result.name, result.version);
+            println!("Language: {}", result.language);
+            println!("Description: {}", result.description);
+            println!();
+            if result.warnings.is_empty() {
+                println!("Validation: PASSED (eligible for 'verified' tier)");
+            } else {
+                println!("Warnings:");
+                for w in &result.warnings {
+                    println!("  - {w}");
+                }
+                println!("\nValidation: PASSED with warnings (eligible for 'community' tier)");
+            }
+            println!("\nTo publish:");
+            println!("  1. Push your skill to GitHub");
+            println!("  2. Create a release with .wasm or .py artifacts");
+            println!("  3. Submit a PR to https://github.com/AmanClaw/skill-index");
+            println!("     adding your skill entry to index.json");
             Ok(())
         }
     }

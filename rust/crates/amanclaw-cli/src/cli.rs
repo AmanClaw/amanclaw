@@ -62,6 +62,35 @@ pub enum SkillAction {
         /// Skill name or directory
         name: String,
     },
+    /// Search for skills in the index
+    Search {
+        /// Search query (matches name, description, tags)
+        query: String,
+    },
+    /// List available skill packs
+    Packs,
+    /// Install a skill from the index
+    Install {
+        /// Skill name (e.g. "skill-solat") or repo (e.g. "amanclaw/skill-solat")
+        name: String,
+        /// Custom plugins directory
+        #[arg(long, default_value = "plugins")]
+        plugins_dir: String,
+    },
+    /// Install all skills from a pack
+    InstallPack {
+        /// Pack name (e.g. "islamic", "productivity")
+        pack: String,
+        /// Custom plugins directory
+        #[arg(long, default_value = "plugins")]
+        plugins_dir: String,
+    },
+    /// Validate and prepare a skill for publishing
+    Publish {
+        /// Path to skill directory (default: current dir)
+        #[arg(default_value = ".")]
+        path: String,
+    },
 }
 
 #[cfg(test)]
@@ -178,6 +207,71 @@ mod tests {
             cli.command,
             Some(Command::Playground { port: 3000 })
         ));
+    }
+
+    #[test]
+    fn test_cli_skill_search() {
+        let cli = Cli::parse_from(["amanclaw", "skill", "search", "solat"]);
+        match cli.command {
+            Some(Command::Skill {
+                action: SkillAction::Search { query },
+            }) => {
+                assert_eq!(query, "solat");
+            }
+            _ => panic!("expected Skill Search command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_skill_packs() {
+        let cli = Cli::parse_from(["amanclaw", "skill", "packs"]);
+        assert!(matches!(
+            cli.command,
+            Some(Command::Skill {
+                action: SkillAction::Packs
+            })
+        ));
+    }
+
+    #[test]
+    fn test_cli_skill_install() {
+        let cli = Cli::parse_from(["amanclaw", "skill", "install", "skill-solat"]);
+        match cli.command {
+            Some(Command::Skill {
+                action: SkillAction::Install { name, plugins_dir },
+            }) => {
+                assert_eq!(name, "skill-solat");
+                assert_eq!(plugins_dir, "plugins");
+            }
+            _ => panic!("expected Skill Install command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_skill_install_pack() {
+        let cli = Cli::parse_from(["amanclaw", "skill", "install-pack", "islamic"]);
+        match cli.command {
+            Some(Command::Skill {
+                action: SkillAction::InstallPack { pack, plugins_dir },
+            }) => {
+                assert_eq!(pack, "islamic");
+                assert_eq!(plugins_dir, "plugins");
+            }
+            _ => panic!("expected Skill InstallPack command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_skill_publish() {
+        let cli = Cli::parse_from(["amanclaw", "skill", "publish", "/tmp/my-skill"]);
+        match cli.command {
+            Some(Command::Skill {
+                action: SkillAction::Publish { path },
+            }) => {
+                assert_eq!(path, "/tmp/my-skill");
+            }
+            _ => panic!("expected Skill Publish command"),
+        }
     }
 
     #[test]
