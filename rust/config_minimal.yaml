@@ -1,0 +1,17 @@
+# AmanClaw Configuration
+# See config.example.yaml for all options
+
+llm:
+  base_url: "http://localhost:11434/v1"  # Ollama default
+  model: "llama3"
+  max_tokens: 4096
+  temperature: 0.7
+
+admin_users:
+  telegram: []
+
+rate_limit_per_minute: 20
+
+skills:
+  shell_allowed_commands: []
+  skill_timeout_seconds: 30
