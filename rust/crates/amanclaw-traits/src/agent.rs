@@ -21,6 +21,9 @@ pub struct ContextConfig {
 
     #[serde(default = "default_rag_top_k")]
     pub rag_top_k: usize,
+
+    #[serde(default = "default_max_tool_rounds")]
+    pub max_tool_rounds: usize,
 }
 
 impl Default for ContextConfig {
@@ -32,6 +35,7 @@ impl Default for ContextConfig {
             rag_enabled: false,
             rag_collections: Vec::new(),
             rag_top_k: default_rag_top_k(),
+            max_tool_rounds: default_max_tool_rounds(),
         }
     }
 }
@@ -40,6 +44,7 @@ fn default_history_limit() -> i64 { 20 }
 fn default_summarize_threshold() -> i64 { 40 }
 fn default_summarize_keep_recent() -> i64 { 10 }
 fn default_rag_top_k() -> usize { 3 }
+fn default_max_tool_rounds() -> usize { 5 }
 
 /// An agent profile defines a persona with its own system prompt,
 /// skill subset, and memory namespace.

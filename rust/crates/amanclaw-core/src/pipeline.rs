@@ -14,8 +14,6 @@ use anyhow::Result;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-const MAX_TOOL_ROUNDS: usize = 5;
-
 /// Message processing pipeline.
 pub enum Pipeline {
     Full {
@@ -188,7 +186,7 @@ impl Pipeline {
         let tools = ctx.tools;
 
         // 5. Tool calling loop
-        let response = Self::tool_calling_loop(llm, registry, &mut messages, &tools, user_id, platform).await?;
+        let response = Self::tool_calling_loop(llm, registry, &mut messages, &tools, user_id, platform, profile.context.max_tool_rounds).await?;
 
         // 6. Save exchange via ContextEngine
         context_engine.on_exchange_complete(ExchangeEvent {
@@ -231,8 +229,9 @@ impl Pipeline {
         tools: &[amanclaw_traits::skill::ToolDefinition],
         user_id: &str,
         platform: &str,
+        max_rounds: usize,
     ) -> Result<String> {
-        for round in 0..MAX_TOOL_ROUNDS {
+        for round in 0..max_rounds {
             let (response, raw_message) = match llm.call_raw(messages, tools).await {
                 Ok(r) => r,
                 Err(e) => {
