@@ -88,10 +88,7 @@ pub fn run_startup_diagnostics(config: &AppConfig) -> Vec<DiagnosticResult> {
     results.push(DiagnosticResult {
         name: "Skills".into(),
         passed: active_count > 0,
-        detail: format!(
-            "{} built-in active, {} disabled",
-            active_count, disabled_count
-        ),
+        detail: format!("{active_count} built-in active, {disabled_count} disabled"),
     });
 
     // 8. Script plugins
@@ -99,7 +96,7 @@ pub fn run_startup_diagnostics(config: &AppConfig) -> Vec<DiagnosticResult> {
     results.push(DiagnosticResult {
         name: "Script plugins".into(),
         passed: true,
-        detail: format!("{} configured", script_count),
+        detail: format!("{script_count} configured"),
     });
 
     results
@@ -197,10 +194,7 @@ skills:
     fn test_diagnostics_script_plugins() {
         let config = minimal_config();
         let results = run_startup_diagnostics(&config);
-        let scripts = results
-            .iter()
-            .find(|r| r.name == "Script plugins")
-            .unwrap();
+        let scripts = results.iter().find(|r| r.name == "Script plugins").unwrap();
         assert!(scripts.passed);
         assert!(scripts.detail.contains("0 configured"));
     }
