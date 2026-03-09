@@ -4,6 +4,7 @@ pub mod sqlite;
 
 // TODO: pub mod postgres; (future work)
 
+pub mod cached;
 pub mod schema;
 pub mod community;
 pub mod vector;

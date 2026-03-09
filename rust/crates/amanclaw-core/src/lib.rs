@@ -202,7 +202,13 @@ impl Engine {
         let registry = Arc::new(registry);
         let auth_arc = Arc::new(RwLock::new(auth));
         let pool = memory.pool().clone();
-        let memory_arc: Arc<dyn MemoryBackend> = Arc::new(memory);
+        let memory_arc: Arc<dyn MemoryBackend> = Arc::new(
+            amanclaw_memory::cached::CachedMemory::new(
+                Arc::new(memory),
+                1000, // max entries
+                300,  // TTL 5 minutes
+            ),
+        );
         let llm_arc = Arc::new(llm);
 
         // Optional: create vector store (always available since we use SQLite)
