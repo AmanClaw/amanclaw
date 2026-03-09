@@ -83,6 +83,39 @@ pub fn scaffold_rust_skill(name: &str, output_dir: Option<&str>) -> Result<PathB
     );
     write_file(&project_dir.join(SKILL_MANIFEST), &manifest)?;
 
+    // README.md
+    let readme = format!(
+        "# {name}\n\
+         \n\
+         An AmanClaw skill built with Rust.\n\
+         \n\
+         ## Build\n\
+         \n\
+         ```bash\n\
+         cargo build --target wasm32-unknown-unknown --release\n\
+         ```\n\
+         \n\
+         ## Test\n\
+         \n\
+         ```bash\n\
+         cargo test\n\
+         ```\n\
+         \n\
+         ## Install\n\
+         \n\
+         Copy the `.wasm` file to your AmanClaw `plugins/` directory, or publish to the skill index.\n"
+    );
+    write_file(&project_dir.join("README.md"), &readme)?;
+
+    // LICENSE
+    write_file(&project_dir.join("LICENSE"), MIT_LICENSE)?;
+
+    // .github/workflows/ci.yml
+    let workflows_dir = project_dir.join(".github/workflows");
+    std::fs::create_dir_all(&workflows_dir)
+        .with_context(|| format!("Failed to create {}", workflows_dir.display()))?;
+    write_file(&workflows_dir.join("ci.yml"), RUST_CI_YML)?;
+
     Ok(project_dir)
 }
 
@@ -204,8 +237,128 @@ pub fn scaffold_python_skill(name: &str, output_dir: Option<&str>) -> Result<Pat
     );
     write_file(&base.join(&toml_filename), &manifest)?;
 
+    // README.md
+    let readme = format!(
+        "# {name}\n\
+         \n\
+         An AmanClaw skill built with Python.\n\
+         \n\
+         ## Test\n\
+         \n\
+         ```bash\n\
+         python -m pytest test_skill_{snake_name}.py\n\
+         ```\n\
+         \n\
+         ## Install\n\
+         \n\
+         Copy `skill_{snake_name}.py` and `skill_{snake_name}.toml` to your AmanClaw `plugins/` directory.\n"
+    );
+    write_file(&base.join("README.md"), &readme)?;
+
+    // LICENSE
+    write_file(&base.join("LICENSE"), MIT_LICENSE)?;
+
+    // .github/workflows/ci.yml
+    let workflows_dir = base.join(".github/workflows");
+    std::fs::create_dir_all(&workflows_dir)
+        .with_context(|| format!("Failed to create {}", workflows_dir.display()))?;
+    write_file(&workflows_dir.join("ci.yml"), PYTHON_CI_YML)?;
+
+    // test file
+    let test_content = format!(
+        "import json\n\
+         from skill_{snake_name} import execute, METADATA, PARAMETERS\n\
+         \n\
+         \n\
+         def test_metadata():\n\
+         {I}assert METADATA[\"name\"] == \"{snake_name}\"\n\
+         {I}assert \"version\" in METADATA\n\
+         \n\
+         \n\
+         def test_parameters():\n\
+         {I}assert PARAMETERS[\"type\"] == \"object\"\n\
+         {I}assert \"query\" in PARAMETERS[\"properties\"]\n\
+         \n\
+         \n\
+         def test_execute():\n\
+         {I}input_data = {{\"args\": json.dumps({{\"query\": \"hello\"}})}}\n\
+         {I}result = execute(input_data)\n\
+         {I}assert result[\"success\"] is True\n\
+         {I}assert \"hello\" in result[\"output\"]\n",
+        I = "    "
+    );
+    let test_filename = format!("test_skill_{snake_name}.py");
+    write_file(&base.join(&test_filename), &test_content)?;
+
     Ok(base.to_path_buf())
 }
+
+const MIT_LICENSE: &str = "\
+MIT License
+
+Copyright (c) 2026 AmanClaw Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the \"Software\"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+";
+
+const RUST_CI_YML: &str = "\
+name: CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - run: cargo test
+      - run: cargo build --target wasm32-unknown-unknown --release
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - run: cargo build --target wasm32-unknown-unknown --release
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: target/wasm32-unknown-unknown/release/*.wasm
+";
+
+const PYTHON_CI_YML: &str = "\
+name: CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: \"3.12\"
+      - run: pip install pytest
+      - run: python -m pytest -v
+";
 
 fn write_file(path: &Path, content: &str) -> Result<()> {
     std::fs::write(path, content).with_context(|| format!("Failed to write {}", path.display()))?;
@@ -239,6 +392,10 @@ mod tests {
         let manifest = std::fs::read_to_string(project.join(SKILL_MANIFEST)).unwrap();
         assert!(manifest.contains("name = \"greeting\""));
         assert!(manifest.contains("language = \"rust\""));
+
+        assert!(project.join("README.md").exists());
+        assert!(project.join("LICENSE").exists());
+        assert!(project.join(".github/workflows/ci.yml").exists());
     }
 
     #[test]
@@ -269,6 +426,11 @@ mod tests {
         assert!(manifest.contains("name = \"my_tool\""));
         assert!(manifest.contains("language = \"python\""));
         assert!(manifest.contains(py_filename));
+
+        assert!(tmp.path().join("README.md").exists());
+        assert!(tmp.path().join("LICENSE").exists());
+        assert!(tmp.path().join(".github/workflows/ci.yml").exists());
+        assert!(tmp.path().join("test_skill_my_tool.py").exists());
     }
 
     #[test]
