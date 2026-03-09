@@ -1,10 +1,10 @@
+use crate::state::ApiState;
 use axum::{
+    Json,
+    body::Bytes,
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
-    body::Bytes,
-    Json,
 };
-use crate::state::ApiState;
 
 /// POST /hooks/{webhook_id} — Receive a webhook (no auth middleware).
 pub async fn receive_webhook(
@@ -13,13 +13,15 @@ pub async fn receive_webhook(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<StatusCode, StatusCode> {
-    let router = state.webhook_router.as_ref()
-        .ok_or(StatusCode::NOT_FOUND)?;
+    let router = state.webhook_router.as_ref().ok_or(StatusCode::NOT_FOUND)?;
 
     // Convert headers to HashMap
-    let header_map: std::collections::HashMap<String, String> = headers.iter()
+    let header_map: std::collections::HashMap<String, String> = headers
+        .iter()
         .filter_map(|(k, v)| {
-            v.to_str().ok().map(|val| (k.as_str().to_lowercase(), val.to_string()))
+            v.to_str()
+                .ok()
+                .map(|val| (k.as_str().to_lowercase(), val.to_string()))
         })
         .collect();
 
@@ -37,12 +39,13 @@ pub async fn receive_webhook(
 }
 
 /// GET /api/webhooks — List configured webhooks (requires auth).
-pub async fn list_webhooks(
-    State(state): State<ApiState>,
-) -> Json<serde_json::Value> {
-    let endpoints = state.webhook_router.as_ref()
+pub async fn list_webhooks(State(state): State<ApiState>) -> Json<serde_json::Value> {
+    let endpoints = state
+        .webhook_router
+        .as_ref()
         .map(|r| {
-            r.list_endpoints().into_iter()
+            r.list_endpoints()
+                .into_iter()
                 .map(|(id, name, enabled)| {
                     serde_json::json!({
                         "id": id,

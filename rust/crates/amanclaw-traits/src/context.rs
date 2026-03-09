@@ -1,6 +1,6 @@
-use anyhow::Result;
 use crate::agent::AgentProfile;
 use crate::skill::ToolDefinition;
+use anyhow::Result;
 
 /// Request to build context for an LLM call.
 #[derive(Debug, Clone)]

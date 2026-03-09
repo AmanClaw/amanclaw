@@ -1,8 +1,8 @@
-use amanclaw_traits::config::AppConfig;
 use amanclaw_core::Engine;
-use wiremock::{MockServer, Mock, ResponseTemplate};
-use wiremock::matchers::{method, path};
+use amanclaw_traits::config::AppConfig;
 use std::io::Write;
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 
 #[tokio::test]
 async fn test_engine_initializes_with_mock_llm() {
@@ -24,7 +24,8 @@ async fn test_engine_initializes_with_mock_llm() {
         .mount(&mock_server)
         .await;
 
-    let yaml = format!(r#"
+    let yaml = format!(
+        r#"
 llm:
   base_url: "{}/v1"
   model: "test"
@@ -32,7 +33,9 @@ admin_users:
   telegram: ["12345"]
 plugins:
   dir: "/tmp/amanclaw-test-plugins"
-"#, mock_server.uri());
+"#,
+        mock_server.uri()
+    );
 
     let config: AppConfig = serde_yaml::from_str(&yaml).unwrap();
 
@@ -43,22 +46,26 @@ plugins:
     let result = result.unwrap();
 
     // Send a message from an admin user via the handle
-    result.handle.send_message(amanclaw_traits::message::IncomingMessage {
-        user_id: "12345".into(),
-        chat_id: "12345".into(),
-        platform: "telegram".into(),
-        text: "Hello bot".into(),
-        username: Some("admin".into()),
-        first_name: Some("Admin".into()),
-        is_group: false,
-        image_data: None,
-        reply_to: None,
-        topic_id: None,
-        channel_context: None,
-        is_cron: false,
-        is_webhook: false,
-        is_subagent: false,
-    }).await.unwrap();
+    result
+        .handle
+        .send_message(amanclaw_traits::message::IncomingMessage {
+            user_id: "12345".into(),
+            chat_id: "12345".into(),
+            platform: "telegram".into(),
+            text: "Hello bot".into(),
+            username: Some("admin".into()),
+            first_name: Some("Admin".into()),
+            is_group: false,
+            image_data: None,
+            reply_to: None,
+            topic_id: None,
+            channel_context: None,
+            is_cron: false,
+            is_webhook: false,
+            is_subagent: false,
+        })
+        .await
+        .unwrap();
 
     // Small delay to let message process
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
@@ -90,7 +97,8 @@ async fn test_engine_handles_new_user_registration() {
         .mount(&mock_server)
         .await;
 
-    let yaml = format!(r#"
+    let yaml = format!(
+        r#"
 llm:
   base_url: "{}/v1"
   model: "test"
@@ -98,28 +106,34 @@ admin_users:
   telegram: ["admin1"]
 plugins:
   dir: "/tmp/amanclaw-test-plugins-2"
-"#, mock_server.uri());
+"#,
+        mock_server.uri()
+    );
 
     let config: AppConfig = serde_yaml::from_str(&yaml).unwrap();
     let result = Engine::start(config).await.unwrap();
 
     // Send message from unknown user — should get registration message
-    result.handle.send_message(amanclaw_traits::message::IncomingMessage {
-        user_id: "unknown_user".into(),
-        chat_id: "unknown_user".into(),
-        platform: "telegram".into(),
-        text: "Hello".into(),
-        username: None,
-        first_name: None,
-        is_group: false,
-        image_data: None,
-        reply_to: None,
-        topic_id: None,
-        channel_context: None,
-        is_cron: false,
-        is_webhook: false,
-        is_subagent: false,
-    }).await.unwrap();
+    result
+        .handle
+        .send_message(amanclaw_traits::message::IncomingMessage {
+            user_id: "unknown_user".into(),
+            chat_id: "unknown_user".into(),
+            platform: "telegram".into(),
+            text: "Hello".into(),
+            username: None,
+            first_name: None,
+            is_group: false,
+            image_data: None,
+            reply_to: None,
+            topic_id: None,
+            channel_context: None,
+            is_cron: false,
+            is_webhook: false,
+            is_subagent: false,
+        })
+        .await
+        .unwrap();
 
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     result.handle.shutdown().await.unwrap();
@@ -145,7 +159,8 @@ async fn test_cron_message_bypasses_auth() {
         .mount(&mock_server)
         .await;
 
-    let yaml = format!(r#"
+    let yaml = format!(
+        r#"
 llm:
   base_url: "{}/v1"
   model: "test"
@@ -153,28 +168,34 @@ admin_users:
   telegram: ["admin1"]
 plugins:
   dir: "/tmp/amanclaw-test-plugins-cron"
-"#, mock_server.uri());
+"#,
+        mock_server.uri()
+    );
 
     let config: AppConfig = serde_yaml::from_str(&yaml).unwrap();
     let result = Engine::start(config).await.unwrap();
 
     // Send a cron message from non-admin user — should bypass auth
-    result.handle.send_message(amanclaw_traits::message::IncomingMessage {
-        user_id: "cron-system".into(),
-        chat_id: "some-chat".into(),
-        platform: "telegram".into(),
-        text: "Daily reminder".into(),
-        username: None,
-        first_name: None,
-        is_group: false,
-        image_data: None,
-        reply_to: None,
-        topic_id: None,
-        channel_context: None,
-        is_cron: true,
-        is_webhook: false,
-        is_subagent: false,
-    }).await.unwrap();
+    result
+        .handle
+        .send_message(amanclaw_traits::message::IncomingMessage {
+            user_id: "cron-system".into(),
+            chat_id: "some-chat".into(),
+            platform: "telegram".into(),
+            text: "Daily reminder".into(),
+            username: None,
+            first_name: None,
+            is_group: false,
+            image_data: None,
+            reply_to: None,
+            topic_id: None,
+            channel_context: None,
+            is_cron: true,
+            is_webhook: false,
+            is_subagent: false,
+        })
+        .await
+        .unwrap();
 
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     result.handle.shutdown().await.unwrap();

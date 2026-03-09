@@ -1,15 +1,20 @@
 pub mod collection;
 
 use amanclaw_traits::skill::{Skill, SkillInput, SkillMetadata, SkillResult};
-use collection::{by_category, get_categories, random_doa, search_doa, Doa};
+use collection::{Doa, by_category, get_categories, random_doa, search_doa};
 
 pub struct DoaSkill;
 
 fn format_doa(doa: &Doa) -> String {
     format!(
         "📿 {} / {}\n\n{}\n\n🔤 {}\n\n🇲🇾 {}\n🇬🇧 {}\n\n📖 {}",
-        doa.title_ms, doa.title_en, doa.arabic, doa.transliteration,
-        doa.translation_ms, doa.translation_en, doa.source
+        doa.title_ms,
+        doa.title_en,
+        doa.arabic,
+        doa.transliteration,
+        doa.translation_ms,
+        doa.translation_en,
+        doa.source
     )
 }
 
@@ -63,7 +68,7 @@ impl Skill for DoaSkill {
                 return SkillResult {
                     success: false,
                     output: String::new(),
-                    error: Some(format!("Invalid args: {}", e)),
+                    error: Some(format!("Invalid args: {e}")),
                 };
             }
         };
@@ -78,12 +83,12 @@ impl Skill for DoaSkill {
                 let cats = get_categories();
                 let output = cats
                     .iter()
-                    .map(|(code, label)| format!("• {} — {}", code, label))
+                    .map(|(code, label)| format!("• {code} — {label}"))
                     .collect::<Vec<_>>()
                     .join("\n");
                 SkillResult {
                     success: true,
-                    output: format!("Kategori Doa & Zikir:\n\n{}", output),
+                    output: format!("Kategori Doa & Zikir:\n\n{output}"),
                     error: None,
                 }
             }
@@ -97,8 +102,7 @@ impl Skill for DoaSkill {
                     SkillResult {
                         success: true,
                         output: format!(
-                            "Tiada doa dalam kategori '{}'. Sila guna action 'list_categories' untuk senarai kategori.",
-                            category
+                            "Tiada doa dalam kategori '{category}'. Sila guna action 'list_categories' untuk senarai kategori."
                         ),
                         error: None,
                     }
@@ -115,10 +119,7 @@ impl Skill for DoaSkill {
                 }
             }
             "search" => {
-                let query = args
-                    .get("query")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
+                let query = args.get("query").and_then(|v| v.as_str()).unwrap_or("");
                 if query.is_empty() {
                     return SkillResult {
                         success: false,
@@ -150,8 +151,7 @@ impl Skill for DoaSkill {
                 success: false,
                 output: String::new(),
                 error: Some(format!(
-                    "Unknown action '{}'. Use: list_categories, by_category, search, random",
-                    action
+                    "Unknown action '{action}'. Use: list_categories, by_category, search, random"
                 )),
             },
         }
@@ -309,15 +309,23 @@ mod tests {
 
     #[test]
     fn test_collection_has_enough_doas() {
-        assert!(collection::ALL_DOA.len() >= 15, "Should have at least 15 doas");
+        assert!(
+            collection::ALL_DOA.len() >= 15,
+            "Should have at least 15 doas"
+        );
     }
 
     #[test]
     fn test_collection_categories_covered() {
         let categories: std::collections::HashSet<&str> =
             collection::ALL_DOA.iter().map(|d| d.category).collect();
-        for cat in &["harian", "pagi", "petang", "solat", "musafir", "tidur", "wudhu", "masjid", "makan"] {
-            assert!(categories.contains(cat), "Category '{}' should have at least one doa", cat);
+        for cat in &[
+            "harian", "pagi", "petang", "solat", "musafir", "tidur", "wudhu", "masjid", "makan",
+        ] {
+            assert!(
+                categories.contains(cat),
+                "Category '{cat}' should have at least one doa"
+            );
         }
     }
 

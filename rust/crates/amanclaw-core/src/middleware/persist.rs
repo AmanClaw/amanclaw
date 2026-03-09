@@ -1,10 +1,10 @@
 use crate::context_engine::maybe_summarize;
 use crate::middleware::{MiddlewareChain, PipelineContext, PipelineMiddleware};
+use amanclaw_llm::client::LlmClient;
 use amanclaw_traits::context::{ContextEngine, ExchangeEvent};
 use amanclaw_traits::event::EventEmitter;
 use amanclaw_traits::memory::MemoryBackend;
 use amanclaw_traits::message::OutgoingMessage;
-use amanclaw_llm::client::LlmClient;
 use anyhow::Result;
 use std::sync::Arc;
 
@@ -25,7 +25,12 @@ impl PersistMiddleware {
         llm: Arc<LlmClient>,
         emitter: Arc<dyn EventEmitter>,
     ) -> Self {
-        Self { context_engine, memory, llm, emitter }
+        Self {
+            context_engine,
+            memory,
+            llm,
+            emitter,
+        }
     }
 }
 
@@ -53,27 +58,37 @@ impl PipelineMiddleware for PersistMiddleware {
             let response_text = &outgoing.text;
 
             // Save exchange via ContextEngine
-            self.context_engine.on_exchange_complete(ExchangeEvent {
-                user_id: user_id.clone(),
-                platform: platform.clone(),
-                namespace: ns.clone(),
-                user_message,
-                assistant_response: response_text.clone(),
-            }).await?;
+            self.context_engine
+                .on_exchange_complete(ExchangeEvent {
+                    user_id: user_id.clone(),
+                    platform: platform.clone(),
+                    namespace: ns.clone(),
+                    user_message,
+                    assistant_response: response_text.clone(),
+                })
+                .await?;
 
             // Auto-summarize if history is too long
             if let Err(e) = maybe_summarize(
-                self.memory.as_ref(), &self.llm, &ns, &user_id,
+                self.memory.as_ref(),
+                &self.llm,
+                &ns,
+                &user_id,
                 summarize_threshold,
                 summarize_keep_recent,
-            ).await {
+            )
+            .await
+            {
                 tracing::error!(error = %e, "Failed to auto-summarize");
             }
 
-            self.emitter.emit("message.sent", serde_json::json!({
-                "user_id": user_id, "platform": platform, "agent": agent_id,
-                "response_len": response_text.len()
-            }));
+            self.emitter.emit(
+                "message.sent",
+                serde_json::json!({
+                    "user_id": user_id, "platform": platform, "agent": agent_id,
+                    "response_len": response_text.len()
+                }),
+            );
         }
 
         Ok(result)

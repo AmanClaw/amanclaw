@@ -49,7 +49,9 @@ mod tests {
 
     #[test]
     fn test_mock_channel_platform() {
-        let ch = MockChannel { name: "test".into() };
+        let ch = MockChannel {
+            name: "test".into(),
+        };
         assert_eq!(ch.platform(), "test");
     }
 }

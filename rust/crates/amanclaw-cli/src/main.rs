@@ -5,8 +5,8 @@ use std::sync::Arc;
 use tracing_subscriber::EnvFilter;
 
 fn setup_logging(log_format: Option<&str>) {
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("amanclaw=info"));
+    let filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("amanclaw=info"));
 
     match log_format {
         Some("json") => {
@@ -16,9 +16,7 @@ fn setup_logging(log_format: Option<&str>) {
                 .init();
         }
         _ => {
-            tracing_subscriber::fmt()
-                .with_env_filter(filter)
-                .init();
+            tracing_subscriber::fmt().with_env_filter(filter).init();
         }
     }
 }
@@ -48,8 +46,8 @@ async fn main() -> Result<()> {
     let config_path = find_config()?;
     let config_str = std::fs::read_to_string(&config_path)
         .with_context(|| format!("Failed to read {}", config_path.display()))?;
-    let config: amanclaw_traits::config::AppConfig = serde_yaml::from_str(&config_str)
-        .with_context(|| "Failed to parse config.yaml")?;
+    let config: amanclaw_traits::config::AppConfig =
+        serde_yaml::from_str(&config_str).with_context(|| "Failed to parse config.yaml")?;
 
     tracing::info!(model = %config.llm.model, base_url = %config.llm.base_url, "Config loaded");
 
@@ -64,19 +62,18 @@ async fn main() -> Result<()> {
     // Start management API if configured
     if let Ok(port_str) = std::env::var("API_PORT") {
         if let Ok(port) = port_str.parse::<u16>() {
-            let api_token = std::env::var("API_TOKEN")
-                .unwrap_or_else(|_| {
-                    let token = format!(
-                        "amanclaw-{:x}-{}",
-                        std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap_or_default()
-                            .as_millis(),
-                        std::process::id()
-                    );
-                    tracing::info!(token = %token, "Generated API token (set API_TOKEN to override)");
-                    token
-                });
+            let api_token = std::env::var("API_TOKEN").unwrap_or_else(|_| {
+                let token = format!(
+                    "amanclaw-{:x}-{}",
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_millis(),
+                    std::process::id()
+                );
+                tracing::info!(token = %token, "Generated API token (set API_TOKEN to override)");
+                token
+            });
             let api_state = amanclaw_api::state::ApiState {
                 registry: result.registry.clone(),
                 pool: result.pool.clone(),
@@ -103,7 +100,7 @@ async fn main() -> Result<()> {
         join_result = result.join => {
             match join_result {
                 Ok(inner) => inner.context("Engine exited with error")?,
-                Err(e) => anyhow::bail!("Engine task panicked: {}", e),
+                Err(e) => anyhow::bail!("Engine task panicked: {e}"),
             }
         }
         _ = tokio::signal::ctrl_c() => {

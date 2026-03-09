@@ -5,7 +5,7 @@
 
 use crate::handler::McpHandler;
 use crate::protocol::JsonRpcRequest;
-use axum::{extract::State, routing::post, Json, Router};
+use axum::{Json, Router, extract::State, routing::post};
 use std::sync::Arc;
 
 /// Create an axum Router for the MCP HTTP server.
@@ -43,7 +43,7 @@ async fn handle_mcp_request(
 /// Start the MCP HTTP server on the given port.
 pub async fn run_http(handler: Arc<McpHandler>, port: u16) -> anyhow::Result<()> {
     let app = mcp_router(handler);
-    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
     tracing::info!(port, "MCP HTTP server listening");
     axum::serve(listener, app).await?;
     Ok(())
@@ -113,7 +113,9 @@ mod tests {
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), 200);
 
-        let body = axum::body::to_bytes(resp.into_body(), 1024 * 1024).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 1024 * 1024)
+            .await
+            .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         let tools = json["result"]["tools"].as_array().unwrap();
         assert_eq!(tools.len(), 1);
@@ -143,7 +145,9 @@ mod tests {
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), 200);
 
-        let body = axum::body::to_bytes(resp.into_body(), 1024 * 1024).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 1024 * 1024)
+            .await
+            .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["result"]["content"][0]["text"], "Echo: hello MCP");
     }

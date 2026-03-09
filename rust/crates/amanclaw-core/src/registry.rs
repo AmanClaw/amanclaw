@@ -1,10 +1,16 @@
-use amanclaw_traits::skill::{Skill, SkillMetadata, SkillInput, SkillResult, ToolDefinition};
+use amanclaw_traits::skill::{Skill, SkillInput, SkillMetadata, SkillResult, ToolDefinition};
 use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Central registry for all available skills.
 pub struct PluginRegistry {
     skills: HashMap<String, Arc<dyn Skill>>,
+}
+
+impl Default for PluginRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl PluginRegistry {

@@ -37,7 +37,10 @@ impl Skill for HijriSkill {
 
     async fn execute(&self, input: SkillInput) -> SkillResult {
         let args: serde_json::Value = serde_json::from_str(&input.args).unwrap_or_default();
-        let action = args.get("action").and_then(|v| v.as_str()).unwrap_or("today");
+        let action = args
+            .get("action")
+            .and_then(|v| v.as_str())
+            .unwrap_or("today");
 
         match action {
             "today" => {
@@ -45,9 +48,14 @@ impl Skill for HijriSkill {
                 let hijri = converter::gregorian_to_hijri(today);
                 let output = format!(
                     "Tarikh Hijri Hari Ini:\n\n{}\n\nMasihi: {}",
-                    hijri, today.format("%d %B %Y")
+                    hijri,
+                    today.format("%d %B %Y")
                 );
-                SkillResult { success: true, output, error: None }
+                SkillResult {
+                    success: true,
+                    output,
+                    error: None,
+                }
             }
             "events" => {
                 let today = Local::now().date_naive();
@@ -75,7 +83,11 @@ impl Skill for HijriSkill {
                 } else {
                     format!("Peristiwa Islam akan datang:\n\n{}", upcoming.join("\n"))
                 };
-                SkillResult { success: true, output, error: None }
+                SkillResult {
+                    success: true,
+                    output,
+                    error: None,
+                }
             }
             "convert" => {
                 let date_str = args.get("date").and_then(|v| v.as_str()).unwrap_or("");
@@ -98,7 +110,9 @@ impl Skill for HijriSkill {
             _ => SkillResult {
                 success: false,
                 output: String::new(),
-                error: Some(format!("Unknown action '{}'. Use: today, events, convert.", action)),
+                error: Some(format!(
+                    "Unknown action '{action}'. Use: today, events, convert."
+                )),
             },
         }
     }
@@ -141,7 +155,11 @@ mod tests {
         };
         let result = skill.execute(input).await;
         assert!(result.success);
-        assert!(result.output.contains("1445"), "Output should contain Hijri year: {}", result.output);
+        assert!(
+            result.output.contains("1445"),
+            "Output should contain Hijri year: {}",
+            result.output
+        );
     }
 
     #[tokio::test]

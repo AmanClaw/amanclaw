@@ -1,4 +1,4 @@
-use notify::{Watcher, RecursiveMode, Event, EventKind, RecommendedWatcher};
+use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::path::{Path, PathBuf};
 use tokio::sync::mpsc;
 
@@ -46,7 +46,10 @@ impl PluginWatcher {
             tracing::warn!(dir = %plugin_dir_owned.display(), "Plugin directory does not exist, not watching");
         }
 
-        Ok(Self { _watcher: watcher, rx })
+        Ok(Self {
+            _watcher: watcher,
+            rx,
+        })
     }
 }
 
@@ -54,7 +57,7 @@ impl PluginWatcher {
 mod tests {
     use super::*;
     use std::fs;
-    use tokio::time::{sleep, Duration};
+    use tokio::time::{Duration, sleep};
 
     #[tokio::test]
     async fn test_watcher_detects_new_wasm() {
@@ -68,13 +71,8 @@ mod tests {
         sleep(Duration::from_millis(500)).await;
 
         // Should get an event (Added or Modified depending on OS)
-        if let Ok(event) = watcher.rx.try_recv() {
-            match event {
-                PluginEvent::Added(p) | PluginEvent::Modified(p) => {
-                    assert!(p.to_string_lossy().contains("test.wasm"));
-                }
-                _ => {}
-            }
+        if let Ok(PluginEvent::Added(p) | PluginEvent::Modified(p)) = watcher.rx.try_recv() {
+            assert!(p.to_string_lossy().contains("test.wasm"));
         }
         // Note: filesystem events may not fire reliably in CI, so we don't assert
     }

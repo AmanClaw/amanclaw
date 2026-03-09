@@ -37,14 +37,19 @@ impl Skill for SolatSkill {
     async fn execute(&self, input: SkillInput) -> SkillResult {
         let args: serde_json::Value = match serde_json::from_str(&input.args) {
             Ok(v) => v,
-            Err(e) => return SkillResult {
-                success: false,
-                output: String::new(),
-                error: Some(format!("Invalid args: {}", e)),
-            },
+            Err(e) => {
+                return SkillResult {
+                    success: false,
+                    output: String::new(),
+                    error: Some(format!("Invalid args: {e}")),
+                };
+            }
         };
 
-        let action = args.get("action").and_then(|v| v.as_str()).unwrap_or("today");
+        let action = args
+            .get("action")
+            .and_then(|v| v.as_str())
+            .unwrap_or("today");
 
         match action {
             "list_states" => {
@@ -69,7 +74,9 @@ impl Skill for SolatSkill {
                 SkillResult {
                     success: true,
                     output: if list.is_empty() {
-                        format!("No zones found for '{}'. Use action=list_states to see available states.", state)
+                        format!(
+                            "No zones found for '{state}'. Use action=list_states to see available states."
+                        )
                     } else {
                         list.join("\n")
                     },
@@ -90,7 +97,9 @@ impl Skill for SolatSkill {
                     return SkillResult {
                         success: false,
                         output: String::new(),
-                        error: Some(format!("Unknown zone '{}'. Use action=list_zones to see valid zones.", zone)),
+                        error: Some(format!(
+                            "Unknown zone '{zone}'. Use action=list_zones to see valid zones."
+                        )),
                     };
                 }
 
@@ -99,11 +108,29 @@ impl Skill for SolatSkill {
                         let t = &times[0];
                         let output = format!(
                             "Waktu Solat {} ({}):\n\nImsak: {}\nSubuh: {}\nSyuruk: {}\nZohor: {}\nAsar: {}\nMaghrib: {}\nIsyak: {}\n\nTarikh: {} | Hijri: {}",
-                            zone, t.day, t.imsak, t.fajr, t.syuruk, t.dhuhr, t.asr, t.maghrib, t.isha, t.date, t.hijri
+                            zone,
+                            t.day,
+                            t.imsak,
+                            t.fajr,
+                            t.syuruk,
+                            t.dhuhr,
+                            t.asr,
+                            t.maghrib,
+                            t.isha,
+                            t.date,
+                            t.hijri
                         );
-                        SkillResult { success: true, output, error: None }
+                        SkillResult {
+                            success: true,
+                            output,
+                            error: None,
+                        }
                     }
-                    Err(e) => SkillResult { success: false, output: String::new(), error: Some(e) },
+                    Err(e) => SkillResult {
+                        success: false,
+                        output: String::new(),
+                        error: Some(e),
+                    },
                 }
             }
         }

@@ -66,10 +66,7 @@ fn write_bytes(
 }
 
 /// Load a single WASM module and extract its metadata.
-pub fn load_wasm_skill(
-    wasm_path: &Path,
-    sandbox: SandboxConfig,
-) -> Result<WasmSkill> {
+pub fn load_wasm_skill(wasm_path: &Path, sandbox: SandboxConfig) -> Result<WasmSkill> {
     let mut config = Config::new();
     config.epoch_interruption(true);
     config.consume_fuel(true);
@@ -94,22 +91,26 @@ pub fn load_wasm_skill(
     // Many modules compiled from Rust/C need at least fd_write for panic messages
     provide_stub_imports(&mut linker, &module)?;
 
-    let instance = linker.instantiate(&mut store, &module)
+    let instance = linker
+        .instantiate(&mut store, &module)
         .with_context(|| "Failed to instantiate WASM module")?;
 
-    let memory = instance.get_memory(&mut store, "memory")
+    let memory = instance
+        .get_memory(&mut store, "memory")
         .ok_or_else(|| anyhow::anyhow!("WASM module has no 'memory' export"))?;
 
     // Call metadata()
-    let metadata_fn = instance.get_typed_func::<(), i32>(&mut store, "metadata")
+    let metadata_fn = instance
+        .get_typed_func::<(), i32>(&mut store, "metadata")
         .with_context(|| "WASM module missing 'metadata' export")?;
     let meta_ptr = metadata_fn.call(&mut store, ())?;
     let meta_json = read_cstring(&memory, &mut store, meta_ptr)?;
     let metadata: SkillMetadata = serde_json::from_str(&meta_json)
-        .with_context(|| format!("Invalid metadata JSON from plugin: {}", meta_json))?;
+        .with_context(|| format!("Invalid metadata JSON from plugin: {meta_json}"))?;
 
     // Call parameters()
-    let params_fn = instance.get_typed_func::<(), i32>(&mut store, "parameters")
+    let params_fn = instance
+        .get_typed_func::<(), i32>(&mut store, "parameters")
         .with_context(|| "WASM module missing 'parameters' export")?;
     let params_ptr = params_fn.call(&mut store, ())?;
     let parameters_json = read_cstring(&memory, &mut store, params_ptr)?;
@@ -141,30 +142,43 @@ fn provide_stub_imports(linker: &mut wasmtime::Linker<StoreLimits>, module: &Mod
 
         // Only stub functions we haven't already defined
         let check_limits = StoreLimitsBuilder::new().build();
-        if linker.get(&mut Store::new(linker.engine(), check_limits), module_name, name).is_some() {
+        if linker
+            .get(
+                &mut Store::new(linker.engine(), check_limits),
+                module_name,
+                name,
+            )
+            .is_some()
+        {
             continue;
         }
 
-        match import.ty() {
-            ExternType::Func(func_ty) => {
-                let params: Vec<ValType> = func_ty.params().collect();
-                let results: Vec<ValType> = func_ty.results().collect();
+        if let ExternType::Func(func_ty) = import.ty() {
+            let params: Vec<ValType> = func_ty.params().collect();
+            let results: Vec<ValType> = func_ty.results().collect();
 
-                // Create appropriate stub based on the function type
-                let stub_ty = FuncType::new(linker.engine(), params.iter().cloned(), results.iter().cloned());
-                let m = module_name.to_string();
-                let n = name.to_string();
+            // Create appropriate stub based on the function type
+            let stub_ty = FuncType::new(
+                linker.engine(),
+                params.iter().cloned(),
+                results.iter().cloned(),
+            );
+            let m = module_name.to_string();
+            let n = name.to_string();
 
-                linker.func_new(module_name, name, stub_ty, move |_caller, _params, results| {
+            linker.func_new(
+                module_name,
+                name,
+                stub_ty,
+                move |_caller, _params, results| {
                     tracing::debug!(module = %m, func = %n, "Stub WASI call");
                     // Return zeros for all result types
                     for result in results.iter_mut() {
                         *result = Val::I32(0);
                     }
                     Ok(())
-                })?;
-            }
-            _ => {}
+                },
+            )?;
         }
     }
     Ok(())
@@ -192,21 +206,21 @@ impl Skill for WasmSkill {
         let module = self.module.clone();
         let sandbox = self.sandbox.clone();
 
-        let result = tokio::task::spawn_blocking(move || {
-            execute_wasm(&engine, &module, &input, &sandbox)
-        }).await;
+        let result =
+            tokio::task::spawn_blocking(move || execute_wasm(&engine, &module, &input, &sandbox))
+                .await;
 
         match result {
             Ok(Ok(r)) => r,
             Ok(Err(e)) => SkillResult {
                 success: false,
                 output: String::new(),
-                error: Some(format!("WASM execution error: {}", e)),
+                error: Some(format!("WASM execution error: {e}")),
             },
             Err(e) => SkillResult {
                 success: false,
                 output: String::new(),
-                error: Some(format!("WASM task panicked: {}", e)),
+                error: Some(format!("WASM task panicked: {e}")),
             },
         }
     }
@@ -246,13 +260,16 @@ fn execute_wasm(
     provide_stub_imports(&mut linker, module)?;
 
     let instance = linker.instantiate(&mut store, module)?;
-    let memory = instance.get_memory(&mut store, "memory")
+    let memory = instance
+        .get_memory(&mut store, "memory")
         .ok_or_else(|| anyhow::anyhow!("No memory export"))?;
 
-    let alloc_fn = instance.get_typed_func::<i32, i32>(&mut store, "alloc")
+    let alloc_fn = instance
+        .get_typed_func::<i32, i32>(&mut store, "alloc")
         .with_context(|| "Missing 'alloc' export")?;
 
-    let execute_fn = instance.get_typed_func::<(i32, i32), i32>(&mut store, "execute")
+    let execute_fn = instance
+        .get_typed_func::<(i32, i32), i32>(&mut store, "execute")
         .with_context(|| "Missing 'execute' export")?;
 
     // Serialize input to JSON and write to WASM memory
@@ -264,7 +281,7 @@ fn execute_wasm(
     let result_json = read_cstring(&memory, &mut store, result_ptr)?;
 
     let result: SkillResult = serde_json::from_str(&result_json)
-        .with_context(|| format!("Invalid result JSON from plugin: {}", result_json))?;
+        .with_context(|| format!("Invalid result JSON from plugin: {result_json}"))?;
 
     Ok(result)
 }
@@ -330,10 +347,7 @@ mod tests {
 
     #[test]
     fn test_load_nonexistent_plugin() {
-        let result = load_wasm_skill(
-            Path::new("/tmp/nonexistent.wasm"),
-            SandboxConfig::default(),
-        );
+        let result = load_wasm_skill(Path::new("/tmp/nonexistent.wasm"), SandboxConfig::default());
         assert!(result.is_err());
     }
 
@@ -346,7 +360,10 @@ mod tests {
 
     #[test]
     fn test_load_all_plugins_nonexistent_dir() {
-        let skills = load_all_plugins(Path::new("/tmp/nonexistent-plugins-dir"), SandboxConfig::default());
+        let skills = load_all_plugins(
+            Path::new("/tmp/nonexistent-plugins-dir"),
+            SandboxConfig::default(),
+        );
         assert!(skills.is_empty());
     }
 
@@ -366,7 +383,9 @@ mod tests {
             .join("../../target/wasm32-unknown-unknown/release/amanclaw_skill_echo_wasm.wasm");
 
         if !wasm_path.exists() {
-            eprintln!("Skipping: echo WASM plugin not built. Run: cargo build --target wasm32-unknown-unknown --release -p amanclaw-skill-echo-wasm");
+            eprintln!(
+                "Skipping: echo WASM plugin not built. Run: cargo build --target wasm32-unknown-unknown --release -p amanclaw-skill-echo-wasm"
+            );
             return;
         }
 

@@ -24,7 +24,9 @@ impl PipelineMiddleware for ContextMiddleware {
         mut ctx: PipelineContext,
         next: &MiddlewareChain,
     ) -> Result<Option<OutgoingMessage>> {
-        let clean_text = ctx.extensions.get::<SanitizedText>()
+        let clean_text = ctx
+            .extensions
+            .get::<SanitizedText>()
             .map(|s| s.0.clone())
             .unwrap_or_else(|| ctx.msg.text.clone());
 

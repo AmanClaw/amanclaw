@@ -101,7 +101,10 @@ mod tests {
         assert_eq!(auth.get_user_state("55555", "telegram"), UserState::Pending);
 
         auth.approve_user("55555", "telegram");
-        assert_eq!(auth.get_user_state("55555", "telegram"), UserState::Approved);
+        assert_eq!(
+            auth.get_user_state("55555", "telegram"),
+            UserState::Approved
+        );
     }
 
     #[test]

@@ -35,7 +35,7 @@ impl CachedMemory {
     }
 
     fn cache_key(ns: &str, user_id: &str) -> String {
-        format!("{}:{}", ns, user_id)
+        format!("{ns}:{user_id}")
     }
 }
 

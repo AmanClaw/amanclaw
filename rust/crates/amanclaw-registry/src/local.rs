@@ -106,12 +106,11 @@ impl SkillRegistry {
     }
 
     pub async fn uninstall(&self, name: &str) -> Result<bool> {
-        let result = sqlx::query_as::<_, InstalledSkill>(
-            "SELECT * FROM installed_skills WHERE name = ?"
-        )
-        .bind(name)
-        .fetch_optional(&self.pool)
-        .await?;
+        let result =
+            sqlx::query_as::<_, InstalledSkill>("SELECT * FROM installed_skills WHERE name = ?")
+                .bind(name)
+                .fetch_optional(&self.pool)
+                .await?;
 
         if let Some(skill) = result {
             let dir = std::path::Path::new(&skill.install_dir);
@@ -130,18 +129,17 @@ impl SkillRegistry {
     }
 
     pub async fn list_installed(&self) -> Result<Vec<InstalledSkill>> {
-        let skills = sqlx::query_as::<_, InstalledSkill>(
-            "SELECT * FROM installed_skills ORDER BY name"
-        )
-        .fetch_all(&self.pool)
-        .await?;
+        let skills =
+            sqlx::query_as::<_, InstalledSkill>("SELECT * FROM installed_skills ORDER BY name")
+                .fetch_all(&self.pool)
+                .await?;
         Ok(skills)
     }
 
     pub async fn search_installed(&self, query: &str) -> Result<Vec<InstalledSkill>> {
-        let pattern = format!("%{}%", query);
+        let pattern = format!("%{query}%");
         let skills = sqlx::query_as::<_, InstalledSkill>(
-            "SELECT * FROM installed_skills WHERE name LIKE ? OR description LIKE ? ORDER BY name"
+            "SELECT * FROM installed_skills WHERE name LIKE ? OR description LIKE ? ORDER BY name",
         )
         .bind(&pattern)
         .bind(&pattern)
@@ -151,12 +149,11 @@ impl SkillRegistry {
     }
 
     pub async fn get(&self, name: &str) -> Result<Option<InstalledSkill>> {
-        let skill = sqlx::query_as::<_, InstalledSkill>(
-            "SELECT * FROM installed_skills WHERE name = ?"
-        )
-        .bind(name)
-        .fetch_optional(&self.pool)
-        .await?;
+        let skill =
+            sqlx::query_as::<_, InstalledSkill>("SELECT * FROM installed_skills WHERE name = ?")
+                .bind(name)
+                .fetch_optional(&self.pool)
+                .await?;
         Ok(skill)
     }
 }
@@ -193,7 +190,9 @@ mod tests {
         let skills_dir = tmp.path().join("installed");
         std::fs::create_dir_all(&skills_dir).unwrap();
 
-        let registry = SkillRegistry::new(pool, skills_dir.to_string_lossy().into()).await.unwrap();
+        let registry = SkillRegistry::new(pool, skills_dir.to_string_lossy().into())
+            .await
+            .unwrap();
 
         // Create a skill package
         let pkg_dir = tmp.path().join("weather-pkg");
@@ -207,7 +206,8 @@ description = "Weather forecasts"
 type = "script"
 entry = "main.py"
 "#,
-        ).unwrap();
+        )
+        .unwrap();
         std::fs::write(pkg_dir.join("main.py"), "print('hello')").unwrap();
 
         let installed = registry.install_from_path(&pkg_dir).await.unwrap();
@@ -231,7 +231,9 @@ entry = "main.py"
         let skills_dir = tmp.path().join("installed");
         std::fs::create_dir_all(&skills_dir).unwrap();
 
-        let registry = SkillRegistry::new(pool, skills_dir.to_string_lossy().into()).await.unwrap();
+        let registry = SkillRegistry::new(pool, skills_dir.to_string_lossy().into())
+            .await
+            .unwrap();
 
         let pkg_dir = tmp.path().join("test-pkg");
         std::fs::create_dir_all(&pkg_dir).unwrap();
@@ -241,7 +243,8 @@ entry = "main.py"
 name = "test-skill"
 version = "0.1.0"
 "#,
-        ).unwrap();
+        )
+        .unwrap();
 
         registry.install_from_path(&pkg_dir).await.unwrap();
         assert!(registry.uninstall("test-skill").await.unwrap());
@@ -258,18 +261,18 @@ version = "0.1.0"
         let skills_dir = tmp.path().join("installed");
         std::fs::create_dir_all(&skills_dir).unwrap();
 
-        let registry = SkillRegistry::new(pool, skills_dir.to_string_lossy().into()).await.unwrap();
+        let registry = SkillRegistry::new(pool, skills_dir.to_string_lossy().into())
+            .await
+            .unwrap();
 
         for (name, desc) in [("weather", "Weather data"), ("calendar", "Calendar events")] {
-            let pkg_dir = tmp.path().join(format!("{}-pkg", name));
+            let pkg_dir = tmp.path().join(format!("{name}-pkg"));
             std::fs::create_dir_all(&pkg_dir).unwrap();
             std::fs::write(
                 pkg_dir.join("amanclaw-skill.toml"),
-                format!(
-                    "name = \"{}\"\nversion = \"1.0.0\"\ndescription = \"{}\"",
-                    name, desc
-                ),
-            ).unwrap();
+                format!("name = \"{name}\"\nversion = \"1.0.0\"\ndescription = \"{desc}\""),
+            )
+            .unwrap();
             registry.install_from_path(&pkg_dir).await.unwrap();
         }
 

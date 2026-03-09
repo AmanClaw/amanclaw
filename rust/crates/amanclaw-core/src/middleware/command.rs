@@ -34,7 +34,10 @@ impl PipelineMiddleware for CommandMiddleware {
 
         // Handle /myid and /start before anything else
         if text == "/myid" || text == "/start" {
-            let reply = format!("Your user ID: `{}`\nPlatform: {}", ctx.msg.user_id, ctx.msg.platform);
+            let reply = format!(
+                "Your user ID: `{}`\nPlatform: {}",
+                ctx.msg.user_id, ctx.msg.platform
+            );
             return Ok(Some(OutgoingMessage {
                 chat_id: ctx.msg.chat_id,
                 text: reply,
@@ -47,9 +50,14 @@ impl PipelineMiddleware for CommandMiddleware {
 
         // Handle other slash commands
         if text.starts_with('/') {
-            let state = ctx.extensions.get::<UserState>().cloned()
+            let state = ctx
+                .extensions
+                .get::<UserState>()
+                .cloned()
                 .unwrap_or(UserState::Approved);
-            if let Some(reply) = handle_command(&self.auth, self.memory.as_ref(), &ctx.msg, &state).await? {
+            if let Some(reply) =
+                handle_command(&self.auth, self.memory.as_ref(), &ctx.msg, &state).await?
+            {
                 return Ok(Some(reply));
             }
         }
@@ -77,12 +85,12 @@ async fn handle_command(
         }
         "/stats" => {
             let count = memory.get_message_count(ns, &msg.user_id).await?;
-            Some(format!("Messages in history: {}", count))
+            Some(format!("Messages in history: {count}"))
         }
         "/approve" if *state == UserState::Admin => {
             if let Some(target) = parts.get(1) {
                 auth.write().await.approve_user(target, &msg.platform);
-                Some(format!("User `{}` approved.", target))
+                Some(format!("User `{target}` approved."))
             } else {
                 Some("Usage: /approve <user_id>".into())
             }
@@ -90,7 +98,7 @@ async fn handle_command(
         "/block" if *state == UserState::Admin => {
             if let Some(target) = parts.get(1) {
                 auth.write().await.block_user(target, &msg.platform);
-                Some(format!("User `{}` blocked.", target))
+                Some(format!("User `{target}` blocked."))
             } else {
                 Some("Usage: /block <user_id>".into())
             }
@@ -102,7 +110,7 @@ async fn handle_command(
             } else {
                 let mut lines = vec!["Registered users:".to_string()];
                 for (uid, plat, st) in &users {
-                    lines.push(format!("  {} ({}) — {}", uid, plat, st));
+                    lines.push(format!("  {uid} ({plat}) — {st}"));
                 }
                 Some(lines.join("\n"))
             }
@@ -114,7 +122,7 @@ async fn handle_command(
             } else {
                 let mut lines = vec!["Things I know about you:".to_string()];
                 for (k, v) in &facts {
-                    lines.push(format!("  *{}*: {}", k, v));
+                    lines.push(format!("  *{k}*: {v}"));
                 }
                 Some(lines.join("\n"))
             }
@@ -126,23 +134,21 @@ async fn handle_command(
                 let key = parts[1];
                 let value = parts[2];
                 memory.save_fact(&msg.user_id, key, value).await?;
-                Some(format!("Got it! I'll remember that your {} is: {}", key, value))
+                Some(format!("Got it! I'll remember that your {key} is: {value}"))
             }
         }
         "/forget" => {
             if let Some(key) = parts.get(1) {
                 if memory.delete_fact(&msg.user_id, key).await? {
-                    Some(format!("Forgot your {}.", key))
+                    Some(format!("Forgot your {key}."))
                 } else {
-                    Some(format!("I don't have anything stored for '{}'.", key))
+                    Some(format!("I don't have anything stored for '{key}'."))
                 }
             } else {
                 Some("Usage: /forget <key>".into())
             }
         }
-        "/approve" | "/block" | "/users" => {
-            Some("Admin only command.".into())
-        }
+        "/approve" | "/block" | "/users" => Some("Admin only command.".into()),
         _ => None,
     };
 

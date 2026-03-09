@@ -1,47 +1,47 @@
-pub mod error;
-pub mod pipeline;
-pub mod router;
-pub mod registry;
 pub mod context_engine;
-pub mod token_budget;
-pub mod soul;
-pub mod scheduler;
-pub mod webhooks;
-pub mod subagent;
-pub mod skills;
+pub mod error;
 pub mod handle;
 pub mod middleware;
+pub mod pipeline;
+pub mod registry;
+pub mod router;
+pub mod scheduler;
+pub mod skills;
+pub mod soul;
+pub mod subagent;
+pub mod token_budget;
+pub mod webhooks;
 
-use amanclaw_traits::config::AppConfig;
-use amanclaw_traits::context::ContextEngine;
-use amanclaw_traits::memory::MemoryBackend;
-use amanclaw_traits::vector::VectorStore;
-use amanclaw_traits::channel::Channel;
-use amanclaw_traits::message::IncomingMessage;
-use amanclaw_memory::sqlite::SqliteMemory;
-use amanclaw_memory::vector::SqliteVectorStore;
-use amanclaw_security::auth::Auth;
-use amanclaw_security::rate_limiter::RateLimiter;
-use amanclaw_llm::client::LlmClient;
-use amanclaw_llm::embeddings::EmbeddingClient;
 use crate::context_engine::StandardContextEngine;
-use amanclaw_channel_telegram::TelegramChannel;
-use amanclaw_channel_discord::DiscordChannel;
-use amanclaw_channel_whatsapp::WhatsAppChannel;
-use amanclaw_channel_whatsapp_web::WhatsAppWebChannel;
-use amanclaw_channel_slack::SlackChannel;
-use amanclaw_mcp::handler::McpHandler;
 use crate::handle::{EngineCommand, EngineHandle, EngineStatus};
 use crate::pipeline::Pipeline;
 use crate::registry::PluginRegistry;
 use crate::router::AgentRouter;
+use amanclaw_channel_discord::DiscordChannel;
+use amanclaw_channel_slack::SlackChannel;
+use amanclaw_channel_telegram::TelegramChannel;
+use amanclaw_channel_whatsapp::WhatsAppChannel;
+use amanclaw_channel_whatsapp_web::WhatsAppWebChannel;
+use amanclaw_llm::client::LlmClient;
+use amanclaw_llm::embeddings::EmbeddingClient;
+use amanclaw_mcp::handler::McpHandler;
+use amanclaw_memory::sqlite::SqliteMemory;
+use amanclaw_memory::vector::SqliteVectorStore;
+use amanclaw_security::auth::Auth;
+use amanclaw_security::rate_limiter::RateLimiter;
+use amanclaw_traits::channel::Channel;
+use amanclaw_traits::config::AppConfig;
+use amanclaw_traits::context::ContextEngine;
+use amanclaw_traits::memory::MemoryBackend;
+use amanclaw_traits::message::IncomingMessage;
+use amanclaw_traits::vector::VectorStore;
 use anyhow::Result;
-use tokio::sync::{mpsc, watch, Semaphore};
+use sqlx::SqlitePool;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
-use sqlx::SqlitePool;
+use tokio::sync::{Semaphore, mpsc, watch};
 
 /// Result returned by [`Engine::start`] containing handles to the running engine.
 pub struct EngineStartResult {
@@ -111,7 +111,8 @@ impl Engine {
             config.plugins.wasm_memory_limit_mb,
             config.plugins.wasm_fuel_limit,
         );
-        let wasm_skills = amanclaw_wasm_runtime::runtime::load_all_plugins(plugin_dir, wasm_sandbox.clone());
+        let wasm_skills =
+            amanclaw_wasm_runtime::runtime::load_all_plugins(plugin_dir, wasm_sandbox.clone());
         for skill in wasm_skills {
             registry.register(skill);
         }
@@ -126,14 +127,23 @@ impl Engine {
 
         // Load script plugins (Python, JavaScript, etc.)
         if !config.script_plugins.is_empty() {
-            let script_configs: std::collections::HashMap<String, amanclaw_script_runtime::ScriptPluginConfig> =
-                config.script_plugins.iter().map(|(k, v)| {
-                    (k.clone(), amanclaw_script_runtime::ScriptPluginConfig {
-                        command: v.command.clone(),
-                        args: v.args.clone(),
-                        env: v.env.clone(),
-                    })
-                }).collect();
+            let script_configs: std::collections::HashMap<
+                String,
+                amanclaw_script_runtime::ScriptPluginConfig,
+            > = config
+                .script_plugins
+                .iter()
+                .map(|(k, v)| {
+                    (
+                        k.clone(),
+                        amanclaw_script_runtime::ScriptPluginConfig {
+                            command: v.command.clone(),
+                            args: v.args.clone(),
+                            env: v.env.clone(),
+                        },
+                    )
+                })
+                .collect();
             let script_skills = amanclaw_script_runtime::load_script_plugins(&script_configs).await;
             for skill in script_skills {
                 registry.register(skill);
@@ -142,12 +152,17 @@ impl Engine {
 
         // Load registry-installed skills if enabled
         if config.registry.enabled {
-            let reg_pool = SqlitePool::connect(
-                &format!("sqlite:{}", std::env::var("MEMORY_DB_PATH").unwrap_or_else(|_| "memory.db".into()))
-            ).await?;
+            let reg_pool = SqlitePool::connect(&format!(
+                "sqlite:{}",
+                std::env::var("MEMORY_DB_PATH").unwrap_or_else(|_| "memory.db".into())
+            ))
+            .await?;
             if let Ok(skill_registry) = amanclaw_registry::local::SkillRegistry::new(
-                reg_pool, config.registry.skills_dir.clone()
-            ).await {
+                reg_pool,
+                config.registry.skills_dir.clone(),
+            )
+            .await
+            {
                 if let Ok(installed) = skill_registry.list_installed().await {
                     for skill_info in &installed {
                         let skill_dir = std::path::Path::new(&skill_info.install_dir);
@@ -155,7 +170,11 @@ impl Engine {
                             "wasm" => {
                                 if let Some(entry) = &skill_info.entry {
                                     let wasm_path = skill_dir.join(entry);
-                                    let wasm_skills = amanclaw_wasm_runtime::runtime::load_all_plugins(&wasm_path, wasm_sandbox.clone());
+                                    let wasm_skills =
+                                        amanclaw_wasm_runtime::runtime::load_all_plugins(
+                                            &wasm_path,
+                                            wasm_sandbox.clone(),
+                                        );
                                     for skill in wasm_skills {
                                         registry.register(skill);
                                     }
@@ -207,19 +226,17 @@ impl Engine {
         let registry = Arc::new(registry);
         let auth_arc = Arc::new(RwLock::new(auth));
         let pool = memory.pool().clone();
-        let memory_arc: Arc<dyn MemoryBackend> = Arc::new(
-            amanclaw_memory::cached::CachedMemory::new(
+        let memory_arc: Arc<dyn MemoryBackend> =
+            Arc::new(amanclaw_memory::cached::CachedMemory::new(
                 Arc::new(memory),
                 1000, // max entries
                 300,  // TTL 5 minutes
-            ),
-        );
+            ));
         let llm_arc = Arc::new(llm);
 
         // Optional: create vector store (always available since we use SQLite)
-        let vector_store: Option<Arc<dyn VectorStore>> = Some(Arc::new(
-            SqliteVectorStore::new(pool.clone())
-        ));
+        let vector_store: Option<Arc<dyn VectorStore>> =
+            Some(Arc::new(SqliteVectorStore::new(pool.clone())));
 
         // Optional: create embedding client if configured
         let embedding_client = config.embeddings.as_ref().map(|ec| {
@@ -238,17 +255,26 @@ impl Engine {
                     tracing::info!(name, collection = %kb_config.collection, "Loading knowledge base");
                     match std::fs::read_to_string(source_path) {
                         Ok(content) => {
-                            match serde_json::from_str::<Vec<amanclaw_traits::vector::Document>>(&content) {
+                            match serde_json::from_str::<Vec<amanclaw_traits::vector::Document>>(
+                                &content,
+                            ) {
                                 Ok(docs) => {
-                                    let texts: Vec<&str> = docs.iter().map(|d| d.content.as_str()).collect();
+                                    let texts: Vec<&str> =
+                                        docs.iter().map(|d| d.content.as_str()).collect();
                                     let mut offset = 0;
                                     for chunk in texts.chunks(32) {
                                         match ec.embed(chunk).await {
                                             Ok(embeddings) => {
-                                                let chunk_docs: Vec<_> = docs[offset..offset + chunk.len()].to_vec();
-                                                if let Err(e) = vs.upsert_with_embeddings(
-                                                    &kb_config.collection, &chunk_docs, &embeddings,
-                                                ).await {
+                                                let chunk_docs: Vec<_> =
+                                                    docs[offset..offset + chunk.len()].to_vec();
+                                                if let Err(e) = vs
+                                                    .upsert_with_embeddings(
+                                                        &kb_config.collection,
+                                                        &chunk_docs,
+                                                        &embeddings,
+                                                    )
+                                                    .await
+                                                {
                                                     tracing::error!(name, error = %e, "Failed to index knowledge base chunk");
                                                 }
                                             }
@@ -258,7 +284,11 @@ impl Engine {
                                         }
                                         offset += chunk.len();
                                     }
-                                    tracing::info!(name, docs = docs.len(), "Knowledge base indexed");
+                                    tracing::info!(
+                                        name,
+                                        docs = docs.len(),
+                                        "Knowledge base indexed"
+                                    );
                                 }
                                 Err(e) => {
                                     tracing::error!(name, error = %e, "Failed to parse knowledge base JSON");
@@ -275,18 +305,24 @@ impl Engine {
             }
         }
 
-        let context_engine: Arc<dyn ContextEngine> = Arc::new(
-            StandardContextEngine::new(
-                memory_arc.clone(),
-                llm_arc.clone(),
-                registry.clone(),
-                amanclaw_llm::prompts::SYSTEM_PROMPT_BASE.to_string(),
-                vector_store,
-                embedding_client.clone(),
-            )
+        let context_engine: Arc<dyn ContextEngine> = Arc::new(StandardContextEngine::new(
+            memory_arc.clone(),
+            llm_arc.clone(),
+            registry.clone(),
+            amanclaw_llm::prompts::SYSTEM_PROMPT_BASE.to_string(),
+            vector_store,
+            embedding_client.clone(),
+        ));
+        let emitter: Arc<dyn amanclaw_traits::event::EventEmitter> =
+            Arc::new(amanclaw_traits::event::NoopEmitter);
+        let pipeline = Pipeline::with_services(
+            auth_arc.clone(),
+            rate_limiter,
+            context_engine,
+            memory_arc,
+            llm_arc,
+            emitter,
         );
-        let emitter: Arc<dyn amanclaw_traits::event::EventEmitter> = Arc::new(amanclaw_traits::event::NoopEmitter);
-        let pipeline = Pipeline::with_services(auth_arc.clone(), rate_limiter, context_engine, memory_arc, llm_arc, emitter);
 
         // Create message channel for adapters
         let (msg_tx, msg_rx) = mpsc::channel::<IncomingMessage>(256);
@@ -368,9 +404,10 @@ impl Engine {
             agent_router: Arc::new(agent_router),
         };
 
-        let join = tokio::spawn(async move {
-            engine.run_actor(cmd_rx, msg_rx, status_tx, sched_rx).await
-        });
+        let join =
+            tokio::spawn(
+                async move { engine.run_actor(cmd_rx, msg_rx, status_tx, sched_rx).await },
+            );
 
         Ok(EngineStartResult {
             handle,
@@ -467,7 +504,12 @@ impl Engine {
     }
 
     /// Spawn a task to process an incoming message with concurrency control.
-    fn spawn_process_message(&self, msg: IncomingMessage, semaphore: &Arc<Semaphore>, join_set: &mut tokio::task::JoinSet<()>) {
+    fn spawn_process_message(
+        &self,
+        msg: IncomingMessage,
+        semaphore: &Arc<Semaphore>,
+        join_set: &mut tokio::task::JoinSet<()>,
+    ) {
         let semaphore = semaphore.clone();
         let pipeline = self.pipeline.clone();
         let registry = self.registry.clone();

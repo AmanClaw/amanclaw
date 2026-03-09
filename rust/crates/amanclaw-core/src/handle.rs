@@ -1,8 +1,8 @@
+use crate::scheduler::SchedulerEvent;
 use amanclaw_traits::message::IncomingMessage;
 use amanclaw_traits::skill::SkillMetadata;
-use crate::scheduler::SchedulerEvent;
-use tokio::sync::{mpsc, oneshot, watch};
 use std::time::Instant;
+use tokio::sync::{mpsc, oneshot, watch};
 
 /// Commands sent to the engine actor.
 pub enum EngineCommand {

@@ -61,7 +61,9 @@ impl RemoteRegistry {
                             .as_deref()
                             .map(|d| d.to_lowercase().contains(&query_lower))
                             .unwrap_or(false)
-                        || s.tags.iter().any(|t| t.to_lowercase().contains(&query_lower))
+                        || s.tags
+                            .iter()
+                            .any(|t| t.to_lowercase().contains(&query_lower))
                 })
                 .collect(),
             None => vec![],

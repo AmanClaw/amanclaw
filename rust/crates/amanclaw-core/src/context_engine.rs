@@ -1,13 +1,13 @@
+use crate::registry::PluginRegistry;
+use crate::token_budget::TokenBudget;
+use amanclaw_llm::client::{LlmClient, LlmResponse};
+use amanclaw_llm::embeddings::EmbeddingClient;
 use amanclaw_traits::context::{ContextEngine, ContextRequest, ContextResult, ExchangeEvent};
 use amanclaw_traits::memory::MemoryBackend;
 use amanclaw_traits::vector::VectorStore;
-use amanclaw_llm::client::{LlmClient, LlmResponse};
-use amanclaw_llm::embeddings::EmbeddingClient;
-use crate::registry::PluginRegistry;
-use crate::token_budget::TokenBudget;
 use anyhow::Result;
-use std::sync::Arc;
 use base64::Engine as Base64Engine;
+use std::sync::Arc;
 
 /// Default context engine that replicates current pipeline behavior:
 /// history + facts + summary + optional RAG + tool filtering.
@@ -15,6 +15,7 @@ pub struct StandardContextEngine {
     memory: Arc<dyn MemoryBackend>,
     vector_store: Option<Arc<dyn VectorStore>>,
     embedding_client: Option<Arc<EmbeddingClient>>,
+    #[allow(dead_code)]
     llm: Arc<LlmClient>,
     registry: Arc<PluginRegistry>,
     base_system_prompt: String,
@@ -29,7 +30,14 @@ impl StandardContextEngine {
         vector_store: Option<Arc<dyn VectorStore>>,
         embedding_client: Option<Arc<EmbeddingClient>>,
     ) -> Self {
-        Self { memory, llm, registry, base_system_prompt, vector_store, embedding_client }
+        Self {
+            memory,
+            llm,
+            registry,
+            base_system_prompt,
+            vector_store,
+            embedding_client,
+        }
     }
 }
 
@@ -54,7 +62,7 @@ impl ContextEngine for StandardContextEngine {
 
         // 2. Prepend summary if available (budget-checked)
         if let Ok(Some(summary)) = self.memory.get_summary(ns, user_id).await {
-            let section = format!("\n\n## Previous conversation summary\n{}", summary);
+            let section = format!("\n\n## Previous conversation summary\n{summary}");
             if budget.reserve(&section) {
                 system.push_str(&section);
             }
@@ -67,7 +75,7 @@ impl ContextEngine for StandardContextEngine {
                 if budget.reserve(header) {
                     system.push_str(header);
                     for (k, v) in &facts {
-                        let line = format!("\n- {}: {}", k, v);
+                        let line = format!("\n- {k}: {v}");
                         if !budget.reserve(&line) {
                             break;
                         }
@@ -86,9 +94,15 @@ impl ContextEngine for StandardContextEngine {
                     // Embedding-based search
                     if let Ok(embedding) = ec.embed_one(&request.user_message).await {
                         for collection in &profile.context.rag_collections {
-                            if let Ok(results) = vs.search_by_embedding(
-                                collection, &embedding, &request.user_message, profile.context.rag_top_k,
-                            ).await {
+                            if let Ok(results) = vs
+                                .search_by_embedding(
+                                    collection,
+                                    &embedding,
+                                    &request.user_message,
+                                    profile.context.rag_top_k,
+                                )
+                                .await
+                            {
                                 all_results.extend(results);
                             }
                         }
@@ -96,16 +110,21 @@ impl ContextEngine for StandardContextEngine {
                 } else {
                     // Fallback: text search without embeddings
                     for collection in &profile.context.rag_collections {
-                        if let Ok(results) = vs.search(
-                            collection, &request.user_message, profile.context.rag_top_k,
-                        ).await {
+                        if let Ok(results) = vs
+                            .search(collection, &request.user_message, profile.context.rag_top_k)
+                            .await
+                        {
                             all_results.extend(results);
                         }
                     }
                 }
 
                 if !all_results.is_empty() {
-                    all_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+                    all_results.sort_by(|a, b| {
+                        b.score
+                            .partial_cmp(&a.score)
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    });
                     all_results.truncate(profile.context.rag_top_k);
                     let header = "\n\n## Relevant knowledge";
                     if budget.reserve(header) {
@@ -129,7 +148,10 @@ impl ContextEngine for StandardContextEngine {
         let mut messages = vec![serde_json::json!({"role": "system", "content": system})];
 
         // 7. Add history (most recent first, then reverse back to chronological)
-        let history = self.memory.get_history(ns, user_id, profile.context.history_limit).await?;
+        let history = self
+            .memory
+            .get_history(ns, user_id, profile.context.history_limit)
+            .await?;
         let mut selected: Vec<_> = Vec::new();
         for m in history.iter().rev() {
             if budget.reserve(&m.content) {
@@ -161,17 +183,24 @@ impl ContextEngine for StandardContextEngine {
         }
 
         // 9. Filter tools by agent profile
-        let tools = self.registry.get_filtered_tool_definitions(&profile.allowed_skills);
+        let tools = self
+            .registry
+            .get_filtered_tool_definitions(&profile.allowed_skills);
 
         Ok(ContextResult { messages, tools })
     }
 
     async fn on_exchange_complete(&self, exchange: ExchangeEvent) -> Result<()> {
         // Save the exchange
-        self.memory.save_exchange(
-            &exchange.namespace, &exchange.user_id, &exchange.platform,
-            &exchange.user_message, &exchange.assistant_response,
-        ).await?;
+        self.memory
+            .save_exchange(
+                &exchange.namespace,
+                &exchange.user_id,
+                &exchange.platform,
+                &exchange.user_message,
+                &exchange.assistant_response,
+            )
+            .await?;
 
         Ok(())
     }
@@ -192,7 +221,8 @@ pub async fn maybe_summarize(
     }
 
     let history = memory.get_history(ns, user_id, 100).await?;
-    let sum_text: Vec<String> = history.iter()
+    let sum_text: Vec<String> = history
+        .iter()
         .map(|m| format!("{}: {}", m.role, m.content))
         .collect();
     let sum_prompt = format!(
@@ -206,7 +236,9 @@ pub async fn maybe_summarize(
 
     match llm.call(&sum_messages, &[]).await {
         Ok(LlmResponse::Text(summary)) => {
-            memory.save_summary_and_prune(ns, user_id, &summary, keep_recent).await?;
+            memory
+                .save_summary_and_prune(ns, user_id, &summary, keep_recent)
+                .await?;
         }
         _ => {
             tracing::warn!(ns, user_id, "Failed to generate summary");
@@ -234,32 +266,70 @@ mod tests {
         fn new() -> Self {
             Self {
                 history: Mutex::new(vec![
-                    HistoryMessage { role: "user".into(), content: "Previous msg".into() },
-                    HistoryMessage { role: "assistant".into(), content: "Previous reply".into() },
+                    HistoryMessage {
+                        role: "user".into(),
+                        content: "Previous msg".into(),
+                    },
+                    HistoryMessage {
+                        role: "assistant".into(),
+                        content: "Previous reply".into(),
+                    },
                 ]),
-                facts: Mutex::new(HashMap::from([
-                    ("name".into(), "Aman".into()),
-                ])),
+                facts: Mutex::new(HashMap::from([("name".into(), "Aman".into())])),
             }
         }
     }
 
     #[async_trait::async_trait]
     impl MemoryBackend for MockMemory {
-        async fn save_exchange(&self, _ns: &str, _uid: &str, _p: &str, _u: &str, _a: &str) -> Result<()> { Ok(()) }
-        async fn get_history(&self, _ns: &str, _uid: &str, _limit: i64) -> Result<Vec<HistoryMessage>> {
+        async fn save_exchange(
+            &self,
+            _ns: &str,
+            _uid: &str,
+            _p: &str,
+            _u: &str,
+            _a: &str,
+        ) -> Result<()> {
+            Ok(())
+        }
+        async fn get_history(
+            &self,
+            _ns: &str,
+            _uid: &str,
+            _limit: i64,
+        ) -> Result<Vec<HistoryMessage>> {
             Ok(self.history.lock().unwrap().clone())
         }
-        async fn clear_history(&self, _ns: &str, _uid: &str) -> Result<()> { Ok(()) }
-        async fn get_message_count(&self, _ns: &str, _uid: &str) -> Result<i64> { Ok(2) }
-        async fn save_fact(&self, _uid: &str, _k: &str, _v: &str) -> Result<()> { Ok(()) }
+        async fn clear_history(&self, _ns: &str, _uid: &str) -> Result<()> {
+            Ok(())
+        }
+        async fn get_message_count(&self, _ns: &str, _uid: &str) -> Result<i64> {
+            Ok(2)
+        }
+        async fn save_fact(&self, _uid: &str, _k: &str, _v: &str) -> Result<()> {
+            Ok(())
+        }
         async fn get_facts(&self, _uid: &str) -> Result<HashMap<String, String>> {
             Ok(self.facts.lock().unwrap().clone())
         }
-        async fn delete_fact(&self, _uid: &str, _k: &str) -> Result<bool> { Ok(true) }
-        async fn get_summary(&self, _ns: &str, _uid: &str) -> Result<Option<String>> { Ok(None) }
-        async fn save_summary_and_prune(&self, _ns: &str, _uid: &str, _s: &str, _k: i64) -> Result<()> { Ok(()) }
-        async fn needs_summarization(&self, _ns: &str, _uid: &str, _t: i64) -> Result<bool> { Ok(false) }
+        async fn delete_fact(&self, _uid: &str, _k: &str) -> Result<bool> {
+            Ok(true)
+        }
+        async fn get_summary(&self, _ns: &str, _uid: &str) -> Result<Option<String>> {
+            Ok(None)
+        }
+        async fn save_summary_and_prune(
+            &self,
+            _ns: &str,
+            _uid: &str,
+            _s: &str,
+            _k: i64,
+        ) -> Result<()> {
+            Ok(())
+        }
+        async fn needs_summarization(&self, _ns: &str, _uid: &str, _t: i64) -> Result<bool> {
+            Ok(false)
+        }
     }
 
     #[tokio::test]

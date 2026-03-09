@@ -19,7 +19,7 @@ static INJECTION_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
 pub fn check_injection(text: &str) -> (String, bool) {
     for pattern in INJECTION_PATTERNS.iter() {
         if pattern.is_match(text) {
-            return (format!("[FLAGGED] {}", text), true);
+            return (format!("[FLAGGED] {text}"), true);
         }
     }
     (text.to_string(), false)
@@ -27,7 +27,7 @@ pub fn check_injection(text: &str) -> (String, bool) {
 
 /// Wrap skill output so the LLM treats it as data, not instructions.
 pub fn sanitize_output(output: &str) -> String {
-    format!("[SKILL OUTPUT] {}", output)
+    format!("[SKILL OUTPUT] {output}")
 }
 
 #[cfg(test)]

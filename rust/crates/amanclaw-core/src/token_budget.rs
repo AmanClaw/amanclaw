@@ -1,6 +1,6 @@
 /// Simple token estimation. 1 token ~ 4 characters (conservative).
 pub fn estimate_tokens(text: &str) -> usize {
-    (text.len() + 3) / 4
+    text.len().div_ceil(4)
 }
 
 /// Manages a token budget for context building.
@@ -11,7 +11,10 @@ pub struct TokenBudget {
 
 impl TokenBudget {
     pub fn new(max_tokens: usize) -> Self {
-        Self { max_tokens, used: 0 }
+        Self {
+            max_tokens,
+            used: 0,
+        }
     }
 
     /// Try to reserve tokens. Returns true if fits.

@@ -71,7 +71,9 @@ pub struct RegistryConfig {
     pub allow_unverified: bool,
 }
 
-fn default_registry_skills_dir() -> String { "./plugins/registry".into() }
+fn default_registry_skills_dir() -> String {
+    "./plugins/registry".into()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmbeddingConfig {
@@ -95,7 +97,9 @@ pub struct KnowledgeBaseConfig {
     pub source: String,
 }
 
-fn default_vector_backend() -> String { "sqlite-vec".into() }
+fn default_vector_backend() -> String {
+    "sqlite-vec".into()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScriptPluginConfig {
@@ -181,7 +185,9 @@ pub struct SkillsConfig {
     pub soul_dir: String,
 }
 
-fn default_soul_dir() -> String { "./souls".into() }
+fn default_soul_dir() -> String {
+    "./souls".into()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpServerConfig {
@@ -276,7 +282,9 @@ pub struct CronTargetConfig {
     pub topic_id: Option<String>,
 }
 
-fn default_cron_timezone() -> String { "Asia/Kuala_Lumpur".into() }
+fn default_cron_timezone() -> String {
+    "Asia/Kuala_Lumpur".into()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WebhookConfig {
@@ -420,29 +428,69 @@ impl Default for SubAgentConfig {
     }
 }
 
-fn default_max_per_session() -> usize { 5 }
-fn default_max_global() -> usize { 20 }
-fn default_max_depth() -> usize { 2 }
-fn default_subagent_timeout() -> u64 { 120 }
+fn default_max_per_session() -> usize {
+    5
+}
+fn default_max_global() -> usize {
+    20
+}
+fn default_max_depth() -> usize {
+    2
+}
+fn default_subagent_timeout() -> u64 {
+    120
+}
 
-fn default_heartbeat() -> u64 { 30 }
-fn default_max_connections() -> usize { 50 }
-fn default_stale_timeout() -> u64 { 60 }
+fn default_heartbeat() -> u64 {
+    30
+}
+fn default_max_connections() -> usize {
+    50
+}
+fn default_stale_timeout() -> u64 {
+    60
+}
 
-fn default_webhook_base_path() -> String { "/hooks".into() }
-fn default_webhook_auth_type() -> String { "none".into() }
-fn default_webhook_transform_type() -> String { "raw_json".into() }
+fn default_webhook_base_path() -> String {
+    "/hooks".into()
+}
+fn default_webhook_auth_type() -> String {
+    "none".into()
+}
+fn default_webhook_transform_type() -> String {
+    "raw_json".into()
+}
 
-fn default_agent_id() -> String { "default".into() }
-fn default_rate_limit() -> u32 { 20 }
-fn default_max_tokens() -> u32 { 4096 }
-fn default_temperature() -> f32 { 0.7 }
-fn default_plugin_dir() -> String { "./plugins".into() }
-fn default_injection_rules() -> String { "default".into() }
-fn default_true() -> bool { true }
-fn default_skill_timeout() -> u32 { 30 }
-fn default_wasm_memory_limit_mb() -> u64 { 64 }
-fn default_wasm_fuel_limit() -> u64 { 1_000_000 }
+fn default_agent_id() -> String {
+    "default".into()
+}
+fn default_rate_limit() -> u32 {
+    20
+}
+fn default_max_tokens() -> u32 {
+    4096
+}
+fn default_temperature() -> f32 {
+    0.7
+}
+fn default_plugin_dir() -> String {
+    "./plugins".into()
+}
+fn default_injection_rules() -> String {
+    "default".into()
+}
+fn default_true() -> bool {
+    true
+}
+fn default_skill_timeout() -> u32 {
+    30
+}
+fn default_wasm_memory_limit_mb() -> u64 {
+    64
+}
+fn default_wasm_fuel_limit() -> u64 {
+    1_000_000
+}
 
 #[cfg(test)]
 mod tests {

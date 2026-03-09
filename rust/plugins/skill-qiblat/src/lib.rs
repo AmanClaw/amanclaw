@@ -13,8 +13,8 @@ fn calculate_qiblat(lat: f64, lon: f64) -> (f64, String) {
 
     let delta_lon = kaaba_lon_rad - lon_rad;
     let x = delta_lon.sin() * kaaba_lat_rad.cos();
-    let y = lat_rad.cos() * kaaba_lat_rad.sin()
-        - lat_rad.sin() * kaaba_lat_rad.cos() * delta_lon.cos();
+    let y =
+        lat_rad.cos() * kaaba_lat_rad.sin() - lat_rad.sin() * kaaba_lat_rad.cos() * delta_lon.cos();
 
     let bearing = x.atan2(y).to_degrees();
     let bearing = (bearing + 360.0) % 360.0;
@@ -39,9 +39,7 @@ fn calculate_distance_km(lat: f64, lon: f64) -> f64 {
     let dlat = (KAABA_LAT - lat).to_radians();
     let dlon = (KAABA_LON - lon).to_radians();
     let a = (dlat / 2.0).sin().powi(2)
-        + lat.to_radians().cos()
-            * KAABA_LAT.to_radians().cos()
-            * (dlon / 2.0).sin().powi(2);
+        + lat.to_radians().cos() * KAABA_LAT.to_radians().cos() * (dlon / 2.0).sin().powi(2);
     let c = 2.0 * a.sqrt().asin();
     r * c
 }
@@ -51,7 +49,9 @@ impl Skill for QiblatSkill {
     fn metadata(&self) -> SkillMetadata {
         SkillMetadata {
             name: "qiblat".into(),
-            description: "Calculate Qiblat direction (arah kiblat) from any location to Kaaba in Makkah.".into(),
+            description:
+                "Calculate Qiblat direction (arah kiblat) from any location to Kaaba in Makkah."
+                    .into(),
             timeout_ms: 5000,
             version: "0.1.0".into(),
         }
@@ -76,7 +76,7 @@ impl Skill for QiblatSkill {
                 return SkillResult {
                     success: false,
                     output: String::new(),
-                    error: Some(format!("Invalid args: {}", e)),
+                    error: Some(format!("Invalid args: {e}")),
                 };
             }
         };
@@ -99,8 +99,7 @@ impl Skill for QiblatSkill {
         let distance = calculate_distance_km(lat, lon);
 
         let output = format!(
-            "Arah Kiblat dari {}:\n\nBearing: {:.1}\u{00b0}\nArah: {}\nJarak ke Kaabah: {:.0} km\n\nKoordinat: {:.4}\u{00b0}N, {:.4}\u{00b0}E",
-            location, bearing, compass, distance, lat, lon
+            "Arah Kiblat dari {location}:\n\nBearing: {bearing:.1}\u{00b0}\nArah: {compass}\nJarak ke Kaabah: {distance:.0} km\n\nKoordinat: {lat:.4}\u{00b0}N, {lon:.4}\u{00b0}E"
         );
 
         SkillResult {
@@ -127,7 +126,10 @@ mod tests {
     fn test_qiblat_from_kl() {
         let (bearing, compass) = calculate_qiblat(3.1390, 101.6869);
         // From KL, Qiblat should be roughly W (~292 degrees)
-        assert!(bearing > 270.0 && bearing < 300.0, "Bearing from KL should be ~292, got {}", bearing);
+        assert!(
+            bearing > 270.0 && bearing < 300.0,
+            "Bearing from KL should be ~292, got {bearing}"
+        );
         assert_eq!(compass, "Barat (W)");
     }
 
@@ -135,21 +137,30 @@ mod tests {
     fn test_qiblat_from_london() {
         let (bearing, _compass) = calculate_qiblat(51.5074, -0.1278);
         // From London, Qiblat should be roughly SE (~119 degrees)
-        assert!(bearing > 100.0 && bearing < 140.0, "Bearing from London should be ~119, got {}", bearing);
+        assert!(
+            bearing > 100.0 && bearing < 140.0,
+            "Bearing from London should be ~119, got {bearing}"
+        );
     }
 
     #[test]
     fn test_distance_from_kl() {
         let dist = calculate_distance_km(3.1390, 101.6869);
         // KL to Makkah is roughly 6900-7100 km
-        assert!(dist > 6800.0 && dist < 7200.0, "Distance from KL should be ~6974km, got {}", dist);
+        assert!(
+            dist > 6800.0 && dist < 7200.0,
+            "Distance from KL should be ~6974km, got {dist}"
+        );
     }
 
     #[test]
     fn test_distance_from_makkah() {
         let dist = calculate_distance_km(KAABA_LAT, KAABA_LON);
         // Distance from Kaaba to itself should be ~0
-        assert!(dist < 1.0, "Distance from Kaaba to itself should be ~0, got {}", dist);
+        assert!(
+            dist < 1.0,
+            "Distance from Kaaba to itself should be ~0, got {dist}"
+        );
     }
 
     #[tokio::test]

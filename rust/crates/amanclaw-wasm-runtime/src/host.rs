@@ -48,7 +48,10 @@ mod tests {
         config.insert("api_url".into(), "https://example.com".into());
         let host = HostState::new(config, HashMap::new());
 
-        assert_eq!(host.get_config("api_url"), Some("https://example.com".into()));
+        assert_eq!(
+            host.get_config("api_url"),
+            Some("https://example.com".into())
+        );
         assert_eq!(host.get_config("missing"), None);
     }
 

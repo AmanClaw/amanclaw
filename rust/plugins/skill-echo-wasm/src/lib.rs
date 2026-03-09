@@ -16,6 +16,6 @@ amanclaw_plugin!(
         let args: serde_json::Value = serde_json::from_str(&input.args)
             .unwrap_or_default();
         let text = args["text"].as_str().unwrap_or("(no text)");
-        SkillResult::ok(format!("Echo: {}", text))
+        SkillResult::ok(format!("Echo: {text}"))
     }
 );

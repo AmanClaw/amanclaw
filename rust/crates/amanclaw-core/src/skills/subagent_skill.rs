@@ -1,5 +1,5 @@
+use crate::subagent::{SpawnRequest, SubAgentManager};
 use amanclaw_traits::skill::{Skill, SkillInput, SkillMetadata, SkillResult};
-use crate::subagent::{SubAgentManager, SpawnRequest};
 use std::sync::Arc;
 
 pub struct SubAgentSkill {
@@ -52,11 +52,13 @@ impl Skill for SubAgentSkill {
     async fn execute(&self, input: SkillInput) -> SkillResult {
         let args: serde_json::Value = match serde_json::from_str(&input.args) {
             Ok(v) => v,
-            Err(e) => return SkillResult {
-                success: false,
-                output: String::new(),
-                error: Some(format!("Invalid args: {}", e)),
-            },
+            Err(e) => {
+                return SkillResult {
+                    success: false,
+                    output: String::new(),
+                    error: Some(format!("Invalid args: {e}")),
+                };
+            }
         };
 
         let action = args["action"].as_str().unwrap_or("");
@@ -68,7 +70,7 @@ impl Skill for SubAgentSkill {
             _ => SkillResult {
                 success: false,
                 output: String::new(),
-                error: Some(format!("Unknown action: {}", action)),
+                error: Some(format!("Unknown action: {action}")),
             },
         }
     }
@@ -79,11 +81,13 @@ impl SubAgentSkill {
         let agent_id = args["agent_id"].as_str().unwrap_or("default").to_string();
         let prompt = match args["prompt"].as_str() {
             Some(p) => p.to_string(),
-            None => return SkillResult {
-                success: false,
-                output: String::new(),
-                error: Some("Missing 'prompt' for spawn action".into()),
-            },
+            None => {
+                return SkillResult {
+                    success: false,
+                    output: String::new(),
+                    error: Some("Missing 'prompt' for spawn action".into()),
+                };
+            }
         };
 
         let request = SpawnRequest {
@@ -99,7 +103,8 @@ impl SubAgentSkill {
                 output: serde_json::json!({
                     "subagent_id": id,
                     "status": "spawned"
-                }).to_string(),
+                })
+                .to_string(),
                 error: None,
             },
             Err(e) => SkillResult {
@@ -120,25 +125,29 @@ impl SubAgentSkill {
                         "subagent_id": agent.id,
                         "agent_id": agent.agent_id,
                         "status": format!("{:?}", agent.status),
-                    }).to_string(),
+                    })
+                    .to_string(),
                     error: None,
                 },
                 None => SkillResult {
                     success: false,
                     output: String::new(),
-                    error: Some(format!("Sub-agent '{}' not found", id)),
+                    error: Some(format!("Sub-agent '{id}' not found")),
                 },
             }
         } else {
             // List all sub-agents for session
             let agents = self.manager.list(&input.user_id).await;
-            let list: Vec<serde_json::Value> = agents.iter().map(|a| {
-                serde_json::json!({
-                    "subagent_id": a.id,
-                    "agent_id": a.agent_id,
-                    "status": format!("{:?}", a.status),
+            let list: Vec<serde_json::Value> = agents
+                .iter()
+                .map(|a| {
+                    serde_json::json!({
+                        "subagent_id": a.id,
+                        "agent_id": a.agent_id,
+                        "status": format!("{:?}", a.status),
+                    })
                 })
-            }).collect();
+                .collect();
             SkillResult {
                 success: true,
                 output: serde_json::json!({ "subagents": list }).to_string(),
@@ -150,11 +159,13 @@ impl SubAgentSkill {
     async fn handle_cancel(&self, args: &serde_json::Value) -> SkillResult {
         let id = match args["subagent_id"].as_str() {
             Some(id) => id,
-            None => return SkillResult {
-                success: false,
-                output: String::new(),
-                error: Some("Missing 'subagent_id' for cancel action".into()),
-            },
+            None => {
+                return SkillResult {
+                    success: false,
+                    output: String::new(),
+                    error: Some("Missing 'subagent_id' for cancel action".into()),
+                };
+            }
         };
 
         if self.manager.cancel(id).await {
@@ -163,14 +174,15 @@ impl SubAgentSkill {
                 output: serde_json::json!({
                     "subagent_id": id,
                     "status": "cancelled"
-                }).to_string(),
+                })
+                .to_string(),
                 error: None,
             }
         } else {
             SkillResult {
                 success: false,
                 output: String::new(),
-                error: Some(format!("Sub-agent '{}' not found or not running", id)),
+                error: Some(format!("Sub-agent '{id}' not found or not running")),
             }
         }
     }

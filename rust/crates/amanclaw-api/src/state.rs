@@ -27,6 +27,12 @@ pub struct BotStatus {
     pub skills_count: usize,
 }
 
+impl Default for BotStatus {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BotStatus {
     pub fn new() -> Self {
         Self {

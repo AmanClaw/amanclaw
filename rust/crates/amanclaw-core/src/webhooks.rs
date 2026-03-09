@@ -1,6 +1,8 @@
-use amanclaw_traits::config::{WebhookConfig, WebhookEndpointConfig, WebhookAuthConfig, WebhookTransformConfig};
-use amanclaw_traits::message::{IncomingMessage, OutgoingMessage};
 use crate::scheduler::SchedulerEvent;
+use amanclaw_traits::config::{
+    WebhookAuthConfig, WebhookConfig, WebhookEndpointConfig, WebhookTransformConfig,
+};
+use amanclaw_traits::message::{IncomingMessage, OutgoingMessage};
 use anyhow::Result;
 use std::collections::HashMap;
 use tokio::sync::mpsc;
@@ -21,7 +23,8 @@ impl WebhookRouter {
     }
 
     pub fn list_endpoints(&self) -> Vec<(&str, &str, bool)> {
-        self.endpoints.iter()
+        self.endpoints
+            .iter()
             .map(|(id, ep)| (id.as_str(), ep.name.as_str(), ep.enabled))
             .collect()
     }
@@ -32,25 +35,29 @@ impl WebhookRouter {
         headers: &HashMap<String, String>,
         body: &[u8],
     ) -> Result<WebhookResult> {
-        let endpoint = self.endpoints.get(webhook_id)
-            .ok_or_else(|| anyhow::anyhow!("Unknown webhook: {}", webhook_id))?;
+        let endpoint = self
+            .endpoints
+            .get(webhook_id)
+            .ok_or_else(|| anyhow::anyhow!("Unknown webhook: {webhook_id}"))?;
 
         if !endpoint.enabled {
             return Ok(WebhookResult::Rejected("Webhook disabled".into()));
         }
 
         // Auth validation
-        let secret = endpoint.auth.secret.as_ref()
+        let secret = endpoint
+            .auth
+            .secret
+            .as_ref()
             .or(self.default_secret.as_ref());
         if !validate_auth(&endpoint.auth, headers, body, secret)? {
             return Ok(WebhookResult::Rejected("Auth failed".into()));
         }
 
         // Parse body as JSON
-        let payload: serde_json::Value = serde_json::from_slice(body)
-            .unwrap_or_else(|_| {
-                serde_json::json!({ "raw": String::from_utf8_lossy(body).to_string() })
-            });
+        let payload: serde_json::Value = serde_json::from_slice(body).unwrap_or_else(
+            |_| serde_json::json!({ "raw": String::from_utf8_lossy(body).to_string() }),
+        );
 
         // Transform
         let message = transform(&endpoint.transform, &payload)?;
@@ -59,32 +66,36 @@ impl WebhookRouter {
         for target in &endpoint.targets {
             match endpoint.transform.transform_type.as_str() {
                 "agent_prompt" | "skill_invocation" => {
-                    self.tx.send(SchedulerEvent::InjectMessage(IncomingMessage {
-                        user_id: format!("webhook:{}", webhook_id),
-                        chat_id: target.chat_id.clone(),
-                        platform: target.platform.clone(),
-                        text: message.clone(),
-                        username: None,
-                        first_name: None,
-                        is_group: false,
-                        image_data: None,
-                        reply_to: None,
-                        topic_id: target.topic_id.clone(),
-                        channel_context: None,
-                        is_cron: false,
-                        is_webhook: true,
-                        is_subagent: false,
-                    })).await?;
+                    self.tx
+                        .send(SchedulerEvent::InjectMessage(IncomingMessage {
+                            user_id: format!("webhook:{webhook_id}"),
+                            chat_id: target.chat_id.clone(),
+                            platform: target.platform.clone(),
+                            text: message.clone(),
+                            username: None,
+                            first_name: None,
+                            is_group: false,
+                            image_data: None,
+                            reply_to: None,
+                            topic_id: target.topic_id.clone(),
+                            channel_context: None,
+                            is_cron: false,
+                            is_webhook: true,
+                            is_subagent: false,
+                        }))
+                        .await?;
                 }
                 _ => {
-                    self.tx.send(SchedulerEvent::SendMessage(OutgoingMessage {
-                        chat_id: target.chat_id.clone(),
-                        text: message.clone(),
-                        parse_mode: None,
-                        reply_to: None,
-                        platform: Some(target.platform.clone()),
-                        topic_id: target.topic_id.clone(),
-                    })).await?;
+                    self.tx
+                        .send(SchedulerEvent::SendMessage(OutgoingMessage {
+                            chat_id: target.chat_id.clone(),
+                            text: message.clone(),
+                            parse_mode: None,
+                            reply_to: None,
+                            platform: Some(target.platform.clone()),
+                            topic_id: target.topic_id.clone(),
+                        }))
+                        .await?;
                 }
             }
         }
@@ -109,27 +120,34 @@ fn validate_auth(
     match auth.auth_type.as_str() {
         "none" => Ok(true),
         "hmac_sha256" => {
-            let secret = secret
-                .ok_or_else(|| anyhow::anyhow!("HMAC auth requires a secret"))?;
+            let secret = secret.ok_or_else(|| anyhow::anyhow!("HMAC auth requires a secret"))?;
             let header_name = auth.header.as_deref().unwrap_or("x-hub-signature-256");
-            let signature = headers.get(header_name)
-                .ok_or_else(|| anyhow::anyhow!("Missing signature header: {}", header_name))?;
+            let signature = headers
+                .get(header_name)
+                .ok_or_else(|| anyhow::anyhow!("Missing signature header: {header_name}"))?;
             Ok(verify_hmac_sha256(secret.as_bytes(), body, signature))
         }
         "bearer" => {
-            let expected = auth.token.as_ref()
+            let expected = auth
+                .token
+                .as_ref()
                 .ok_or_else(|| anyhow::anyhow!("Bearer auth requires a token"))?;
-            let auth_header = headers.get("authorization")
+            let auth_header = headers
+                .get("authorization")
                 .ok_or_else(|| anyhow::anyhow!("Missing Authorization header"))?;
-            Ok(auth_header == &format!("Bearer {}", expected))
+            Ok(auth_header == &format!("Bearer {expected}"))
         }
         "header_match" => {
-            let header_name = auth.header.as_ref()
+            let header_name = auth
+                .header
+                .as_ref()
                 .ok_or_else(|| anyhow::anyhow!("header_match requires header name"))?;
-            let expected = auth.value.as_ref()
+            let expected = auth
+                .value
+                .as_ref()
                 .ok_or_else(|| anyhow::anyhow!("header_match requires value"))?;
             let actual = headers.get(header_name.to_lowercase().as_str());
-            Ok(actual.map_or(false, |v| v == expected))
+            Ok(actual == Some(expected))
         }
         other => {
             tracing::warn!(auth_type = %other, "Unknown webhook auth type, rejecting");
@@ -142,8 +160,7 @@ fn verify_hmac_sha256(secret: &[u8], body: &[u8], signature: &str) -> bool {
     use hmac::{Hmac, Mac};
     use sha2::Sha256;
 
-    let mut mac = Hmac::<Sha256>::new_from_slice(secret)
-        .expect("HMAC can take key of any size");
+    let mut mac = Hmac::<Sha256>::new_from_slice(secret).expect("HMAC can take key of any size");
     mac.update(body);
     let result = mac.finalize();
     let expected = hex::encode(result.into_bytes());
@@ -160,7 +177,7 @@ fn transform(config: &WebhookTransformConfig, payload: &serde_json::Value) -> Re
         "json_path" => {
             let path = config.message_path.as_deref().unwrap_or("$.message");
             let value = json_path_extract(payload, path);
-            Ok(value.unwrap_or_else(|| format!("{}", payload)))
+            Ok(value.unwrap_or_else(|| format!("{payload}")))
         }
         "template" => {
             let template = config.template.as_deref().unwrap_or("{{json}}");
@@ -170,26 +187,34 @@ fn transform(config: &WebhookTransformConfig, payload: &serde_json::Value) -> Re
             // Add top-level keys from payload
             if let Some(obj) = payload.as_object() {
                 for (k, v) in obj {
-                    data.insert(k.clone(), match v {
-                        serde_json::Value::String(s) => s.clone(),
-                        other => other.to_string(),
-                    });
+                    data.insert(
+                        k.clone(),
+                        match v {
+                            serde_json::Value::String(s) => s.clone(),
+                            other => other.to_string(),
+                        },
+                    );
                 }
             }
             Ok(hbs.render_template(template, &data)?)
         }
         "agent_prompt" => {
-            let prompt_template = config.prompt_template.as_deref()
+            let prompt_template = config
+                .prompt_template
+                .as_deref()
                 .unwrap_or("Process this webhook payload: {{json}}");
             let hbs = handlebars::Handlebars::new();
             let mut data = HashMap::new();
             data.insert("json".to_string(), serde_json::to_string(payload)?);
             if let Some(obj) = payload.as_object() {
                 for (k, v) in obj {
-                    data.insert(k.clone(), match v {
-                        serde_json::Value::String(s) => s.clone(),
-                        other => other.to_string(),
-                    });
+                    data.insert(
+                        k.clone(),
+                        match v {
+                            serde_json::Value::String(s) => s.clone(),
+                            other => other.to_string(),
+                        },
+                    );
                 }
             }
             Ok(hbs.render_template(prompt_template, &data)?)
@@ -201,7 +226,7 @@ fn transform(config: &WebhookTransformConfig, payload: &serde_json::Value) -> Re
             let mut data = HashMap::new();
             data.insert("json".to_string(), serde_json::to_string(payload)?);
             let input = hbs.render_template(input_template, &data)?;
-            Ok(format!("/{} {}", skill, input))
+            Ok(format!("/{skill} {input}"))
         }
         other => {
             tracing::warn!(transform_type = %other, "Unknown transform type, using raw JSON");
@@ -241,7 +266,7 @@ mod tests {
         let sig = hex::encode(mac.finalize().into_bytes());
 
         assert!(verify_hmac_sha256(secret, body, &sig));
-        assert!(verify_hmac_sha256(secret, body, &format!("sha256={}", sig)));
+        assert!(verify_hmac_sha256(secret, body, &format!("sha256={sig}")));
         assert!(!verify_hmac_sha256(secret, body, "invalid"));
     }
 
@@ -281,8 +306,14 @@ mod tests {
                 "message": "CPU at 100%"
             }
         });
-        assert_eq!(json_path_extract(&payload, "$.alert.title"), Some("Server down".into()));
-        assert_eq!(json_path_extract(&payload, "alert.message"), Some("CPU at 100%".into()));
+        assert_eq!(
+            json_path_extract(&payload, "$.alert.title"),
+            Some("Server down".into())
+        );
+        assert_eq!(
+            json_path_extract(&payload, "alert.message"),
+            Some("CPU at 100%".into())
+        );
         assert_eq!(json_path_extract(&payload, "$.missing"), None);
     }
 
@@ -380,7 +411,10 @@ mod tests {
         };
 
         let router = WebhookRouter::new(&config, tx);
-        let result = router.handle("disabled", &HashMap::new(), b"{}").await.unwrap();
+        let result = router
+            .handle("disabled", &HashMap::new(), b"{}")
+            .await
+            .unwrap();
         assert!(matches!(result, WebhookResult::Rejected(_)));
     }
 }
