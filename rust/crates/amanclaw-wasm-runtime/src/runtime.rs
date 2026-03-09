@@ -15,6 +15,7 @@ use anyhow::{Context, Result};
 use std::path::Path;
 use std::sync::Arc;
 use wasmtime::*;
+use wasmtime::{StoreLimits, StoreLimitsBuilder};
 
 use crate::sandbox::SandboxConfig;
 
@@ -40,7 +41,7 @@ impl std::fmt::Debug for WasmSkill {
 }
 
 /// Read a null-terminated string from WASM memory starting at `ptr`.
-fn read_cstring(memory: &Memory, store: &mut Store<()>, ptr: i32) -> Result<String> {
+fn read_cstring(memory: &Memory, store: &mut Store<StoreLimits>, ptr: i32) -> Result<String> {
     let data = memory.data(&store);
     let start = ptr as usize;
     let mut end = start;
@@ -55,7 +56,7 @@ fn read_cstring(memory: &Memory, store: &mut Store<()>, ptr: i32) -> Result<Stri
 fn write_bytes(
     alloc_fn: &TypedFunc<i32, i32>,
     memory: &Memory,
-    store: &mut Store<()>,
+    store: &mut Store<StoreLimits>,
     data: &[u8],
 ) -> Result<(i32, i32)> {
     let len = data.len() as i32;
@@ -71,14 +72,21 @@ pub fn load_wasm_skill(
 ) -> Result<WasmSkill> {
     let mut config = Config::new();
     config.epoch_interruption(true);
+    config.consume_fuel(true);
 
     let engine = Engine::new(&config)?;
     let module = Module::from_file(&engine, wasm_path)
         .with_context(|| format!("Failed to load WASM module: {}", wasm_path.display()))?;
 
-    // Create store and instance to call metadata/parameters
-    let mut store = Store::new(&engine, ());
+    // Create store with resource limits
+    let limits = StoreLimitsBuilder::new()
+        .memory_size(sandbox.max_memory_bytes)
+        .table_elements(10_000)
+        .build();
+    let mut store = Store::new(&engine, limits);
+    store.limiter(|s| s as &mut dyn wasmtime::ResourceLimiter);
     store.set_epoch_deadline(100); // generous deadline for init
+    store.set_fuel(sandbox.fuel_limit)?;
 
     let mut linker = wasmtime::Linker::new(&engine);
 
@@ -126,13 +134,14 @@ pub fn load_wasm_skill(
 }
 
 /// Provide stub imports for common WASI functions that modules might need.
-fn provide_stub_imports(linker: &mut wasmtime::Linker<()>, module: &Module) -> Result<()> {
+fn provide_stub_imports(linker: &mut wasmtime::Linker<StoreLimits>, module: &Module) -> Result<()> {
     for import in module.imports() {
         let module_name = import.module();
         let name = import.name();
 
         // Only stub functions we haven't already defined
-        if linker.get(&mut Store::new(linker.engine(), ()), module_name, name).is_some() {
+        let check_limits = StoreLimitsBuilder::new().build();
+        if linker.get(&mut Store::new(linker.engine(), check_limits), module_name, name).is_some() {
             continue;
         }
 
@@ -181,10 +190,10 @@ impl Skill for WasmSkill {
         // Run WASM execution on a blocking thread (it's synchronous)
         let engine = self.engine.clone();
         let module = self.module.clone();
-        let timeout = self.sandbox.timeout;
+        let sandbox = self.sandbox.clone();
 
         let result = tokio::task::spawn_blocking(move || {
-            execute_wasm(&engine, &module, &input, timeout)
+            execute_wasm(&engine, &module, &input, &sandbox)
         }).await;
 
         match result {
@@ -208,11 +217,22 @@ fn execute_wasm(
     engine: &Engine,
     module: &Module,
     input: &SkillInput,
-    timeout: std::time::Duration,
+    sandbox: &SandboxConfig,
 ) -> Result<SkillResult> {
-    let mut store = Store::new(engine, ());
+    let limits = StoreLimitsBuilder::new()
+        .memory_size(sandbox.max_memory_bytes)
+        .table_elements(10_000)
+        .build();
+    let mut store = Store::new(engine, limits);
+    store.limiter(|s| s as &mut dyn wasmtime::ResourceLimiter);
+
+    // Set fuel budget for CPU limiting
+    if sandbox.fuel_limit > 0 {
+        store.set_fuel(sandbox.fuel_limit)?;
+    }
 
     // Set epoch deadline for timeout
+    let timeout = sandbox.timeout;
     let epoch_ticks = (timeout.as_millis() / 10).max(1) as u64;
     store.set_epoch_deadline(epoch_ticks);
 
@@ -249,8 +269,17 @@ fn execute_wasm(
     Ok(result)
 }
 
+/// Build a SandboxConfig from memory limit (in MB) and fuel limit.
+pub fn sandbox_from_limits(memory_limit_mb: u64, fuel_limit: u64) -> SandboxConfig {
+    SandboxConfig {
+        max_memory_bytes: (memory_limit_mb as usize) * 1024 * 1024,
+        fuel_limit,
+        ..SandboxConfig::default()
+    }
+}
+
 /// Discover and load all .wasm plugins from a directory.
-pub fn load_all_plugins(plugin_dir: &Path) -> Vec<Arc<dyn Skill>> {
+pub fn load_all_plugins(plugin_dir: &Path, sandbox: SandboxConfig) -> Vec<Arc<dyn Skill>> {
     let mut skills: Vec<Arc<dyn Skill>> = Vec::new();
 
     if !plugin_dir.exists() {
@@ -269,7 +298,7 @@ pub fn load_all_plugins(plugin_dir: &Path) -> Vec<Arc<dyn Skill>> {
     for entry in entries.flatten() {
         let path = entry.path();
         if path.extension().is_some_and(|ext| ext == "wasm") {
-            let sandbox = SandboxConfig::default();
+            let sandbox = sandbox.clone();
             match load_wasm_skill(&path, sandbox) {
                 Ok(skill) => {
                     tracing::info!(name = %skill.name, "Loaded WASM skill");
@@ -311,14 +340,22 @@ mod tests {
     #[test]
     fn test_load_all_plugins_empty_dir() {
         let dir = tempfile::tempdir().unwrap();
-        let skills = load_all_plugins(dir.path());
+        let skills = load_all_plugins(dir.path(), SandboxConfig::default());
         assert!(skills.is_empty());
     }
 
     #[test]
     fn test_load_all_plugins_nonexistent_dir() {
-        let skills = load_all_plugins(Path::new("/tmp/nonexistent-plugins-dir"));
+        let skills = load_all_plugins(Path::new("/tmp/nonexistent-plugins-dir"), SandboxConfig::default());
         assert!(skills.is_empty());
+    }
+
+    #[test]
+    fn test_sandbox_from_limits() {
+        let sandbox = sandbox_from_limits(32, 500_000);
+        assert_eq!(sandbox.max_memory_bytes, 32 * 1024 * 1024);
+        assert_eq!(sandbox.fuel_limit, 500_000);
+        assert_eq!(sandbox.timeout.as_secs(), 30); // default timeout preserved
     }
 
     // Integration test: loads the actual echo WASM plugin

@@ -104,9 +104,13 @@ impl Engine {
             registry.register(subagent_skill);
         }
 
-        // Load WASM plugins
+        // Load WASM plugins with configured resource limits
         let plugin_dir = Path::new(&config.plugins.dir);
-        let wasm_skills = amanclaw_wasm_runtime::runtime::load_all_plugins(plugin_dir);
+        let wasm_sandbox = amanclaw_wasm_runtime::runtime::sandbox_from_limits(
+            config.plugins.wasm_memory_limit_mb,
+            config.plugins.wasm_fuel_limit,
+        );
+        let wasm_skills = amanclaw_wasm_runtime::runtime::load_all_plugins(plugin_dir, wasm_sandbox.clone());
         for skill in wasm_skills {
             registry.register(skill);
         }
@@ -150,7 +154,7 @@ impl Engine {
                             "wasm" => {
                                 if let Some(entry) = &skill_info.entry {
                                     let wasm_path = skill_dir.join(entry);
-                                    let wasm_skills = amanclaw_wasm_runtime::runtime::load_all_plugins(&wasm_path);
+                                    let wasm_skills = amanclaw_wasm_runtime::runtime::load_all_plugins(&wasm_path, wasm_sandbox.clone());
                                     for skill in wasm_skills {
                                         registry.register(skill);
                                     }
