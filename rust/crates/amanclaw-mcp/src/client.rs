@@ -22,6 +22,7 @@ pub struct McpRemoteTool {
 }
 
 /// Transport-agnostic MCP client connection.
+#[allow(clippy::large_enum_variant)]
 enum Transport {
     Stdio {
         child: Child,
@@ -70,23 +71,20 @@ impl McpClient {
 
             // Check for nvm/volta/fnm node installations
             if let Ok(home) = std::env::var("HOME") {
-                let home_dirs = [
-                    format!("{}/.local/bin", home),
-                    format!("{}/.volta/bin", home),
-                ];
+                let home_dirs = [format!("{home}/.local/bin"), format!("{home}/.volta/bin")];
                 for dir in &home_dirs {
                     if std::path::Path::new(dir).is_dir() && !current_path.contains(dir.as_str()) {
                         extra.push(dir.clone());
                     }
                 }
                 // nvm: find latest node version
-                let nvm_dir = format!("{}/.nvm/versions/node", home);
+                let nvm_dir = format!("{home}/.nvm/versions/node");
                 if let Ok(entries) = std::fs::read_dir(&nvm_dir) {
                     let mut versions: Vec<_> = entries
                         .filter_map(|e| e.ok())
                         .filter(|e| e.path().is_dir())
                         .collect();
-                    versions.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
+                    versions.sort_by_key(|b| std::cmp::Reverse(b.file_name()));
                     if let Some(latest) = versions.first() {
                         let bin = latest.path().join("bin").to_string_lossy().to_string();
                         if !current_path.contains(&bin) {
@@ -114,13 +112,17 @@ impl McpClient {
             cmd.env(key, resolved);
         }
 
-        let mut child = cmd.spawn()
-            .with_context(|| format!("Failed to spawn MCP server '{}': {} {:?}", server_name, command, args))?;
+        let mut child = cmd.spawn().with_context(|| {
+            format!("Failed to spawn MCP server '{server_name}': {command} {args:?}")
+        })?;
 
-        let stdin = child.stdin.take()
-            .ok_or_else(|| anyhow::anyhow!("Failed to get stdin for MCP server '{}'", server_name))?;
-        let stdout = child.stdout.take()
-            .ok_or_else(|| anyhow::anyhow!("Failed to get stdout for MCP server '{}'", server_name))?;
+        let stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| anyhow::anyhow!("Failed to get stdin for MCP server '{server_name}'"))?;
+        let stdout = child.stdout.take().ok_or_else(|| {
+            anyhow::anyhow!("Failed to get stdout for MCP server '{server_name}'")
+        })?;
 
         tracing::info!(server = %server_name, command = %command, "Spawned MCP server process");
 
@@ -171,9 +173,7 @@ impl McpClient {
             Transport::Stdio { stdin, stdout, .. } => {
                 self.call_stdio(stdin, stdout, &request).await
             }
-            Transport::Http { url, client } => {
-                self.call_http(client, url, &request).await
-            }
+            Transport::Http { url, client } => self.call_http(client, url, &request).await,
         }
     }
 
@@ -199,10 +199,16 @@ impl McpClient {
         let resp: JsonRpcResponse = serde_json::from_str(line.trim())?;
 
         if let Some(error) = resp.error {
-            anyhow::bail!("MCP server '{}' error: {} (code {})", self.server_name, error.message, error.code);
+            anyhow::bail!(
+                "MCP server '{}' error: {} (code {})",
+                self.server_name,
+                error.message,
+                error.code
+            );
         }
 
-        resp.result.ok_or_else(|| anyhow::anyhow!("Empty result from MCP server '{}'", self.server_name))
+        resp.result
+            .ok_or_else(|| anyhow::anyhow!("Empty result from MCP server '{}'", self.server_name))
     }
 
     async fn call_http(
@@ -216,33 +222,54 @@ impl McpClient {
             .json(request)
             .send()
             .await
-            .with_context(|| format!("Failed to connect to MCP server '{}' at {}", self.server_name, url))?;
+            .with_context(|| {
+                format!(
+                    "Failed to connect to MCP server '{}' at {}",
+                    self.server_name, url
+                )
+            })?;
 
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().await.unwrap_or_default();
-            anyhow::bail!("MCP server '{}' HTTP error {}: {}", self.server_name, status, body);
+            anyhow::bail!(
+                "MCP server '{}' HTTP error {}: {}",
+                self.server_name,
+                status,
+                body
+            );
         }
 
         let rpc_resp: JsonRpcResponse = resp.json().await?;
 
         if let Some(error) = rpc_resp.error {
-            anyhow::bail!("MCP server '{}' error: {} (code {})", self.server_name, error.message, error.code);
+            anyhow::bail!(
+                "MCP server '{}' error: {} (code {})",
+                self.server_name,
+                error.message,
+                error.code
+            );
         }
 
-        rpc_resp.result.ok_or_else(|| anyhow::anyhow!("Empty result from MCP server '{}'", self.server_name))
+        rpc_resp
+            .result
+            .ok_or_else(|| anyhow::anyhow!("Empty result from MCP server '{}'", self.server_name))
     }
 
     /// Send initialize handshake.
     pub async fn initialize(&self) -> Result<Value> {
-        self.call("initialize", Some(serde_json::json!({
-            "protocolVersion": "2024-11-05",
-            "capabilities": {},
-            "clientInfo": {
-                "name": "amanclaw",
-                "version": env!("CARGO_PKG_VERSION")
-            }
-        }))).await
+        self.call(
+            "initialize",
+            Some(serde_json::json!({
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {
+                    "name": "amanclaw",
+                    "version": env!("CARGO_PKG_VERSION")
+                }
+            })),
+        )
+        .await
     }
 
     /// Send initialized notification (no response expected for stdio).
@@ -265,21 +292,35 @@ impl McpClient {
     pub async fn list_tools(&self) -> Result<Vec<McpRemoteTool>> {
         let result = self.call("tools/list", None).await?;
 
-        let tools = result.get("tools")
+        let tools = result
+            .get("tools")
             .and_then(|t| t.as_array())
             .cloned()
             .unwrap_or_default();
 
         let mut discovered = Vec::new();
         for tool in tools {
-            let name = tool.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
-            let description = tool.get("description").and_then(|d| d.as_str()).unwrap_or("").to_string();
-            let input_schema = tool.get("inputSchema")
+            let name = tool
+                .get("name")
+                .and_then(|n| n.as_str())
+                .unwrap_or("")
+                .to_string();
+            let description = tool
+                .get("description")
+                .and_then(|d| d.as_str())
+                .unwrap_or("")
+                .to_string();
+            let input_schema = tool
+                .get("inputSchema")
                 .cloned()
                 .unwrap_or_else(|| serde_json::json!({"type": "object", "properties": {}}));
 
             if !name.is_empty() {
-                discovered.push(McpRemoteTool { name, description, input_schema });
+                discovered.push(McpRemoteTool {
+                    name,
+                    description,
+                    input_schema,
+                });
             }
         }
 
@@ -294,22 +335,30 @@ impl McpClient {
 
     /// Call a tool on the MCP server.
     pub async fn call_tool(&self, tool_name: &str, arguments: Value) -> Result<String> {
-        let result = self.call("tools/call", Some(serde_json::json!({
-            "name": tool_name,
-            "arguments": arguments,
-        }))).await?;
+        let result = self
+            .call(
+                "tools/call",
+                Some(serde_json::json!({
+                    "name": tool_name,
+                    "arguments": arguments,
+                })),
+            )
+            .await?;
 
         // Extract text from content array
-        let content = result.get("content")
+        let content = result
+            .get("content")
             .and_then(|c| c.as_array())
             .cloned()
             .unwrap_or_default();
 
-        let text: Vec<String> = content.iter()
+        let text: Vec<String> = content
+            .iter()
             .filter_map(|c| c.get("text").and_then(|t| t.as_str()).map(String::from))
             .collect();
 
-        let is_error = result.get("isError")
+        let is_error = result
+            .get("isError")
             .and_then(|e| e.as_bool())
             .unwrap_or(false);
 

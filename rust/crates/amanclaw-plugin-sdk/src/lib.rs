@@ -44,11 +44,19 @@ pub struct SkillResult {
 
 impl SkillResult {
     pub fn ok(output: impl Into<String>) -> Self {
-        Self { success: true, output: output.into(), error: None }
+        Self {
+            success: true,
+            output: output.into(),
+            error: None,
+        }
     }
 
     pub fn err(error: impl Into<String>) -> Self {
-        Self { success: false, output: String::new(), error: Some(error.into()) }
+        Self {
+            success: false,
+            output: String::new(),
+            error: Some(error.into()),
+        }
     }
 }
 
@@ -95,9 +103,8 @@ macro_rules! amanclaw_plugin {
         parameters: $params:expr,
         execute: |$input:ident : SkillInput| -> SkillResult $body:block
     ) => {
-        static METADATA_JSON: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
-            $crate::serde_json::to_string(&$meta).unwrap()
-        });
+        static METADATA_JSON: std::sync::LazyLock<String> =
+            std::sync::LazyLock::new(|| $crate::serde_json::to_string(&$meta).unwrap());
 
         static PARAMS_JSON: &str = $params;
 
@@ -108,7 +115,7 @@ macro_rules! amanclaw_plugin {
         }
 
         #[unsafe(no_mangle)]
-        pub extern "C" fn dealloc(ptr: *mut u8, size: i32) {
+        pub unsafe extern "C" fn dealloc(ptr: *mut u8, size: i32) {
             let layout = std::alloc::Layout::from_size_align(size as usize, 1).unwrap();
             unsafe { std::alloc::dealloc(ptr, layout) }
         }
@@ -124,10 +131,8 @@ macro_rules! amanclaw_plugin {
         }
 
         #[unsafe(no_mangle)]
-        pub extern "C" fn execute(ptr: i32, len: i32) -> *const u8 {
-            let input_bytes = unsafe {
-                std::slice::from_raw_parts(ptr as *const u8, len as usize)
-            };
+        pub unsafe extern "C" fn execute(ptr: i32, len: i32) -> *const u8 {
+            let input_bytes = unsafe { std::slice::from_raw_parts(ptr as *const u8, len as usize) };
             let $input: $crate::SkillInput = match $crate::serde_json::from_slice(input_bytes) {
                 Ok(i) => i,
                 Err(e) => {

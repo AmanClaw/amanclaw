@@ -26,21 +26,15 @@ pub struct PrayerTime {
 }
 
 pub async fn fetch_prayer_times(zone: &str) -> Result<Vec<PrayerTime>, String> {
-    let url = format!(
-        "{}?r=esolatApi/takwimsolat&period=today&zone={}",
-        ESOLAT_API, zone
-    );
+    let url = format!("{ESOLAT_API}?r=esolatApi/takwimsolat&period=today&zone={zone}");
     let resp = reqwest::get(&url)
         .await
-        .map_err(|e| format!("HTTP error: {}", e))?;
+        .map_err(|e| format!("HTTP error: {e}"))?;
 
-    let data: PrayerTimesResponse = resp
-        .json()
-        .await
-        .map_err(|e| format!("Parse error: {}", e))?;
+    let data: PrayerTimesResponse = resp.json().await.map_err(|e| format!("Parse error: {e}"))?;
 
     match data.prayer_time {
         Some(times) if !times.is_empty() => Ok(times),
-        _ => Err(format!("No prayer times found for zone {}", zone)),
+        _ => Err(format!("No prayer times found for zone {zone}")),
     }
 }

@@ -1,5 +1,5 @@
 use amanclaw_traits::agent::AgentProfile;
-use amanclaw_traits::config::{RoutingRule, RoutingMatch};
+use amanclaw_traits::config::{RoutingMatch, RoutingRule};
 use amanclaw_traits::message::IncomingMessage;
 use std::collections::HashMap;
 
@@ -16,7 +16,11 @@ impl AgentRouter {
         rules: Vec<RoutingRule>,
         default_agent_id: String,
     ) -> Self {
-        Self { profiles, rules, default_agent_id }
+        Self {
+            profiles,
+            rules,
+            default_agent_id,
+        }
     }
 
     /// Resolve which agent profile should handle this message.
@@ -65,7 +69,12 @@ mod tests {
     use super::*;
     use amanclaw_traits::agent::ContextConfig;
 
-    fn make_msg(platform: &str, topic_id: Option<&str>, chat_id: &str, channel_ctx: Option<&str>) -> IncomingMessage {
+    fn make_msg(
+        platform: &str,
+        topic_id: Option<&str>,
+        chat_id: &str,
+        channel_ctx: Option<&str>,
+    ) -> IncomingMessage {
         IncomingMessage {
             user_id: "u1".into(),
             chat_id: chat_id.into(),
@@ -88,7 +97,7 @@ mod tests {
         AgentProfile {
             id: id.into(),
             name: id.into(),
-            system_prompt: format!("{} prompt", id),
+            system_prompt: format!("{id} prompt"),
             allowed_skills: vec![],
             llm_override: None,
             soul_file: None,

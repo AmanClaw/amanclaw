@@ -18,7 +18,12 @@ impl EmbeddingClient {
 
         tracing::info!(model = %model, base_url = %base_url, "Embedding client initialized");
 
-        Self { client, base_url, model, api_key }
+        Self {
+            client,
+            base_url,
+            model,
+            api_key,
+        }
     }
 
     /// Generate embeddings for a batch of texts.
@@ -31,9 +36,10 @@ impl EmbeddingClient {
         let api_key = self.api_key.as_deref().unwrap_or("no-key");
         let url = format!("{}/embeddings", self.base_url);
 
-        let resp = self.client
+        let resp = self
+            .client
             .post(&url)
-            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Authorization", format!("Bearer {api_key}"))
             .json(&payload)
             .send()
             .await?;
@@ -41,7 +47,7 @@ impl EmbeddingClient {
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().await.unwrap_or_default();
-            anyhow::bail!("Embedding API error {}: {}", status, body);
+            anyhow::bail!("Embedding API error {status}: {body}");
         }
 
         let data: serde_json::Value = resp.json().await?;
@@ -65,7 +71,9 @@ impl EmbeddingClient {
     /// Generate a single embedding.
     pub async fn embed_one(&self, text: &str) -> Result<Vec<f32>> {
         let results = self.embed(&[text]).await?;
-        results.into_iter().next()
+        results
+            .into_iter()
+            .next()
             .ok_or_else(|| anyhow::anyhow!("Empty embedding response"))
     }
 }
@@ -73,8 +81,8 @@ impl EmbeddingClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wiremock::{MockServer, Mock, ResponseTemplate};
     use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[tokio::test]
     async fn test_embed_batch() {

@@ -1,6 +1,10 @@
 use crate::state::ApiState;
 use amanclaw_memory::community::{Community, CommunityRepo};
-use axum::{extract::{Path, State}, http::StatusCode, Json};
+use axum::{
+    Json,
+    extract::{Path, State},
+    http::StatusCode,
+};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -34,10 +38,14 @@ pub async fn list_communities(
     State(state): State<ApiState>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let repo = CommunityRepo::new(&state.pool);
-    let communities = repo.list_all().await
+    let communities = repo
+        .list_all()
+        .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let items: Vec<serde_json::Value> = communities.iter().map(community_to_json).collect();
-    Ok(Json(serde_json::json!({ "communities": items, "count": items.len() })))
+    Ok(Json(
+        serde_json::json!({ "communities": items, "count": items.len() }),
+    ))
 }
 
 pub async fn get_community(
@@ -45,7 +53,9 @@ pub async fn get_community(
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let repo = CommunityRepo::new(&state.pool);
-    let community = repo.get(&id).await
+    let community = repo
+        .get(&id)
+        .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     match community {
         Some(c) => Ok(Json(community_to_json(&c))),
@@ -68,7 +78,8 @@ pub async fn create_community(
         enabled_skills: body.enabled_skills.unwrap_or_default(),
     };
     let repo = CommunityRepo::new(&state.pool);
-    repo.upsert(&community).await
+    repo.upsert(&community)
+        .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(community_to_json(&community)))
 }
@@ -78,7 +89,9 @@ pub async fn delete_community(
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let repo = CommunityRepo::new(&state.pool);
-    let deleted = repo.delete(&id).await
+    let deleted = repo
+        .delete(&id)
+        .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     if deleted {
         Ok(Json(serde_json::json!({ "ok": true })))
@@ -93,12 +106,15 @@ pub async fn update_community_skills(
     Json(body): Json<UpdateSkills>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let repo = CommunityRepo::new(&state.pool);
-    let community = repo.get(&id).await
+    let community = repo
+        .get(&id)
+        .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     match community {
         Some(mut c) => {
             c.enabled_skills = body.enabled_skills;
-            repo.upsert(&c).await
+            repo.upsert(&c)
+                .await
                 .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
             Ok(Json(serde_json::json!({ "ok": true })))
         }

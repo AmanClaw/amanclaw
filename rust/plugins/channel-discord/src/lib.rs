@@ -1,10 +1,8 @@
 use amanclaw_traits::channel::Channel;
 use amanclaw_traits::message::{IncomingMessage, OutgoingMessage};
-use serenity::all::{
-    Client, Context, EventHandler, GatewayIntents, Message, Ready, ChannelId,
-};
+use serenity::all::{ChannelId, Client, Context, EventHandler, GatewayIntents, Message, Ready};
 use std::sync::Arc;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{RwLock, mpsc};
 
 struct Handler {
     tx: mpsc::Sender<IncomingMessage>,

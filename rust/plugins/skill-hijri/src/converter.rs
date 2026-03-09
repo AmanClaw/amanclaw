@@ -9,15 +9,33 @@ pub struct HijriDate {
 }
 
 const HIJRI_MONTHS_AR: [&str; 12] = [
-    "Muharram", "Safar", "Rabi'ul Awal", "Rabi'ul Akhir",
-    "Jamadil Awal", "Jamadil Akhir", "Rejab", "Sya'ban",
-    "Ramadan", "Syawal", "Zulkaedah", "Zulhijjah",
+    "Muharram",
+    "Safar",
+    "Rabi'ul Awal",
+    "Rabi'ul Akhir",
+    "Jamadil Awal",
+    "Jamadil Akhir",
+    "Rejab",
+    "Sya'ban",
+    "Ramadan",
+    "Syawal",
+    "Zulkaedah",
+    "Zulhijjah",
 ];
 
 const HIJRI_MONTHS_MS: [&str; 12] = [
-    "Muharram", "Safar", "Rabiulawal", "Rabiulakhir",
-    "Jamadilawal", "Jamadilakhir", "Rejab", "Syaaban",
-    "Ramadan", "Syawal", "Zulkaedah", "Zulhijjah",
+    "Muharram",
+    "Safar",
+    "Rabiulawal",
+    "Rabiulakhir",
+    "Jamadilawal",
+    "Jamadilakhir",
+    "Rejab",
+    "Syaaban",
+    "Ramadan",
+    "Syawal",
+    "Zulkaedah",
+    "Zulhijjah",
 ];
 
 /// Leap years in the 30-year Hijri cycle (tabular Islamic calendar).
@@ -35,9 +53,7 @@ fn is_hijri_leap(year: i64) -> bool {
 /// Length of a Hijri month (1-12). Odd months have 30 days, even months 29.
 /// Month 12 has 30 days in leap years.
 fn hijri_month_length(month: u32, leap: bool) -> i64 {
-    if month % 2 == 1 {
-        30
-    } else if month == 12 && leap {
+    if month % 2 == 1 || (month == 12 && leap) {
         30
     } else {
         29
@@ -58,11 +74,7 @@ fn gregorian_to_jdn(year: i32, month: i32, day: i32) -> i64 {
     };
     let a = y / 100;
     let b = 2 - a + a / 4;
-    (365.25 * (y + 4716) as f64) as i64
-        + (30.6001 * (m + 1) as f64) as i64
-        + day as i64
-        + b
-        - 1524
+    (365.25 * (y + 4716) as f64) as i64 + (30.6001 * (m + 1) as f64) as i64 + day as i64 + b - 1524
 }
 
 /// Convert a Gregorian date to a Hijri date using the tabular Islamic calendar.
@@ -79,7 +91,7 @@ pub fn gregorian_to_hijri(date: NaiveDate) -> HijriDate {
 
     // Approximate year within the cycle
     let year_in_cycle = ((remaining as f64 - 0.5) / 354.36667).floor() as i64;
-    let year_in_cycle = year_in_cycle.max(0).min(29);
+    let year_in_cycle = year_in_cycle.clamp(0, 29);
 
     let year = cycle * 30 + year_in_cycle + 1;
 
@@ -151,7 +163,11 @@ mod tests {
         let date = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
         let hijri = gregorian_to_hijri(date);
         assert_eq!(hijri.year, 1445, "year mismatch, got {}", hijri.year);
-        assert_eq!(hijri.month, 6, "month mismatch: got {} ({})", hijri.month, hijri.month_name_ms);
+        assert_eq!(
+            hijri.month, 6,
+            "month mismatch: got {} ({})",
+            hijri.month, hijri.month_name_ms
+        );
         assert!(
             (18..=20).contains(&hijri.day),
             "day was {}, expected around 19",
@@ -194,9 +210,12 @@ mod tests {
     fn test_display() {
         let date = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
         let hijri = gregorian_to_hijri(date);
-        let s = format!("{}", hijri);
-        assert!(s.contains("1445"), "Display should contain year 1445: {}", s);
-        assert!(s.contains("Jamadilakhir"), "Display should contain month name: {}", s);
+        let s = format!("{hijri}");
+        assert!(s.contains("1445"), "Display should contain year 1445: {s}");
+        assert!(
+            s.contains("Jamadilakhir"),
+            "Display should contain month name: {s}"
+        );
     }
 
     #[test]

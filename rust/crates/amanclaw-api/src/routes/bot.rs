@@ -1,9 +1,7 @@
 use crate::state::ApiState;
-use axum::{extract::State, Json};
+use axum::{Json, extract::State};
 
-pub async fn get_status(
-    State(state): State<ApiState>,
-) -> Json<serde_json::Value> {
+pub async fn get_status(State(state): State<ApiState>) -> Json<serde_json::Value> {
     let status = state.bot_status.read().await;
     Json(serde_json::json!({
         "running": status.running,

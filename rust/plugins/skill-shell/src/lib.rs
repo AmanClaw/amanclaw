@@ -1,10 +1,10 @@
-use amanclaw_traits::skill::{Skill, SkillMetadata, SkillInput, SkillResult};
+use amanclaw_traits::skill::{Skill, SkillInput, SkillMetadata, SkillResult};
 use std::collections::HashSet;
 use std::process::Command;
 
 const ALLOWED_COMMANDS: &[&str] = &[
-    "ls", "cat", "grep", "find", "df", "free", "uptime", "date", "wc",
-    "head", "tail", "sort", "uniq", "du", "whoami", "hostname", "pwd",
+    "ls", "cat", "grep", "find", "df", "free", "uptime", "date", "wc", "head", "tail", "sort",
+    "uniq", "du", "whoami", "hostname", "pwd",
 ];
 
 pub struct ShellSkill;
@@ -41,17 +41,33 @@ impl Skill for ShellSkill {
 fn execute_shell(args_str: &str) -> SkillResult {
     let args: serde_json::Value = match serde_json::from_str(args_str) {
         Ok(v) => v,
-        Err(e) => return SkillResult { success: false, output: String::new(), error: Some(format!("Invalid args: {}", e)) },
+        Err(e) => {
+            return SkillResult {
+                success: false,
+                output: String::new(),
+                error: Some(format!("Invalid args: {e}")),
+            };
+        }
     };
 
     let command = match args.get("command").and_then(|v| v.as_str()) {
         Some(c) => c,
-        None => return SkillResult { success: false, output: String::new(), error: Some("Missing required parameter: command".into()) },
+        None => {
+            return SkillResult {
+                success: false,
+                output: String::new(),
+                error: Some("Missing required parameter: command".into()),
+            };
+        }
     };
 
     let parts: Vec<&str> = command.split_whitespace().collect();
     if parts.is_empty() {
-        return SkillResult { success: false, output: String::new(), error: Some("Empty command".into()) };
+        return SkillResult {
+            success: false,
+            output: String::new(),
+            error: Some("Empty command".into()),
+        };
     }
 
     let cmd_name = parts[0];
@@ -59,15 +75,27 @@ fn execute_shell(args_str: &str) -> SkillResult {
 
     if !allowed.contains(cmd_name) {
         return SkillResult {
-            success: false, output: String::new(),
-            error: Some(format!("Command '{}' not allowed. Allowed: {}", cmd_name, ALLOWED_COMMANDS.join(", "))),
+            success: false,
+            output: String::new(),
+            error: Some(format!(
+                "Command '{}' not allowed. Allowed: {}",
+                cmd_name,
+                ALLOWED_COMMANDS.join(", ")
+            )),
         };
     }
 
-    if command.contains('|') || command.contains(';') || command.contains('&')
-        || command.contains('`') || command.contains("$(")
+    if command.contains('|')
+        || command.contains(';')
+        || command.contains('&')
+        || command.contains('`')
+        || command.contains("$(")
     {
-        return SkillResult { success: false, output: String::new(), error: Some("Pipes, chains, and subshells are not allowed".into()) };
+        return SkillResult {
+            success: false,
+            output: String::new(),
+            error: Some("Pipes, chains, and subshells are not allowed".into()),
+        };
     }
 
     match Command::new(cmd_name).args(&parts[1..]).output() {
@@ -81,12 +109,24 @@ fn execute_shell(args_str: &str) -> SkillResult {
                 } else {
                     stdout.to_string()
                 };
-                SkillResult { success: true, output: result, error: None }
+                SkillResult {
+                    success: true,
+                    output: result,
+                    error: None,
+                }
             } else {
-                SkillResult { success: false, output: String::new(), error: Some(format!("Command failed: {}", stderr)) }
+                SkillResult {
+                    success: false,
+                    output: String::new(),
+                    error: Some(format!("Command failed: {stderr}")),
+                }
             }
         }
-        Err(e) => SkillResult { success: false, output: String::new(), error: Some(format!("Failed to execute: {}", e)) },
+        Err(e) => SkillResult {
+            success: false,
+            output: String::new(),
+            error: Some(format!("Failed to execute: {e}")),
+        },
     }
 }
 

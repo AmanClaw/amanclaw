@@ -1,4 +1,4 @@
-use amanclaw_traits::skill::{Skill, SkillMetadata, SkillInput, SkillResult};
+use amanclaw_traits::skill::{Skill, SkillInput, SkillMetadata, SkillResult};
 use sysinfo::System;
 
 pub struct SysInfoSkill;
@@ -33,12 +33,17 @@ impl Skill for SysInfoSkill {
         let output = format!(
             "CPU: {:.1}%\nMemory: {} MB / {} MB ({:.1}%)\nProcesses: {}",
             cpu_usage,
-            used_mem, total_mem,
+            used_mem,
+            total_mem,
             (used_mem as f64 / total_mem as f64) * 100.0,
             sys.processes().len(),
         );
 
-        SkillResult { success: true, output, error: None }
+        SkillResult {
+            success: true,
+            output,
+            error: None,
+        }
     }
 }
 

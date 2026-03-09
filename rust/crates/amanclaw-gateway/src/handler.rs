@@ -20,11 +20,7 @@ impl GatewayHandler {
     }
 
     /// Dispatch a JSON-RPC request and return a response.
-    pub async fn dispatch(
-        &self,
-        request: &JsonRpcRequest,
-        session_id: &str,
-    ) -> JsonRpcResponse {
+    pub async fn dispatch(&self, request: &JsonRpcRequest, session_id: &str) -> JsonRpcResponse {
         let id = request.id.clone().unwrap_or(serde_json::Value::Null);
 
         match request.method.as_str() {
@@ -58,11 +54,7 @@ impl GatewayHandler {
         }
     }
 
-    async fn handle_ping(
-        &self,
-        id: &serde_json::Value,
-        session_id: &str,
-    ) -> JsonRpcResponse {
+    async fn handle_ping(&self, id: &serde_json::Value, session_id: &str) -> JsonRpcResponse {
         self.session_manager.touch(session_id).await;
         JsonRpcResponse::success(id.clone(), json!({"pong": true}))
     }

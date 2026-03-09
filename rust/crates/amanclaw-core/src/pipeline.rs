@@ -1,21 +1,21 @@
-use amanclaw_traits::agent::AgentProfile;
-use amanclaw_traits::context::ContextEngine;
-use amanclaw_traits::memory::MemoryBackend;
-use amanclaw_traits::message::{IncomingMessage, OutgoingMessage};
-use amanclaw_traits::event::EventEmitter;
-use amanclaw_security::auth::Auth;
-use amanclaw_security::rate_limiter::RateLimiter;
-use amanclaw_llm::client::LlmClient;
-use crate::middleware::{MiddlewareChain, PipelineContext};
+use crate::middleware::MetricsMiddleware;
 use crate::middleware::auth::AuthMiddleware;
 use crate::middleware::command::CommandMiddleware;
-use crate::middleware::rate_limit::RateLimitMiddleware;
-use crate::middleware::sanitize::SanitizeMiddleware;
 use crate::middleware::context::ContextMiddleware;
 use crate::middleware::persist::PersistMiddleware;
+use crate::middleware::rate_limit::RateLimitMiddleware;
+use crate::middleware::sanitize::SanitizeMiddleware;
 use crate::middleware::tool_calling::ToolCallingMiddleware;
-use crate::middleware::MetricsMiddleware;
+use crate::middleware::{MiddlewareChain, PipelineContext};
 use crate::registry::PluginRegistry;
+use amanclaw_llm::client::LlmClient;
+use amanclaw_security::auth::Auth;
+use amanclaw_security::rate_limiter::RateLimiter;
+use amanclaw_traits::agent::AgentProfile;
+use amanclaw_traits::context::ContextEngine;
+use amanclaw_traits::event::EventEmitter;
+use amanclaw_traits::memory::MemoryBackend;
+use amanclaw_traits::message::{IncomingMessage, OutgoingMessage};
 use anyhow::Result;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -24,6 +24,12 @@ use tokio::sync::RwLock;
 pub enum Pipeline {
     Full { chain: MiddlewareChain },
     Stub,
+}
+
+impl Default for Pipeline {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Pipeline {
@@ -46,13 +52,23 @@ impl Pipeline {
             Box::new(RateLimitMiddleware::new(rate_limiter, emitter.clone())),
             Box::new(SanitizeMiddleware::new(emitter.clone())),
             Box::new(ContextMiddleware::new(context_engine.clone())),
-            Box::new(PersistMiddleware::new(context_engine, memory, llm.clone(), emitter)),
+            Box::new(PersistMiddleware::new(
+                context_engine,
+                memory,
+                llm.clone(),
+                emitter,
+            )),
             Box::new(ToolCallingMiddleware::new(llm)),
         ]);
         Self::Full { chain }
     }
 
-    pub async fn process(&self, msg: IncomingMessage, registry: &Arc<PluginRegistry>, profile: &AgentProfile) -> Result<Option<OutgoingMessage>> {
+    pub async fn process(
+        &self,
+        msg: IncomingMessage,
+        registry: &Arc<PluginRegistry>,
+        profile: &AgentProfile,
+    ) -> Result<Option<OutgoingMessage>> {
         match self {
             Self::Stub => self.process_stub(msg).await,
             Self::Full { chain } => {

@@ -1,17 +1,25 @@
 use crate::state::ApiState;
-use axum::{extract::{Path, State}, http::StatusCode, Json};
+use axum::{
+    Json,
+    extract::{Path, State},
+    http::StatusCode,
+};
 
 pub async fn list_users(
     State(state): State<ApiState>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let auth = state.auth.read().await;
-    let users: Vec<serde_json::Value> = auth.list_users().iter().map(|(id, platform, user_state)| {
-        serde_json::json!({
-            "user_id": id,
-            "platform": platform,
-            "state": user_state.to_string(),
+    let users: Vec<serde_json::Value> = auth
+        .list_users()
+        .iter()
+        .map(|(id, platform, user_state)| {
+            serde_json::json!({
+                "user_id": id,
+                "platform": platform,
+                "state": user_state.to_string(),
+            })
         })
-    }).collect();
+        .collect();
     let count = users.len();
     Ok(Json(serde_json::json!({ "users": users, "count": count })))
 }
@@ -22,7 +30,9 @@ pub async fn approve_user(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let mut auth = state.auth.write().await;
     auth.approve_user(&user_id, &platform);
-    Ok(Json(serde_json::json!({ "ok": true, "user_id": user_id, "state": "Approved" })))
+    Ok(Json(
+        serde_json::json!({ "ok": true, "user_id": user_id, "state": "Approved" }),
+    ))
 }
 
 pub async fn block_user(
@@ -31,5 +41,7 @@ pub async fn block_user(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let mut auth = state.auth.write().await;
     auth.block_user(&user_id, &platform);
-    Ok(Json(serde_json::json!({ "ok": true, "user_id": user_id, "state": "Blocked" })))
+    Ok(Json(
+        serde_json::json!({ "ok": true, "user_id": user_id, "state": "Blocked" }),
+    ))
 }

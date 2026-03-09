@@ -77,12 +77,17 @@ impl ScriptSkill {
             cmd.env(key, value);
         }
 
-        let mut child = cmd.spawn()
-            .with_context(|| format!("Failed to spawn script plugin: {} {:?}", command, args))?;
+        let mut child = cmd
+            .spawn()
+            .with_context(|| format!("Failed to spawn script plugin: {command} {args:?}"))?;
 
-        let stdin = child.stdin.take()
+        let stdin = child
+            .stdin
+            .take()
             .ok_or_else(|| anyhow::anyhow!("Failed to get stdin for script plugin"))?;
-        let stdout = child.stdout.take()
+        let stdout = child
+            .stdout
+            .take()
             .ok_or_else(|| anyhow::anyhow!("Failed to get stdout for script plugin"))?;
 
         let mut proc = ScriptProcess {
@@ -92,12 +97,14 @@ impl ScriptSkill {
         };
 
         // Query metadata
-        let meta_resp = Self::call_process(&mut proc, serde_json::json!({"method": "metadata"})).await?;
+        let meta_resp =
+            Self::call_process(&mut proc, serde_json::json!({"method": "metadata"})).await?;
         let metadata: SkillMetadata = serde_json::from_value(meta_resp)
             .with_context(|| "Invalid metadata from script plugin")?;
 
         // Query parameters
-        let params_resp = Self::call_process(&mut proc, serde_json::json!({"method": "parameters"})).await?;
+        let params_resp =
+            Self::call_process(&mut proc, serde_json::json!({"method": "parameters"})).await?;
 
         Ok((proc, metadata, params_resp))
     }
@@ -127,18 +134,16 @@ impl ScriptSkill {
                 Ok(Some(_)) => {
                     // Process exited, respawn
                     tracing::warn!(name = %self.metadata.name, "Script plugin exited, respawning");
-                    let (new_proc, _, _) = Self::spawn_and_init(
-                        &self.command, &self.args, &self.env
-                    ).await?;
+                    let (new_proc, _, _) =
+                        Self::spawn_and_init(&self.command, &self.args, &self.env).await?;
                     *guard = Some(new_proc);
                 }
                 Ok(None) => {} // Still running
                 Err(_) => {}   // Can't check, assume running
             }
         } else {
-            let (new_proc, _, _) = Self::spawn_and_init(
-                &self.command, &self.args, &self.env
-            ).await?;
+            let (new_proc, _, _) =
+                Self::spawn_and_init(&self.command, &self.args, &self.env).await?;
             *guard = Some(new_proc);
         }
         Ok(())
@@ -160,18 +165,20 @@ impl Skill for ScriptSkill {
             return SkillResult {
                 success: false,
                 output: String::new(),
-                error: Some(format!("Failed to start script plugin: {}", e)),
+                error: Some(format!("Failed to start script plugin: {e}")),
             };
         }
 
         let mut guard = self.process.lock().await;
         let proc = match guard.as_mut() {
             Some(p) => p,
-            None => return SkillResult {
-                success: false,
-                output: String::new(),
-                error: Some("Script plugin not running".into()),
-            },
+            None => {
+                return SkillResult {
+                    success: false,
+                    output: String::new(),
+                    error: Some("Script plugin not running".into()),
+                };
+            }
         };
 
         let request = serde_json::json!({
@@ -185,17 +192,15 @@ impl Skill for ScriptSkill {
         });
 
         match Self::call_process(proc, request).await {
-            Ok(resp) => {
-                serde_json::from_value(resp.clone()).unwrap_or_else(|_| SkillResult {
-                    success: false,
-                    output: String::new(),
-                    error: Some(format!("Invalid result from script plugin: {}", resp)),
-                })
-            }
+            Ok(resp) => serde_json::from_value(resp.clone()).unwrap_or_else(|_| SkillResult {
+                success: false,
+                output: String::new(),
+                error: Some(format!("Invalid result from script plugin: {resp}")),
+            }),
             Err(e) => SkillResult {
                 success: false,
                 output: String::new(),
-                error: Some(format!("Script plugin error: {}", e)),
+                error: Some(format!("Script plugin error: {e}")),
             },
         }
     }
@@ -273,7 +278,10 @@ pub async fn discover_script_plugins(dir: &Path) -> Vec<Arc<dyn Skill>> {
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
         let (command, args) = match ext {
-            "py" => ("python3".to_string(), vec![path.to_string_lossy().to_string()]),
+            "py" => (
+                "python3".to_string(),
+                vec![path.to_string_lossy().to_string()],
+            ),
             "js" | "mjs" => ("node".to_string(), vec![path.to_string_lossy().to_string()]),
             _ => continue,
         };
@@ -321,7 +329,9 @@ env:
     #[test]
     fn test_discover_nonexistent_dir() {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let skills = rt.block_on(discover_script_plugins(Path::new("/tmp/nonexistent-scripts")));
+        let skills = rt.block_on(discover_script_plugins(Path::new(
+            "/tmp/nonexistent-scripts",
+        )));
         assert!(skills.is_empty());
     }
 }

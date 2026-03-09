@@ -17,13 +17,16 @@ pub struct HistoryMessage {
 pub trait MemoryBackend: Send + Sync {
     // Conversation history
     async fn save_exchange(
-        &self, ns: &str, user_id: &str, platform: &str,
-        user_msg: &str, assistant_msg: &str,
+        &self,
+        ns: &str,
+        user_id: &str,
+        platform: &str,
+        user_msg: &str,
+        assistant_msg: &str,
     ) -> Result<()>;
 
-    async fn get_history(
-        &self, ns: &str, user_id: &str, limit: i64,
-    ) -> Result<Vec<HistoryMessage>>;
+    async fn get_history(&self, ns: &str, user_id: &str, limit: i64)
+    -> Result<Vec<HistoryMessage>>;
 
     async fn clear_history(&self, ns: &str, user_id: &str) -> Result<()>;
 
@@ -38,12 +41,14 @@ pub trait MemoryBackend: Send + Sync {
     async fn get_summary(&self, ns: &str, user_id: &str) -> Result<Option<String>>;
 
     async fn save_summary_and_prune(
-        &self, ns: &str, user_id: &str, summary: &str, keep_recent: i64,
+        &self,
+        ns: &str,
+        user_id: &str,
+        summary: &str,
+        keep_recent: i64,
     ) -> Result<()>;
 
-    async fn needs_summarization(
-        &self, ns: &str, user_id: &str, threshold: i64,
-    ) -> Result<bool>;
+    async fn needs_summarization(&self, ns: &str, user_id: &str, threshold: i64) -> Result<bool>;
 }
 
 #[cfg(test)]

@@ -4,8 +4,8 @@ use anyhow::Result;
 use reqwest::Client;
 use serde_json::Value;
 
-use crate::tools::strip_thinking;
 use crate::prompts::SYSTEM_PROMPT_BASE;
+use crate::tools::strip_thinking;
 
 /// A tool call requested by the LLM.
 #[derive(Debug, Clone)]
@@ -57,9 +57,10 @@ impl LlmClient {
         let api_key = self.config.api_key.as_deref().unwrap_or("no-key");
         let url = format!("{}/chat/completions", self.config.base_url);
 
-        let resp = self.client
+        let resp = self
+            .client
             .post(&url)
-            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Authorization", format!("Bearer {api_key}"))
             .json(&payload)
             .send()
             .await?;
@@ -67,7 +68,7 @@ impl LlmClient {
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().await.unwrap_or_default();
-            anyhow::bail!("LLM API error {}: {}", status, body);
+            anyhow::bail!("LLM API error {status}: {body}");
         }
 
         Ok(resp.json().await?)
@@ -75,16 +76,19 @@ impl LlmClient {
 
     /// Convert ToolDefinitions to OpenAI tool format.
     fn format_tools(tools: &[ToolDefinition]) -> Vec<Value> {
-        tools.iter().map(|t| {
-            serde_json::json!({
-                "type": "function",
-                "function": {
-                    "name": t.name,
-                    "description": t.description,
-                    "parameters": t.parameters_schema,
-                }
+        tools
+            .iter()
+            .map(|t| {
+                serde_json::json!({
+                    "type": "function",
+                    "function": {
+                        "name": t.name,
+                        "description": t.description,
+                        "parameters": t.parameters_schema,
+                    }
+                })
             })
-        }).collect()
+            .collect()
     }
 
     /// Parse tool calls from an LLM response message.
@@ -95,25 +99,32 @@ impl LlmClient {
             return None;
         }
 
-        let calls: Vec<ToolCall> = arr.iter().filter_map(|tc| {
-            let id = tc.get("id")?.as_str()?.to_string();
-            let function = tc.get("function")?;
-            let name = function.get("name")?.as_str()?.to_string();
-            let arguments = function.get("arguments")?.as_str()?.to_string();
-            Some(ToolCall { id, name, arguments })
-        }).collect();
+        let calls: Vec<ToolCall> = arr
+            .iter()
+            .filter_map(|tc| {
+                let id = tc.get("id")?.as_str()?.to_string();
+                let function = tc.get("function")?;
+                let name = function.get("name")?.as_str()?.to_string();
+                let arguments = function.get("arguments")?.as_str()?.to_string();
+                Some(ToolCall {
+                    id,
+                    name,
+                    arguments,
+                })
+            })
+            .collect();
 
         if calls.is_empty() { None } else { Some(calls) }
     }
 
     /// Call the LLM and return either text or tool call requests.
-    pub async fn call(
-        &self,
-        messages: &[Value],
-        tools: &[ToolDefinition],
-    ) -> Result<LlmResponse> {
+    pub async fn call(&self, messages: &[Value], tools: &[ToolDefinition]) -> Result<LlmResponse> {
         let formatted_tools = Self::format_tools(tools);
-        let tool_ref = if formatted_tools.is_empty() { None } else { Some(formatted_tools.as_slice()) };
+        let tool_ref = if formatted_tools.is_empty() {
+            None
+        } else {
+            Some(formatted_tools.as_slice())
+        };
 
         let data = self.call_api(messages, tool_ref).await?;
         let message = &data["choices"][0]["message"];
@@ -124,10 +135,7 @@ impl LlmClient {
         }
 
         // Otherwise extract text
-        let content = message["content"]
-            .as_str()
-            .unwrap_or("")
-            .to_string();
+        let content = message["content"].as_str().unwrap_or("").to_string();
 
         Ok(LlmResponse::Text(strip_thinking(&content)))
     }
@@ -139,7 +147,11 @@ impl LlmClient {
         tools: &[ToolDefinition],
     ) -> Result<(LlmResponse, Value)> {
         let formatted_tools = Self::format_tools(tools);
-        let tool_ref = if formatted_tools.is_empty() { None } else { Some(formatted_tools.as_slice()) };
+        let tool_ref = if formatted_tools.is_empty() {
+            None
+        } else {
+            Some(formatted_tools.as_slice())
+        };
 
         let data = self.call_api(messages, tool_ref).await?;
         let message = data["choices"][0]["message"].clone();
@@ -148,10 +160,7 @@ impl LlmClient {
             return Ok((LlmResponse::ToolCalls(calls), message));
         }
 
-        let content = message["content"]
-            .as_str()
-            .unwrap_or("")
-            .to_string();
+        let content = message["content"].as_str().unwrap_or("").to_string();
 
         Ok((LlmResponse::Text(strip_thinking(&content)), message))
     }
@@ -184,8 +193,8 @@ impl LlmClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wiremock::{MockServer, Mock, ResponseTemplate};
     use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[tokio::test]
     async fn test_llm_respond_simple() {
@@ -286,10 +295,7 @@ mod tests {
             strip_thinking("<think>reasoning here</think>Hello!"),
             "Hello!"
         );
-        assert_eq!(
-            strip_thinking("Some text</think>Hello!"),
-            "Hello!"
-        );
+        assert_eq!(strip_thinking("Some text</think>Hello!"), "Hello!");
         assert_eq!(strip_thinking("No tags here"), "No tags here");
     }
 }

@@ -39,8 +39,8 @@ impl Skill for McpBridgeSkill {
     }
 
     async fn execute(&self, input: SkillInput) -> SkillResult {
-        let arguments: Value = serde_json::from_str(&input.args)
-            .unwrap_or_else(|_| serde_json::json!({}));
+        let arguments: Value =
+            serde_json::from_str(&input.args).unwrap_or_else(|_| serde_json::json!({}));
 
         match self.client.call_tool(&self.original_name, arguments).await {
             Ok(output) => SkillResult {
@@ -51,16 +51,14 @@ impl Skill for McpBridgeSkill {
             Err(e) => SkillResult {
                 success: false,
                 output: String::new(),
-                error: Some(format!("MCP tool error: {}", e)),
+                error: Some(format!("MCP tool error: {e}")),
             },
         }
     }
 }
 
 /// Connect to all configured MCP servers and return bridge skills.
-pub async fn connect_all(
-    configs: &HashMap<String, McpServerConfig>,
-) -> Vec<Arc<dyn Skill>> {
+pub async fn connect_all(configs: &HashMap<String, McpServerConfig>) -> Vec<Arc<dyn Skill>> {
     let mut all_skills: Vec<Arc<dyn Skill>> = Vec::new();
 
     for (server_name, config) in configs {
@@ -98,7 +96,7 @@ async fn connect_one(
         // Stdio transport
         McpClient::connect_stdio(server_name, command, &config.args, &config.env).await?
     } else {
-        anyhow::bail!("MCP server '{}' must have either 'command' or 'url'", server_name);
+        anyhow::bail!("MCP server '{server_name}' must have either 'command' or 'url'");
     };
 
     // Initialize handshake
@@ -160,12 +158,15 @@ mod tests {
     #[tokio::test]
     async fn test_connect_all_invalid_server() {
         let mut configs = HashMap::new();
-        configs.insert("bad".to_string(), McpServerConfig {
-            command: Some("nonexistent-command-xyz".into()),
-            args: vec![],
-            env: HashMap::new(),
-            url: None,
-        });
+        configs.insert(
+            "bad".to_string(),
+            McpServerConfig {
+                command: Some("nonexistent-command-xyz".into()),
+                args: vec![],
+                env: HashMap::new(),
+                url: None,
+            },
+        );
         // Should not panic, just log error
         let skills = connect_all(&configs).await;
         assert!(skills.is_empty());

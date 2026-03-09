@@ -1,11 +1,11 @@
 pub mod auth;
 pub mod command;
+pub mod context;
+pub mod metrics;
+pub mod persist;
 pub mod rate_limit;
 pub mod sanitize;
-pub mod context;
 pub mod tool_calling;
-pub mod persist;
-pub mod metrics;
 
 pub use metrics::MetricsMiddleware;
 
@@ -17,16 +17,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Type-safe extension map for middleware to share data.
+#[derive(Default)]
 pub struct Extensions {
     map: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
-}
-
-impl Default for Extensions {
-    fn default() -> Self {
-        Self {
-            map: HashMap::new(),
-        }
-    }
 }
 
 impl Extensions {
@@ -106,9 +99,7 @@ impl MiddlewareChain {
             middlewares: self.middlewares.clone(),
             start_index: self.start_index + 1,
         };
-        self.middlewares[self.start_index]
-            .process(ctx, &next)
-            .await
+        self.middlewares[self.start_index].process(ctx, &next).await
     }
 }
 

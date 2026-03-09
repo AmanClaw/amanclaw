@@ -41,20 +41,16 @@ pub struct SearchHit {
 /// Fetch a specific verse with Malay (39) and English (131) translations.
 pub async fn get_verse(surah: u32, ayat: u32) -> Result<Verse, String> {
     let url = format!(
-        "{}/verses/by_key/{}:{}?language=ms&translations=39,131&fields=text_uthmani",
-        QURAN_API, surah, ayat
+        "{QURAN_API}/verses/by_key/{surah}:{ayat}?language=ms&translations=39,131&fields=text_uthmani"
     );
     let resp = reqwest::get(&url)
         .await
-        .map_err(|e| format!("HTTP error: {}", e))?;
+        .map_err(|e| format!("HTTP error: {e}"))?;
 
-    let data: serde_json::Value = resp
-        .json()
-        .await
-        .map_err(|e| format!("Parse error: {}", e))?;
+    let data: serde_json::Value = resp.json().await.map_err(|e| format!("Parse error: {e}"))?;
 
     let verse = data.get("verse").ok_or("No verse found".to_string())?;
-    serde_json::from_value(verse.clone()).map_err(|e| format!("Deserialize error: {}", e))
+    serde_json::from_value(verse.clone()).map_err(|e| format!("Deserialize error: {e}"))
 }
 
 /// Search Quran by keyword.
@@ -67,12 +63,9 @@ pub async fn search(query: &str, language: &str) -> Result<SearchResult, String>
     );
     let resp = reqwest::get(&url)
         .await
-        .map_err(|e| format!("HTTP error: {}", e))?;
+        .map_err(|e| format!("HTTP error: {e}"))?;
 
-    let data: SearchResponse = resp
-        .json()
-        .await
-        .map_err(|e| format!("Parse error: {}", e))?;
+    let data: SearchResponse = resp.json().await.map_err(|e| format!("Parse error: {e}"))?;
 
     Ok(data.search)
 }

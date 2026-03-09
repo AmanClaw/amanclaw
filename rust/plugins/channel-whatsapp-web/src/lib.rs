@@ -11,7 +11,7 @@
 
 use amanclaw_traits::channel::Channel;
 use amanclaw_traits::message::{IncomingMessage, OutgoingMessage};
-use axum::{extract::State, routing::post, Json, Router};
+use axum::{Json, Router, extract::State, routing::post};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -30,6 +30,7 @@ struct WahaWebhook {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct WahaMessage {
+    #[allow(dead_code)]
     id: Option<String>,
     from: Option<String>,
     #[allow(dead_code)]
@@ -77,7 +78,12 @@ pub struct WhatsAppWebChannel {
 }
 
 impl WhatsAppWebChannel {
-    pub fn new(api_url: String, api_key: Option<String>, session: String, webhook_port: u16) -> Self {
+    pub fn new(
+        api_url: String,
+        api_key: Option<String>,
+        session: String,
+        webhook_port: u16,
+    ) -> Self {
         let http = Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()
@@ -120,7 +126,7 @@ impl Channel for WhatsAppWebChannel {
 
         let port = self.webhook_port;
         tokio::spawn(async move {
-            let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port))
+            let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}"))
                 .await
                 .expect("Failed to bind WAHA webhook port");
             tracing::info!(port, "WAHA webhook server listening");
@@ -200,13 +206,15 @@ async fn handle_webhook(
     let is_group = chat_id.contains("@g.us");
 
     let display_text = if msg.has_media.unwrap_or(false) && text.is_empty() {
-        format!("[Media: {}]", msg.msg_type.unwrap_or_else(|| "unknown".into()))
+        format!(
+            "[Media: {}]",
+            msg.msg_type.unwrap_or_else(|| "unknown".into())
+        )
     } else {
         text
     };
 
-    let first_name = msg.data
-        .and_then(|d| d.notify_name);
+    let first_name = msg.data.and_then(|d| d.notify_name);
 
     let incoming = IncomingMessage {
         user_id,
@@ -228,7 +236,10 @@ async fn handle_webhook(
     match state.tx.try_send(incoming) {
         Ok(()) => {}
         Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
-            tracing::warn!(platform = "whatsapp-web", "Engine buffer full (backpressure)");
+            tracing::warn!(
+                platform = "whatsapp-web",
+                "Engine buffer full (backpressure)"
+            );
         }
         Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
             tracing::error!(platform = "whatsapp-web", "Engine channel closed");
@@ -244,12 +255,8 @@ mod tests {
 
     #[test]
     fn test_platform_name() {
-        let channel = WhatsAppWebChannel::new(
-            "http://localhost:3000".into(),
-            None,
-            "default".into(),
-            8081,
-        );
+        let channel =
+            WhatsAppWebChannel::new("http://localhost:3000".into(), None, "default".into(), 8081);
         assert_eq!(channel.platform(), "whatsapp-web");
     }
 

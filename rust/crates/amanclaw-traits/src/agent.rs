@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::config::LlmConfig;
+use serde::{Deserialize, Serialize};
 
 /// Per-agent context configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -44,12 +44,24 @@ impl Default for ContextConfig {
     }
 }
 
-fn default_history_limit() -> i64 { 20 }
-fn default_summarize_threshold() -> i64 { 40 }
-fn default_summarize_keep_recent() -> i64 { 10 }
-fn default_rag_top_k() -> usize { 3 }
-fn default_max_tool_rounds() -> usize { 5 }
-fn default_max_context_tokens() -> usize { 8000 }
+fn default_history_limit() -> i64 {
+    20
+}
+fn default_summarize_threshold() -> i64 {
+    40
+}
+fn default_summarize_keep_recent() -> i64 {
+    10
+}
+fn default_rag_top_k() -> usize {
+    3
+}
+fn default_max_tool_rounds() -> usize {
+    5
+}
+fn default_max_context_tokens() -> usize {
+    8000
+}
 
 /// An agent profile defines a persona with its own system prompt,
 /// skill subset, and memory namespace.

@@ -36,14 +36,20 @@ impl PipelineMiddleware for SanitizeMiddleware {
 
         if was_flagged {
             tracing::warn!(user_id = %ctx.msg.user_id, "Flagged message");
-            self.emitter.emit("security.injection", serde_json::json!({
-                "user_id": ctx.msg.user_id, "platform": ctx.msg.platform
-            }));
+            self.emitter.emit(
+                "security.injection",
+                serde_json::json!({
+                    "user_id": ctx.msg.user_id, "platform": ctx.msg.platform
+                }),
+            );
         }
 
-        self.emitter.emit("message.received", serde_json::json!({
-            "user_id": ctx.msg.user_id, "platform": ctx.msg.platform, "agent": ctx.profile.id
-        }));
+        self.emitter.emit(
+            "message.received",
+            serde_json::json!({
+                "user_id": ctx.msg.user_id, "platform": ctx.msg.platform, "agent": ctx.profile.id
+            }),
+        );
 
         ctx.extensions.insert(SanitizedText(clean_text));
 

@@ -85,7 +85,8 @@ impl SlackChannel {
 
     /// Get a WebSocket URL via Slack's `apps.connections.open` API.
     async fn get_ws_url(&self) -> anyhow::Result<String> {
-        let resp: SlackSocketUrl = self.http
+        let resp: SlackSocketUrl = self
+            .http
             .post("https://slack.com/api/apps.connections.open")
             .bearer_auth(&self.app_token)
             .header("Content-Type", "application/x-www-form-urlencoded")
@@ -95,15 +96,20 @@ impl SlackChannel {
             .await?;
 
         if !resp.ok {
-            anyhow::bail!("Slack apps.connections.open failed: {}", resp.error.unwrap_or_default());
+            anyhow::bail!(
+                "Slack apps.connections.open failed: {}",
+                resp.error.unwrap_or_default()
+            );
         }
 
-        resp.url.ok_or_else(|| anyhow::anyhow!("No WebSocket URL returned"))
+        resp.url
+            .ok_or_else(|| anyhow::anyhow!("No WebSocket URL returned"))
     }
 
     /// Detect the bot's own user ID via `auth.test`.
     async fn detect_bot_user_id(&self) -> anyhow::Result<String> {
-        let resp: SlackAuthTest = self.http
+        let resp: SlackAuthTest = self
+            .http
             .post("https://slack.com/api/auth.test")
             .bearer_auth(&self.bot_token)
             .header("Content-Type", "application/x-www-form-urlencoded")
@@ -116,7 +122,8 @@ impl SlackChannel {
             anyhow::bail!("Slack auth.test failed");
         }
 
-        resp.user_id.ok_or_else(|| anyhow::anyhow!("No user_id from auth.test"))
+        resp.user_id
+            .ok_or_else(|| anyhow::anyhow!("No user_id from auth.test"))
     }
 }
 
@@ -168,7 +175,8 @@ impl Channel for SlackChannel {
             payload["thread_ts"] = Value::String(thread_ts.clone());
         }
 
-        let resp: Value = self.http
+        let resp: Value = self
+            .http
             .post("https://slack.com/api/chat.postMessage")
             .bearer_auth(&self.bot_token)
             .json(&payload)
@@ -179,7 +187,7 @@ impl Channel for SlackChannel {
 
         if resp["ok"].as_bool() != Some(true) {
             let error = resp["error"].as_str().unwrap_or("unknown");
-            anyhow::bail!("Slack chat.postMessage failed: {}", error);
+            anyhow::bail!("Slack chat.postMessage failed: {error}");
         }
 
         Ok(())

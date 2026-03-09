@@ -2,6 +2,10 @@
 name = "amanclaw-plugin-sdk"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+description = "SDK for building AmanClaw plugins and skills"
+repository.workspace = true
+keywords.workspace = true
 
 [dependencies]
 serde = { workspace = true }

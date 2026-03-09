@@ -28,7 +28,12 @@ pub trait VectorStore: Send + Sync {
     async fn upsert(&self, collection: &str, docs: &[Document]) -> Result<()>;
 
     /// Semantic search for similar documents.
-    async fn search(&self, collection: &str, query: &str, limit: usize) -> Result<Vec<SearchResult>>;
+    async fn search(
+        &self,
+        collection: &str,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<SearchResult>>;
 
     /// Delete documents by ID.
     async fn delete(&self, collection: &str, ids: &[String]) -> Result<()>;
@@ -36,7 +41,10 @@ pub trait VectorStore: Send + Sync {
     /// Insert or update documents with pre-computed embeddings.
     /// Default falls back to upsert without embeddings.
     async fn upsert_with_embeddings(
-        &self, collection: &str, docs: &[Document], _embeddings: &[Vec<f32>],
+        &self,
+        collection: &str,
+        docs: &[Document],
+        _embeddings: &[Vec<f32>],
     ) -> Result<()> {
         self.upsert(collection, docs).await
     }
@@ -44,7 +52,11 @@ pub trait VectorStore: Send + Sync {
     /// Semantic search using a pre-computed query embedding.
     /// Default falls back to text search.
     async fn search_by_embedding(
-        &self, collection: &str, _query_embedding: &[f32], query_text: &str, limit: usize,
+        &self,
+        collection: &str,
+        _query_embedding: &[f32],
+        query_text: &str,
+        limit: usize,
     ) -> Result<Vec<SearchResult>> {
         self.search(collection, query_text, limit).await
     }

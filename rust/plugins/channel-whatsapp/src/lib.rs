@@ -1,6 +1,10 @@
 use amanclaw_traits::channel::Channel;
 use amanclaw_traits::message::{IncomingMessage, OutgoingMessage};
-use axum::{extract::State, routing::{get, post}, Json, Router};
+use axum::{
+    Json, Router,
+    extract::State,
+    routing::{get, post},
+};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -26,6 +30,7 @@ struct Change {
 struct ChangeValue {
     messages: Option<Vec<WaMessage>>,
     contacts: Option<Vec<WaContact>>,
+    #[allow(dead_code)]
     metadata: Option<WaMetadata>,
 }
 
@@ -36,6 +41,7 @@ struct WaMessage {
     msg_type: String,
     text: Option<WaText>,
     image: Option<WaMedia>,
+    #[allow(dead_code)]
     id: String,
 }
 
@@ -64,6 +70,7 @@ struct WaProfile {
 
 #[derive(Debug, Deserialize)]
 struct WaMetadata {
+    #[allow(dead_code)]
     phone_number_id: Option<String>,
 }
 
@@ -83,6 +90,7 @@ struct SendText {
 
 struct AppState {
     tx: mpsc::Sender<IncomingMessage>,
+    #[allow(dead_code)]
     access_token: String,
 }
 
@@ -95,7 +103,12 @@ pub struct WhatsAppChannel {
 }
 
 impl WhatsAppChannel {
-    pub fn new(access_token: String, phone_number_id: String, verify_token: String, webhook_port: u16) -> Self {
+    pub fn new(
+        access_token: String,
+        phone_number_id: String,
+        verify_token: String,
+        webhook_port: u16,
+    ) -> Self {
         let http = Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()
@@ -113,13 +126,19 @@ impl WhatsAppChannel {
     pub fn from_env() -> Option<Self> {
         let access_token = std::env::var("WHATSAPP_ACCESS_TOKEN").ok()?;
         let phone_number_id = std::env::var("WHATSAPP_PHONE_NUMBER_ID").ok()?;
-        let verify_token = std::env::var("WHATSAPP_VERIFY_TOKEN").unwrap_or_else(|_| "amanclaw_verify".into());
+        let verify_token =
+            std::env::var("WHATSAPP_VERIFY_TOKEN").unwrap_or_else(|_| "amanclaw_verify".into());
         let webhook_port: u16 = std::env::var("WHATSAPP_WEBHOOK_PORT")
             .unwrap_or_else(|_| "8080".into())
             .parse()
             .unwrap_or(8080);
 
-        Some(Self::new(access_token, phone_number_id, verify_token, webhook_port))
+        Some(Self::new(
+            access_token,
+            phone_number_id,
+            verify_token,
+            webhook_port,
+        ))
     }
 }
 
@@ -136,27 +155,33 @@ impl Channel for WhatsAppChannel {
             access_token: self.access_token.clone(),
         });
 
-        let app = Router::new()
-            .route("/webhook", get({
-                let vt = verify_token.clone();
-                move |query: axum::extract::Query<std::collections::HashMap<String, String>>| async move {
-                    let mode = query.get("hub.mode").cloned().unwrap_or_default();
-                    let token = query.get("hub.verify_token").cloned().unwrap_or_default();
-                    let challenge = query.get("hub.challenge").cloned().unwrap_or_default();
+        let app =
+            Router::new()
+                .route(
+                    "/webhook",
+                    get({
+                        let vt = verify_token.clone();
+                        move |query: axum::extract::Query<
+                            std::collections::HashMap<String, String>,
+                        >| async move {
+                            let mode = query.get("hub.mode").cloned().unwrap_or_default();
+                            let token = query.get("hub.verify_token").cloned().unwrap_or_default();
+                            let challenge = query.get("hub.challenge").cloned().unwrap_or_default();
 
-                    if mode == "subscribe" && token == vt {
-                        challenge
-                    } else {
-                        "Forbidden".to_string()
-                    }
-                }
-            }))
-            .route("/webhook", post(handle_webhook))
-            .with_state(state);
+                            if mode == "subscribe" && token == vt {
+                                challenge
+                            } else {
+                                "Forbidden".to_string()
+                            }
+                        }
+                    }),
+                )
+                .route("/webhook", post(handle_webhook))
+                .with_state(state);
 
         let port = self.webhook_port;
         tokio::spawn(async move {
-            let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port))
+            let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}"))
                 .await
                 .expect("Failed to bind WhatsApp webhook port");
             tracing::info!(port, "WhatsApp webhook server listening");
@@ -185,7 +210,8 @@ impl Channel for WhatsAppChannel {
             text: SendText { body: msg.text },
         };
 
-        let resp = self.http
+        let resp = self
+            .http
             .post(&url)
             .bearer_auth(&self.access_token)
             .json(&payload)
@@ -217,7 +243,10 @@ async fn handle_webhook(
                                     "text" => wa_msg.text.map(|t| t.body).unwrap_or_default(),
                                     "image" => {
                                         // For image messages, note the media ID
-                                        format!("[Image: media_id={}]", wa_msg.image.map(|i| i.id).unwrap_or_default())
+                                        format!(
+                                            "[Image: media_id={}]",
+                                            wa_msg.image.map(|i| i.id).unwrap_or_default()
+                                        )
                                     }
                                     _ => format!("[Unsupported message type: {}]", wa_msg.msg_type),
                                 };
@@ -247,10 +276,16 @@ async fn handle_webhook(
                                 match state.tx.try_send(incoming) {
                                     Ok(()) => {}
                                     Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
-                                        tracing::warn!(platform = "whatsapp", "Engine buffer full (backpressure)");
+                                        tracing::warn!(
+                                            platform = "whatsapp",
+                                            "Engine buffer full (backpressure)"
+                                        );
                                     }
                                     Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
-                                        tracing::error!(platform = "whatsapp", "Engine channel closed");
+                                        tracing::error!(
+                                            platform = "whatsapp",
+                                            "Engine channel closed"
+                                        );
                                     }
                                 }
                             }
@@ -270,12 +305,7 @@ mod tests {
 
     #[test]
     fn test_platform_name() {
-        let channel = WhatsAppChannel::new(
-            "token".into(),
-            "12345".into(),
-            "verify".into(),
-            8080,
-        );
+        let channel = WhatsAppChannel::new("token".into(), "12345".into(), "verify".into(), 8080);
         assert_eq!(channel.platform(), "whatsapp");
     }
 

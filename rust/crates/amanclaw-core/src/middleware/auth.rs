@@ -38,7 +38,8 @@ impl PipelineMiddleware for AuthMiddleware {
                 self.auth.write().await.register_user(user_id, platform);
                 return Ok(Some(OutgoingMessage {
                     chat_id: ctx.msg.chat_id,
-                    text: "Welcome! You've been registered. An admin needs to approve your access.".into(),
+                    text: "Welcome! You've been registered. An admin needs to approve your access."
+                        .into(),
                     parse_mode: None,
                     reply_to: None,
                     platform: None,

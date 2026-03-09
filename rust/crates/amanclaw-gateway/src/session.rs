@@ -20,6 +20,12 @@ pub struct SessionManager {
     sessions: Arc<Mutex<HashMap<String, Session>>>,
 }
 
+impl Default for SessionManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SessionManager {
     pub fn new() -> Self {
         Self {
@@ -86,9 +92,7 @@ impl SessionManager {
         let sessions = self.sessions.lock().await;
         sessions
             .values()
-            .filter(|s| {
-                s.topics.iter().any(|pattern| glob_match(pattern, topic))
-            })
+            .filter(|s| s.topics.iter().any(|pattern| glob_match(pattern, topic)))
             .map(|s| s.id.clone())
             .collect()
     }

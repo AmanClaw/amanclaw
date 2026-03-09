@@ -1,5 +1,5 @@
 use anyhow::Result;
-use sqlx::{SqlitePool, Row};
+use sqlx::{Row, SqlitePool};
 
 /// Represents a community (e.g. a WhatsApp/Telegram group).
 #[derive(Debug, Clone)]
@@ -67,13 +67,12 @@ impl<'a> CommunityRepo<'a> {
 
     /// Find a community by platform group ID.
     pub async fn get_by_group(&self, platform: &str, group_id: &str) -> Result<Option<Community>> {
-        let row = sqlx::query(
-            "SELECT * FROM communities WHERE platform = ? AND platform_group_id = ?"
-        )
-        .bind(platform)
-        .bind(group_id)
-        .fetch_optional(self.pool)
-        .await?;
+        let row =
+            sqlx::query("SELECT * FROM communities WHERE platform = ? AND platform_group_id = ?")
+                .bind(platform)
+                .bind(group_id)
+                .fetch_optional(self.pool)
+                .await?;
 
         Ok(row.map(|r| self.row_to_community(&r)))
     }
@@ -106,12 +105,15 @@ impl<'a> CommunityRepo<'a> {
 
     /// Set a notification preference for a community.
     pub async fn set_notification(
-        &self, community_id: &str, notification_type: &str, enabled: bool,
+        &self,
+        community_id: &str,
+        notification_type: &str,
+        enabled: bool,
     ) -> Result<()> {
         sqlx::query(
             "INSERT INTO community_notifications (community_id, notification_type, enabled)
              VALUES (?, ?, ?)
-             ON CONFLICT(community_id, notification_type) DO UPDATE SET enabled = excluded.enabled"
+             ON CONFLICT(community_id, notification_type) DO UPDATE SET enabled = excluded.enabled",
         )
         .bind(community_id)
         .bind(notification_type)
@@ -122,19 +124,23 @@ impl<'a> CommunityRepo<'a> {
     }
 
     /// Get all notification preferences for a community.
-    pub async fn get_notifications(&self, community_id: &str) -> Result<Vec<CommunityNotification>> {
-        let rows = sqlx::query(
-            "SELECT * FROM community_notifications WHERE community_id = ?"
-        )
-        .bind(community_id)
-        .fetch_all(self.pool)
-        .await?;
+    pub async fn get_notifications(
+        &self,
+        community_id: &str,
+    ) -> Result<Vec<CommunityNotification>> {
+        let rows = sqlx::query("SELECT * FROM community_notifications WHERE community_id = ?")
+            .bind(community_id)
+            .fetch_all(self.pool)
+            .await?;
 
-        Ok(rows.iter().map(|r| CommunityNotification {
-            community_id: r.get("community_id"),
-            notification_type: r.get("notification_type"),
-            enabled: r.get::<i32, _>("enabled") != 0,
-        }).collect())
+        Ok(rows
+            .iter()
+            .map(|r| CommunityNotification {
+                community_id: r.get("community_id"),
+                notification_type: r.get("notification_type"),
+                enabled: r.get::<i32, _>("enabled") != 0,
+            })
+            .collect())
     }
 
     /// Add an admin to a community.
@@ -152,24 +158,21 @@ impl<'a> CommunityRepo<'a> {
 
     /// Remove an admin from a community.
     pub async fn remove_admin(&self, community_id: &str, user_id: &str) -> Result<bool> {
-        let result = sqlx::query(
-            "DELETE FROM community_admins WHERE community_id = ? AND user_id = ?"
-        )
-        .bind(community_id)
-        .bind(user_id)
-        .execute(self.pool)
-        .await?;
+        let result =
+            sqlx::query("DELETE FROM community_admins WHERE community_id = ? AND user_id = ?")
+                .bind(community_id)
+                .bind(user_id)
+                .execute(self.pool)
+                .await?;
         Ok(result.rows_affected() > 0)
     }
 
     /// List admin user IDs for a community.
     pub async fn list_admins(&self, community_id: &str) -> Result<Vec<String>> {
-        let rows = sqlx::query(
-            "SELECT user_id FROM community_admins WHERE community_id = ?"
-        )
-        .bind(community_id)
-        .fetch_all(self.pool)
-        .await?;
+        let rows = sqlx::query("SELECT user_id FROM community_admins WHERE community_id = ?")
+            .bind(community_id)
+            .fetch_all(self.pool)
+            .await?;
 
         Ok(rows.iter().map(|r| r.get("user_id")).collect())
     }

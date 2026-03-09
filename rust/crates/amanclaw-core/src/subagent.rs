@@ -158,10 +158,7 @@ impl SubAgentManager {
         let agents = self.agents.lock().await;
         agents
             .values()
-            .filter(|a| {
-                a.parent_session == session
-                    && !matches!(a.status, SubAgentStatus::Running)
-            })
+            .filter(|a| a.parent_session == session && !matches!(a.status, SubAgentStatus::Running))
             .cloned()
             .collect()
     }
@@ -239,7 +236,7 @@ mod tests {
             mgr.spawn(SpawnRequest {
                 agent_id: "helper".into(),
                 prompt: "task".into(),
-                parent_session: format!("sess{}", i),
+                parent_session: format!("sess{i}"),
                 depth: 0,
             })
             .await

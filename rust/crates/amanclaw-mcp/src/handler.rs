@@ -51,29 +51,36 @@ impl McpHandler {
     }
 
     fn handle_initialize(&self, id: Option<Value>) -> JsonRpcResponse {
-        JsonRpcResponse::success(id, serde_json::json!({
-            "protocolVersion": "2024-11-05",
-            "capabilities": {
-                "tools": {
-                    "listChanged": false
+        JsonRpcResponse::success(
+            id,
+            serde_json::json!({
+                "protocolVersion": "2024-11-05",
+                "capabilities": {
+                    "tools": {
+                        "listChanged": false
+                    }
+                },
+                "serverInfo": {
+                    "name": self.server_name,
+                    "version": self.server_version
                 }
-            },
-            "serverInfo": {
-                "name": self.server_name,
-                "version": self.server_version
-            }
-        }))
+            }),
+        )
     }
 
     fn handle_tools_list(&self, id: Option<Value>) -> JsonRpcResponse {
-        let tools: Vec<McpTool> = self.skills.values().map(|skill| {
-            let meta = skill.metadata();
-            McpTool {
-                name: meta.name,
-                description: meta.description,
-                input_schema: skill.parameters_schema(),
-            }
-        }).collect();
+        let tools: Vec<McpTool> = self
+            .skills
+            .values()
+            .map(|skill| {
+                let meta = skill.metadata();
+                McpTool {
+                    name: meta.name,
+                    description: meta.description,
+                    input_schema: skill.parameters_schema(),
+                }
+            })
+            .collect();
 
         JsonRpcResponse::success(id, serde_json::json!({ "tools": tools }))
     }
@@ -89,17 +96,20 @@ impl McpHandler {
             None => return JsonRpcResponse::error(id, INVALID_PARAMS, "Missing tool name"),
         };
 
-        let arguments = params.get("arguments")
+        let arguments = params
+            .get("arguments")
             .cloned()
             .unwrap_or_else(|| serde_json::json!({}));
 
         let skill = match self.skills.get(&tool_name) {
             Some(s) => s,
-            None => return JsonRpcResponse::error(
-                id,
-                INVALID_PARAMS,
-                format!("Unknown tool: {}", tool_name),
-            ),
+            None => {
+                return JsonRpcResponse::error(
+                    id,
+                    INVALID_PARAMS,
+                    format!("Unknown tool: {tool_name}"),
+                );
+            }
         };
 
         let input = SkillInput {
@@ -120,10 +130,13 @@ impl McpHandler {
             },
         }];
 
-        JsonRpcResponse::success(id, serde_json::json!({
-            "content": content,
-            "isError": !result.success,
-        }))
+        JsonRpcResponse::success(
+            id,
+            serde_json::json!({
+                "content": content,
+                "isError": !result.success,
+            }),
+        )
     }
 }
 
@@ -160,7 +173,7 @@ mod tests {
             let text = args["input"].as_str().unwrap_or("none");
             SkillResult {
                 success: true,
-                output: format!("Got: {}", text),
+                output: format!("Got: {text}"),
                 error: None,
             }
         }

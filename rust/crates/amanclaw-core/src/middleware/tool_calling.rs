@@ -29,11 +29,15 @@ impl PipelineMiddleware for ToolCallingMiddleware {
         _next: &MiddlewareChain,
     ) -> Result<Option<OutgoingMessage>> {
         // Clone Arc<PluginRegistry> first (immutable borrow), then get mutable context_result
-        let registry = ctx.extensions.get::<Arc<PluginRegistry>>()
+        let registry = ctx
+            .extensions
+            .get::<Arc<PluginRegistry>>()
             .expect("PluginRegistry must be in extensions")
             .clone();
 
-        let context_result = ctx.extensions.get_mut::<ContextResult>()
+        let context_result = ctx
+            .extensions
+            .get_mut::<ContextResult>()
             .expect("ContextMiddleware must run before ToolCallingMiddleware");
 
         let max_rounds = ctx.profile.context.max_tool_rounds;
@@ -45,7 +49,8 @@ impl PipelineMiddleware for ToolCallingMiddleware {
             &ctx.msg.user_id,
             &ctx.msg.platform,
             max_rounds,
-        ).await?;
+        )
+        .await?;
 
         ctx.extensions.insert(LlmResponseText(response.clone()));
 
@@ -104,7 +109,10 @@ async fn tool_calling_loop(
                         if r.success {
                             format!("[SKILL OUTPUT]\n{}", r.output)
                         } else {
-                            format!("[SKILL ERROR]\n{}", r.error.unwrap_or_else(|| "Unknown error".into()))
+                            format!(
+                                "[SKILL ERROR]\n{}",
+                                r.error.unwrap_or_else(|| "Unknown error".into())
+                            )
                         }
                     } else {
                         format!("Skill '{}' not found", call.name)
@@ -123,7 +131,9 @@ async fn tool_calling_loop(
     // Exceeded max rounds — ask LLM for final answer without tools
     match llm.call(messages, &[]).await {
         Ok(LlmResponse::Text(text)) => Ok(text),
-        Ok(LlmResponse::ToolCalls(_)) => Ok("I got stuck in a tool loop. Please try rephrasing your question.".into()),
+        Ok(LlmResponse::ToolCalls(_)) => {
+            Ok("I got stuck in a tool loop. Please try rephrasing your question.".into())
+        }
         Err(e) => {
             tracing::error!(error = %e, "LLM error in final round");
             Ok("Something went wrong. Try again.".into())

@@ -26,48 +26,46 @@ impl Channel for TelegramChannel {
 
         tracing::info!("Telegram channel starting...");
 
-        let handler = Update::filter_message().endpoint(
-            move |msg: Message, _bot: Bot| {
-                let tx = tx.clone();
-                async move {
-                    if let Some(text) = msg.text() {
-                        let user = msg.from.as_ref();
-                        let incoming = IncomingMessage {
-                            user_id: user.map(|u| u.id.0.to_string()).unwrap_or_default(),
-                            chat_id: msg.chat.id.0.to_string(),
-                            platform: "telegram".into(),
-                            text: text.to_string(),
-                            username: user.and_then(|u| u.username.clone()),
-                            first_name: user.map(|u| u.first_name.clone()),
-                            is_group: msg.chat.is_group() || msg.chat.is_supergroup(),
-                            image_data: None,
-                            reply_to: None,
-                            topic_id: None,
-                            channel_context: None,
-                            is_cron: false,
-                            is_webhook: false,
-                            is_subagent: false,
-                        };
-                        match tx.try_send(incoming) {
-                            Ok(()) => {}
-                            Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
-                                tracing::warn!(platform = "telegram", "Engine buffer full (backpressure)");
-                            }
-                            Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
-                                tracing::error!(platform = "telegram", "Engine channel closed");
-                            }
+        let handler = Update::filter_message().endpoint(move |msg: Message, _bot: Bot| {
+            let tx = tx.clone();
+            async move {
+                if let Some(text) = msg.text() {
+                    let user = msg.from.as_ref();
+                    let incoming = IncomingMessage {
+                        user_id: user.map(|u| u.id.0.to_string()).unwrap_or_default(),
+                        chat_id: msg.chat.id.0.to_string(),
+                        platform: "telegram".into(),
+                        text: text.to_string(),
+                        username: user.and_then(|u| u.username.clone()),
+                        first_name: user.map(|u| u.first_name.clone()),
+                        is_group: msg.chat.is_group() || msg.chat.is_supergroup(),
+                        image_data: None,
+                        reply_to: None,
+                        topic_id: None,
+                        channel_context: None,
+                        is_cron: false,
+                        is_webhook: false,
+                        is_subagent: false,
+                    };
+                    match tx.try_send(incoming) {
+                        Ok(()) => {}
+                        Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                            tracing::warn!(
+                                platform = "telegram",
+                                "Engine buffer full (backpressure)"
+                            );
+                        }
+                        Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
+                            tracing::error!(platform = "telegram", "Engine channel closed");
                         }
                     }
-                    respond(())
                 }
-            },
-        );
+                respond(())
+            }
+        });
 
         tokio::spawn(async move {
-            Dispatcher::builder(bot, handler)
-                .build()
-                .dispatch()
-                .await;
+            Dispatcher::builder(bot, handler).build().dispatch().await;
         });
 
         Ok(())

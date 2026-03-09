@@ -1,0 +1,10 @@
+target/
+.git/
+.github/
+desktop/
+docs/
+*.md
+LICENSE
+.env
+.env.example
+.gitignore

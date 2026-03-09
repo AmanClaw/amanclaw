@@ -21,7 +21,10 @@ pub struct Scheduler {
 
 impl Scheduler {
     pub fn new(tx: mpsc::Sender<SchedulerEvent>) -> Self {
-        Self { tx, handles: HashMap::new() }
+        Self {
+            tx,
+            handles: HashMap::new(),
+        }
     }
 
     pub fn start_jobs(&mut self, jobs: &HashMap<String, CronJobConfig>, default_tz: &str) {
@@ -50,7 +53,9 @@ impl Scheduler {
                     let now = chrono::Utc::now().with_timezone(&tz);
                     let next = schedule.upcoming(tz).next();
                     if let Some(next_time) = next {
-                        let wait = (next_time - now).to_std().unwrap_or(std::time::Duration::from_secs(1));
+                        let wait = (next_time - now)
+                            .to_std()
+                            .unwrap_or(std::time::Duration::from_secs(1));
                         tokio::time::sleep(wait).await;
 
                         if let Err(e) = Self::fire_job(&job_id, &job_clone, &tx).await {
@@ -83,14 +88,15 @@ impl Scheduler {
                         reply_to: None,
                         platform: Some(target.platform.clone()),
                         topic_id: target.topic_id.clone(),
-                    })).await?;
+                    }))
+                    .await?;
                 }
                 "skill_invocation" => {
                     let skill = job.skill.clone().unwrap_or_default();
                     let input = job.input.clone().unwrap_or_default();
-                    let synthetic = format!("/{} {}", skill, input);
+                    let synthetic = format!("/{skill} {input}");
                     tx.send(SchedulerEvent::InjectMessage(IncomingMessage {
-                        user_id: format!("cron:{}", job_id),
+                        user_id: format!("cron:{job_id}"),
                         chat_id: target.chat_id.clone(),
                         platform: target.platform.clone(),
                         text: synthetic,
@@ -104,12 +110,13 @@ impl Scheduler {
                         is_cron: true,
                         is_webhook: false,
                         is_subagent: false,
-                    })).await?;
+                    }))
+                    .await?;
                 }
                 "agent_prompt" => {
                     let prompt = job.prompt.clone().unwrap_or_default();
                     tx.send(SchedulerEvent::InjectMessage(IncomingMessage {
-                        user_id: format!("cron:{}", job_id),
+                        user_id: format!("cron:{job_id}"),
                         chat_id: target.chat_id.clone(),
                         platform: target.platform.clone(),
                         text: prompt,
@@ -123,7 +130,8 @@ impl Scheduler {
                         is_cron: true,
                         is_webhook: false,
                         is_subagent: false,
-                    })).await?;
+                    }))
+                    .await?;
                 }
                 other => {
                     tracing::warn!(job = %job_id, job_type = %other, "Unknown cron job type");
@@ -168,12 +176,12 @@ mod tests {
         scheduler.start_jobs(&jobs, "UTC");
 
         // Wait up to 3 seconds for an event
-        let event = tokio::time::timeout(
-            std::time::Duration::from_secs(3),
-            rx.recv()
-        ).await;
+        let event = tokio::time::timeout(std::time::Duration::from_secs(3), rx.recv()).await;
 
-        assert!(event.is_ok(), "Should receive a scheduler event within 3 seconds");
+        assert!(
+            event.is_ok(),
+            "Should receive a scheduler event within 3 seconds"
+        );
         match event.unwrap().unwrap() {
             SchedulerEvent::SendMessage(msg) => {
                 assert_eq!(msg.text, "Hello test");
@@ -210,10 +218,7 @@ mod tests {
         jobs.insert("quran".into(), job);
         scheduler.start_jobs(&jobs, "UTC");
 
-        let event = tokio::time::timeout(
-            std::time::Duration::from_secs(3),
-            rx.recv()
-        ).await;
+        let event = tokio::time::timeout(std::time::Duration::from_secs(3), rx.recv()).await;
 
         assert!(event.is_ok());
         match event.unwrap().unwrap() {
