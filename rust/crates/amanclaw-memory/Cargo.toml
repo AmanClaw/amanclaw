@@ -3,6 +3,11 @@ name = "amanclaw-memory"
 version.workspace = true
 edition.workspace = true
 
+[features]
+default = ["sqlite"]
+sqlite = []
+postgres = []
+
 [dependencies]
 amanclaw-traits = { path = "../amanclaw-traits" }
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
@@ -12,5 +17,6 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 anyhow = { workspace = true }
 async-trait = "0.1"
+moka = { version = "0.12", features = ["future"] }
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }

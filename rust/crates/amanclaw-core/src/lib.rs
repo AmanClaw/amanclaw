@@ -1,18 +1,23 @@
+pub mod error;
 pub mod pipeline;
 pub mod router;
 pub mod registry;
 pub mod context_engine;
+pub mod token_budget;
 pub mod soul;
 pub mod scheduler;
 pub mod webhooks;
 pub mod subagent;
 pub mod skills;
+pub mod handle;
+pub mod middleware;
 
 use amanclaw_traits::config::AppConfig;
 use amanclaw_traits::context::ContextEngine;
 use amanclaw_traits::memory::MemoryBackend;
 use amanclaw_traits::vector::VectorStore;
 use amanclaw_traits::channel::Channel;
+use amanclaw_traits::message::IncomingMessage;
 use amanclaw_memory::sqlite::SqliteMemory;
 use amanclaw_memory::vector::SqliteVectorStore;
 use amanclaw_security::auth::Auth;
@@ -26,31 +31,45 @@ use amanclaw_channel_whatsapp::WhatsAppChannel;
 use amanclaw_channel_whatsapp_web::WhatsAppWebChannel;
 use amanclaw_channel_slack::SlackChannel;
 use amanclaw_mcp::handler::McpHandler;
+use crate::handle::{EngineCommand, EngineHandle, EngineStatus};
 use crate::pipeline::Pipeline;
 use crate::registry::PluginRegistry;
 use crate::router::AgentRouter;
 use anyhow::Result;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch, Semaphore};
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::time::Instant;
+use tokio::sync::RwLock;
 use sqlx::SqlitePool;
+
+/// Result returned by [`Engine::start`] containing handles to the running engine.
+pub struct EngineStartResult {
+    /// Cheap, cloneable handle for sending commands to the engine actor.
+    pub handle: EngineHandle,
+    /// Join handle for the actor task. Await this to block until the engine exits.
+    pub join: tokio::task::JoinHandle<Result<()>>,
+    /// Shared auth instance for management API.
+    pub auth: Arc<RwLock<Auth>>,
+    /// SQLite connection pool.
+    pub pool: SqlitePool,
+    /// Plugin registry with all loaded skills.
+    pub registry: Arc<PluginRegistry>,
+}
 
 pub struct Engine {
     #[allow(dead_code)]
     config: AppConfig,
-    pipeline: Pipeline,
+    pipeline: Arc<Pipeline>,
     registry: Arc<PluginRegistry>,
     channels: Vec<Arc<dyn Channel>>,
-    rx: mpsc::Receiver<amanclaw_traits::message::IncomingMessage>,
-    tx: Option<mpsc::Sender<amanclaw_traits::message::IncomingMessage>>,
-    auth: Arc<Mutex<Auth>>,
-    pool: SqlitePool,
-    agent_router: AgentRouter,
-    sched_rx: mpsc::Receiver<crate::scheduler::SchedulerEvent>,
+    agent_router: Arc<AgentRouter>,
 }
 
 impl Engine {
-    pub async fn new(mut config: AppConfig) -> Result<Self> {
+    /// Initialize and start the engine actor. Returns handles for interacting with
+    /// the running engine.
+    pub async fn start(mut config: AppConfig) -> Result<EngineStartResult> {
         // Initialize subsystems
         let db_path = std::env::var("MEMORY_DB_PATH").unwrap_or_else(|_| "memory.db".into());
         let memory = SqliteMemory::new(&db_path).await?;
@@ -86,9 +105,13 @@ impl Engine {
             registry.register(subagent_skill);
         }
 
-        // Load WASM plugins
+        // Load WASM plugins with configured resource limits
         let plugin_dir = Path::new(&config.plugins.dir);
-        let wasm_skills = amanclaw_wasm_runtime::runtime::load_all_plugins(plugin_dir);
+        let wasm_sandbox = amanclaw_wasm_runtime::runtime::sandbox_from_limits(
+            config.plugins.wasm_memory_limit_mb,
+            config.plugins.wasm_fuel_limit,
+        );
+        let wasm_skills = amanclaw_wasm_runtime::runtime::load_all_plugins(plugin_dir, wasm_sandbox.clone());
         for skill in wasm_skills {
             registry.register(skill);
         }
@@ -132,7 +155,7 @@ impl Engine {
                             "wasm" => {
                                 if let Some(entry) = &skill_info.entry {
                                     let wasm_path = skill_dir.join(entry);
-                                    let wasm_skills = amanclaw_wasm_runtime::runtime::load_all_plugins(&wasm_path);
+                                    let wasm_skills = amanclaw_wasm_runtime::runtime::load_all_plugins(&wasm_path, wasm_sandbox.clone());
                                     for skill in wasm_skills {
                                         registry.register(skill);
                                     }
@@ -182,9 +205,15 @@ impl Engine {
         );
 
         let registry = Arc::new(registry);
-        let auth_arc = Arc::new(Mutex::new(auth));
+        let auth_arc = Arc::new(RwLock::new(auth));
         let pool = memory.pool().clone();
-        let memory_arc: Arc<dyn MemoryBackend> = Arc::new(memory);
+        let memory_arc: Arc<dyn MemoryBackend> = Arc::new(
+            amanclaw_memory::cached::CachedMemory::new(
+                Arc::new(memory),
+                1000, // max entries
+                300,  // TTL 5 minutes
+            ),
+        );
         let llm_arc = Arc::new(llm);
 
         // Optional: create vector store (always available since we use SQLite)
@@ -258,42 +287,47 @@ impl Engine {
         );
         let emitter: Arc<dyn amanclaw_traits::event::EventEmitter> = Arc::new(amanclaw_traits::event::NoopEmitter);
         let pipeline = Pipeline::with_services(auth_arc.clone(), rate_limiter, context_engine, memory_arc, llm_arc, emitter);
-        let (tx, rx) = mpsc::channel(256);
+
+        // Create message channel for adapters
+        let (msg_tx, msg_rx) = mpsc::channel::<IncomingMessage>(256);
 
         // Start channel adapters
         let mut channels: Vec<Arc<dyn Channel>> = Vec::new();
 
         if let Ok(token) = std::env::var("TELEGRAM_BOT_TOKEN") {
             let mut telegram = TelegramChannel::new(token);
-            telegram.start(tx.clone()).await?;
+            telegram.start(msg_tx.clone()).await?;
             channels.push(Arc::new(telegram));
             tracing::info!("Telegram channel started");
         }
 
         if let Ok(token) = std::env::var("DISCORD_BOT_TOKEN") {
             let mut discord = DiscordChannel::new(token);
-            discord.start(tx.clone()).await?;
+            discord.start(msg_tx.clone()).await?;
             channels.push(Arc::new(discord));
             tracing::info!("Discord channel started");
         }
 
         if let Some(mut whatsapp) = WhatsAppChannel::from_env() {
-            whatsapp.start(tx.clone()).await?;
+            whatsapp.start(msg_tx.clone()).await?;
             channels.push(Arc::new(whatsapp));
             tracing::info!("WhatsApp channel started");
         }
 
         if let Some(mut whatsapp_web) = WhatsAppWebChannel::from_env() {
-            whatsapp_web.start(tx.clone()).await?;
+            whatsapp_web.start(msg_tx.clone()).await?;
             channels.push(Arc::new(whatsapp_web));
             tracing::info!("WhatsApp Web (WAHA) channel started");
         }
 
         if let Some(mut slack) = SlackChannel::from_env() {
-            slack.start(tx.clone()).await?;
+            slack.start(msg_tx.clone()).await?;
             channels.push(Arc::new(slack));
             tracing::info!("Slack channel started");
         }
+
+        // Drop msg_tx so the channel closes when all adapter senders are dropped
+        drop(msg_tx);
 
         // Start MCP server if configured
         if let Ok(port_str) = std::env::var("MCP_HTTP_PORT") {
@@ -320,76 +354,187 @@ impl Engine {
 
         tracing::info!(skills = registry.skill_count(), "Engine initialized");
 
-        Ok(Self { config, pipeline, registry, channels, rx, tx: Some(tx), auth: auth_arc, pool, agent_router, sched_rx })
+        // Create command channel and status watch for the EngineHandle
+        let (cmd_tx, cmd_rx) = mpsc::channel::<EngineCommand>(512);
+        let (status_tx, status_rx) = watch::channel(EngineStatus::Starting);
+        let handle = EngineHandle::new(cmd_tx, status_rx);
+
+        // Build engine and spawn actor
+        let engine = Engine {
+            config,
+            pipeline: Arc::new(pipeline),
+            registry: registry.clone(),
+            channels,
+            agent_router: Arc::new(agent_router),
+        };
+
+        let join = tokio::spawn(async move {
+            engine.run_actor(cmd_rx, msg_rx, status_tx, sched_rx).await
+        });
+
+        Ok(EngineStartResult {
+            handle,
+            join,
+            auth: auth_arc,
+            pool,
+            registry,
+        })
     }
 
-    /// Get a sender for channels to push messages into the engine.
-    pub fn sender(&self) -> mpsc::Sender<amanclaw_traits::message::IncomingMessage> {
-        self.tx.as_ref().expect("sender() called after run()").clone()
-    }
+    /// Actor loop: receives commands and messages, processes them concurrently.
+    async fn run_actor(
+        self,
+        mut cmd_rx: mpsc::Receiver<EngineCommand>,
+        mut msg_rx: mpsc::Receiver<IncomingMessage>,
+        status_tx: watch::Sender<EngineStatus>,
+        mut sched_rx: mpsc::Receiver<crate::scheduler::SchedulerEvent>,
+    ) -> Result<()> {
+        let semaphore = Arc::new(Semaphore::new(32));
+        let mut join_set = tokio::task::JoinSet::<()>::new();
+        let mut messages_processed: u64 = 0;
+        let started_at = Instant::now();
 
-    /// Get the shared auth instance for use by the management API.
-    pub fn auth(&self) -> &Arc<Mutex<Auth>> {
-        &self.auth
-    }
+        let _ = status_tx.send(EngineStatus::Running {
+            started_at,
+            messages_processed: 0,
+        });
 
-    /// Get the SQLite pool for use by the management API.
-    pub fn pool(&self) -> &SqlitePool {
-        &self.pool
-    }
-
-    /// Get the plugin registry.
-    pub fn registry(&self) -> &Arc<PluginRegistry> {
-        &self.registry
-    }
-
-    pub async fn run(mut self) -> Result<()> {
-        // Drop our sender so the channel closes when all external senders are dropped
-        drop(self.tx.take());
-        tracing::info!("Engine running");
+        tracing::info!("Engine actor running");
 
         loop {
             tokio::select! {
-                Some(msg) = self.rx.recv() => {
-                    let platform = msg.platform.clone();
-                    let profile = self.agent_router.resolve(&msg);
-                    tracing::debug!(agent = %profile.id, "Routed to agent");
-                    match self.pipeline.process(msg, &self.registry, &profile).await {
-                        Ok(Some(response)) => {
-                            self.send_to_channel(&platform, response).await;
+                Some(cmd) = cmd_rx.recv() => {
+                    match cmd {
+                        EngineCommand::ProcessMessage(msg) => {
+                            messages_processed += 1;
+                            let _ = status_tx.send(EngineStatus::Running {
+                                started_at,
+                                messages_processed,
+                            });
+                            self.spawn_process_message(msg, &semaphore, &mut join_set);
                         }
-                        Ok(None) => {}
-                        Err(e) => tracing::error!(error = %e, "Pipeline error"),
+                        EngineCommand::SchedulerEvent(event) => {
+                            self.handle_scheduler_event(event, &semaphore, &mut join_set);
+                        }
+                        EngineCommand::GetStatus(reply) => {
+                            let _ = reply.send(EngineStatus::Running {
+                                started_at,
+                                messages_processed,
+                            });
+                        }
+                        EngineCommand::GetSkills(reply) => {
+                            let _ = reply.send(self.registry.list_skill_metadata());
+                        }
+                        EngineCommand::Shutdown(reply) => {
+                            tracing::info!("Engine shutdown requested");
+                            let _ = status_tx.send(EngineStatus::Stopped);
+                            // Wait for in-flight tasks (with timeout)
+                            let deadline = tokio::time::sleep(std::time::Duration::from_secs(30));
+                            tokio::pin!(deadline);
+                            loop {
+                                tokio::select! {
+                                    result = join_set.join_next() => {
+                                        if result.is_none() { break; } // all done
+                                    }
+                                    _ = &mut deadline => {
+                                        tracing::warn!("Shutdown timeout, {} tasks still running", join_set.len());
+                                        break;
+                                    }
+                                }
+                            }
+                            let _ = reply.send(());
+                            return Ok(());
+                        }
                     }
                 }
-                Some(event) = self.sched_rx.recv() => {
-                    match event {
-                        crate::scheduler::SchedulerEvent::SendMessage(response) => {
-                            let platform = response.platform.clone().unwrap_or_default();
-                            self.send_to_channel(&platform, response).await;
-                        }
-                        crate::scheduler::SchedulerEvent::InjectMessage(msg) => {
-                            let platform = msg.platform.clone();
-                            let profile = self.agent_router.resolve(&msg);
-                            match self.pipeline.process(msg, &self.registry, &profile).await {
-                                Ok(Some(response)) => {
-                                    self.send_to_channel(&platform, response).await;
-                                }
-                                Ok(None) => {}
-                                Err(e) => tracing::error!(error = %e, "Cron pipeline error"),
-                            }
-                        }
-                    }
+                Some(msg) = msg_rx.recv() => {
+                    messages_processed += 1;
+                    let _ = status_tx.send(EngineStatus::Running {
+                        started_at,
+                        messages_processed,
+                    });
+                    self.spawn_process_message(msg, &semaphore, &mut join_set);
+                }
+                Some(event) = sched_rx.recv() => {
+                    self.handle_scheduler_event(event, &semaphore, &mut join_set);
                 }
                 else => break,
             }
         }
+
+        tracing::info!("Engine actor stopped");
         Ok(())
     }
 
-    async fn send_to_channel(&self, platform: &str, response: amanclaw_traits::message::OutgoingMessage) {
+    /// Spawn a task to process an incoming message with concurrency control.
+    fn spawn_process_message(&self, msg: IncomingMessage, semaphore: &Arc<Semaphore>, join_set: &mut tokio::task::JoinSet<()>) {
+        let semaphore = semaphore.clone();
+        let pipeline = self.pipeline.clone();
+        let registry = self.registry.clone();
+        let agent_router = self.agent_router.clone();
+        let channels = self.channels.clone();
+
+        join_set.spawn(async move {
+            let _permit = semaphore.acquire_owned().await.unwrap();
+            let platform = msg.platform.clone();
+            let profile = agent_router.resolve(&msg);
+            tracing::debug!(agent = %profile.id, "Routed to agent");
+            match pipeline.process(msg, &registry, &profile).await {
+                Ok(Some(response)) => {
+                    Self::send_to_channel(&channels, &platform, response).await;
+                }
+                Ok(None) => {}
+                Err(e) => tracing::error!(error = %e, "Pipeline error"),
+            }
+        });
+    }
+
+    /// Handle a scheduler event with concurrency control.
+    fn handle_scheduler_event(
+        &self,
+        event: crate::scheduler::SchedulerEvent,
+        semaphore: &Arc<Semaphore>,
+        join_set: &mut tokio::task::JoinSet<()>,
+    ) {
+        match event {
+            crate::scheduler::SchedulerEvent::SendMessage(response) => {
+                let channels = self.channels.clone();
+                join_set.spawn(async move {
+                    let platform = response.platform.clone().unwrap_or_default();
+                    Self::send_to_channel(&channels, &platform, response).await;
+                });
+            }
+            crate::scheduler::SchedulerEvent::InjectMessage(msg) => {
+                let semaphore = semaphore.clone();
+                let pipeline = self.pipeline.clone();
+                let registry = self.registry.clone();
+                let agent_router = self.agent_router.clone();
+                let channels = self.channels.clone();
+
+                join_set.spawn(async move {
+                    let _permit = semaphore.acquire_owned().await.unwrap();
+                    let platform = msg.platform.clone();
+                    let profile = agent_router.resolve(&msg);
+                    match pipeline.process(msg, &registry, &profile).await {
+                        Ok(Some(response)) => {
+                            Self::send_to_channel(&channels, &platform, response).await;
+                        }
+                        Ok(None) => {}
+                        Err(e) => tracing::error!(error = %e, "Cron pipeline error"),
+                    }
+                });
+            }
+        }
+    }
+
+    /// Send a response to the appropriate channel adapter.
+    async fn send_to_channel(
+        channels: &[Arc<dyn Channel>],
+        platform: &str,
+        response: amanclaw_traits::message::OutgoingMessage,
+    ) {
         tracing::info!(chat_id = %response.chat_id, "Sending response");
-        for ch in &self.channels {
+        for ch in channels {
             if ch.platform() == platform {
                 if let Err(e) = ch.send_message(response.clone()).await {
                     tracing::error!(error = %e, "Failed to send response");
@@ -397,10 +542,5 @@ impl Engine {
                 break;
             }
         }
-    }
-
-    pub async fn shutdown(&self) -> Result<()> {
-        tracing::info!("Engine shutdown complete");
-        Ok(())
     }
 }

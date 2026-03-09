@@ -124,13 +124,32 @@ pub struct LlmConfig {
     pub native_tool_calling: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginConfig {
     #[serde(default = "default_plugin_dir")]
     pub dir: String,
 
     #[serde(default)]
     pub hot_reload: bool,
+
+    /// Maximum memory (in MB) each WASM plugin can use.
+    #[serde(default = "default_wasm_memory_limit_mb")]
+    pub wasm_memory_limit_mb: u64,
+
+    /// Fuel budget for WASM plugin execution (limits CPU usage).
+    #[serde(default = "default_wasm_fuel_limit")]
+    pub wasm_fuel_limit: u64,
+}
+
+impl Default for PluginConfig {
+    fn default() -> Self {
+        Self {
+            dir: default_plugin_dir(),
+            hot_reload: false,
+            wasm_memory_limit_mb: default_wasm_memory_limit_mb(),
+            wasm_fuel_limit: default_wasm_fuel_limit(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -422,6 +441,8 @@ fn default_plugin_dir() -> String { "./plugins".into() }
 fn default_injection_rules() -> String { "default".into() }
 fn default_true() -> bool { true }
 fn default_skill_timeout() -> u32 { 30 }
+fn default_wasm_memory_limit_mb() -> u64 { 64 }
+fn default_wasm_fuel_limit() -> u64 { 1_000_000 }
 
 #[cfg(test)]
 mod tests {

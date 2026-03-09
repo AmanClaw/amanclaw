@@ -48,7 +48,15 @@ impl Channel for TelegramChannel {
                             is_webhook: false,
                             is_subagent: false,
                         };
-                        let _ = tx.send(incoming).await;
+                        match tx.try_send(incoming) {
+                            Ok(()) => {}
+                            Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                                tracing::warn!(platform = "telegram", "Engine buffer full (backpressure)");
+                            }
+                            Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
+                                tracing::error!(platform = "telegram", "Engine channel closed");
+                            }
+                        }
                     }
                     respond(())
                 }

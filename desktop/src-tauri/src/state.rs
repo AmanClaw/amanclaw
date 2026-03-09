@@ -17,12 +17,26 @@ pub enum EngineStatus {
     Error(String),
 }
 
+/// Convert core engine status to serializable desktop status.
+impl From<amanclaw_core::handle::EngineStatus> for EngineStatus {
+    fn from(status: amanclaw_core::handle::EngineStatus) -> Self {
+        match status {
+            amanclaw_core::handle::EngineStatus::Stopped => EngineStatus::Stopped,
+            amanclaw_core::handle::EngineStatus::Starting => EngineStatus::Starting,
+            amanclaw_core::handle::EngineStatus::Running { .. } => EngineStatus::Running,
+            amanclaw_core::handle::EngineStatus::Error(e) => EngineStatus::Error(e),
+        }
+    }
+}
+
 /// Holds references to the running engine's subsystems.
 pub struct EngineHandle {
-    /// Dropping this aborts the engine task.
-    pub abort_handle: tokio::task::AbortHandle,
+    /// Core engine handle for sending commands (shutdown, status, skills).
+    pub engine_handle: amanclaw_core::handle::EngineHandle,
+    /// Join handle for the monitoring wrapper task.
+    pub join_handle: tokio::task::JoinHandle<()>,
     /// Auth for user management.
-    pub auth: Arc<std::sync::Mutex<amanclaw_security::auth::Auth>>,
+    pub auth: Arc<tokio::sync::RwLock<amanclaw_security::auth::Auth>>,
     /// SQLite pool for queries.
     pub pool: sqlx::SqlitePool,
     /// Plugin registry for skill listing.

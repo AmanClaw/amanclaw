@@ -159,27 +159,34 @@ pub async fn start_engine(
     // Set env vars for channel adapters (they read from env)
     apply_env_vars(&secrets, &db_path.to_string_lossy());
 
-    // Initialize engine
-    let engine = amanclaw_core::Engine::new(cfg.clone())
+    // Initialize and start engine actor
+    let result = amanclaw_core::Engine::start(cfg.clone())
         .await
         .map_err(|e| format!("Engine init failed: {}", e))?;
 
-    // Grab handles before moving engine into the task
-    let auth = engine.auth().clone();
-    let pool = engine.pool().clone();
-    let registry = engine.registry().clone();
+    // Grab handles from the start result
+    let engine_handle = result.handle.clone();
+    let auth = result.auth.clone();
+    let pool = result.pool.clone();
+    let registry = result.registry.clone();
 
-    // Spawn engine in background
+    // Spawn a wrapper task that monitors the engine actor
     let state_clone = state.inner().clone();
     let join_handle = tokio::spawn(async move {
-        if let Err(e) = engine.run().await {
-            let mut st = state_clone.write().await;
-            st.engine_status = EngineStatus::Error(e.to_string());
-            tracing::error!(error = %e, "Engine error");
-        } else {
-            // engine.run() returns Ok when no channels are active (rx closed).
-            // Keep status as Running — the engine is initialized and handles are valid.
-            tracing::info!("Engine run loop exited (no active channels)");
+        match result.join.await {
+            Ok(Ok(())) => {
+                tracing::info!("Engine run loop exited (no active channels)");
+            }
+            Ok(Err(e)) => {
+                let mut st = state_clone.write().await;
+                st.engine_status = EngineStatus::Error(e.to_string());
+                tracing::error!(error = %e, "Engine error");
+            }
+            Err(e) => {
+                let mut st = state_clone.write().await;
+                st.engine_status = EngineStatus::Error(format!("Engine task panicked: {}", e));
+                tracing::error!(error = %e, "Engine task panicked");
+            }
         }
     });
 
@@ -190,7 +197,8 @@ pub async fn start_engine(
         st.config = Some(cfg);
         st.started_at = Some(std::time::Instant::now());
         st.engine_handle = Some(EngineHandle {
-            abort_handle: join_handle.abort_handle(),
+            engine_handle,
+            join_handle,
             auth,
             pool,
             registry,
@@ -205,9 +213,13 @@ pub async fn start_engine(
 pub async fn stop_engine(
     state: State<'_, SharedState>,
 ) -> Result<(), String> {
-    let mut st = state.write().await;
-    if let Some(handle) = st.engine_handle.take() {
-        handle.abort_handle.abort();
+    let handle = {
+        let mut st = state.write().await;
+        st.engine_handle.take()
+    };
+    if let Some(handle) = handle {
+        handle.engine_handle.shutdown().await.map_err(|e| e.to_string())?;
+        let mut st = state.write().await;
         st.engine_status = EngineStatus::Stopped;
         st.started_at = None;
         Ok(())
@@ -223,9 +235,13 @@ pub async fn restart_engine(
 ) -> Result<(), String> {
     // Stop if running
     {
-        let mut st = state.write().await;
-        if let Some(handle) = st.engine_handle.take() {
-            handle.abort_handle.abort();
+        let handle = {
+            let mut st = state.write().await;
+            st.engine_handle.take()
+        };
+        if let Some(handle) = handle {
+            let _ = handle.engine_handle.shutdown().await;
+            let mut st = state.write().await;
             st.engine_status = EngineStatus::Stopped;
             st.started_at = None;
         }
@@ -243,9 +259,17 @@ pub async fn get_status(
     state: State<'_, SharedState>,
 ) -> Result<serde_json::Value, String> {
     let st = state.read().await;
+
+    // Prefer real-time status from core handle when available
+    let status: EngineStatus = if let Some(ref handle) = st.engine_handle {
+        handle.engine_handle.status().into()
+    } else {
+        st.engine_status.clone()
+    };
+
     let uptime_secs = st.started_at.map(|t| t.elapsed().as_secs()).unwrap_or(0);
 
-    let (status_str, error_msg) = match &st.engine_status {
+    let (status_str, error_msg) = match &status {
         EngineStatus::Stopped => ("stopped", None),
         EngineStatus::Starting => ("starting", None),
         EngineStatus::Running => ("running", None),
@@ -254,7 +278,7 @@ pub async fn get_status(
 
     Ok(serde_json::json!({
         "engine_status": status_str,
-        "bot_running": matches!(st.engine_status, EngineStatus::Running),
+        "bot_running": matches!(status, EngineStatus::Running),
         "mode": match &st.mode {
             AppMode::Local => "local",
             AppMode::Remote { .. } => "remote",
@@ -376,7 +400,7 @@ pub async fn get_users(
         }
         AppMode::Local => {
             if let Some(handle) = &st.engine_handle {
-                let auth = handle.auth.lock().unwrap();
+                let auth = handle.auth.read().await;
                 let users = auth.list_users();
                 let user_list: Vec<serde_json::Value> = users.iter()
                     .map(|(id, platform, status)| {
@@ -407,7 +431,7 @@ pub async fn approve_user(
 ) -> Result<(), String> {
     let st = state.read().await;
     if let Some(handle) = &st.engine_handle {
-        let mut auth = handle.auth.lock().unwrap();
+        let mut auth = handle.auth.write().await;
         auth.approve_user(&user_id, &platform);
     } else {
         return Err("Engine not running".into());
@@ -434,7 +458,7 @@ pub async fn block_user(
 ) -> Result<(), String> {
     let st = state.read().await;
     if let Some(handle) = &st.engine_handle {
-        let mut auth = handle.auth.lock().unwrap();
+        let mut auth = handle.auth.write().await;
         auth.block_user(&user_id, &platform);
     } else {
         return Err("Engine not running".into());

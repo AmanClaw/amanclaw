@@ -20,6 +20,8 @@ uuid = { version = "1", features = ["v4"] }
 anyhow = { workspace = true }
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
 futures = "0.3"
+metrics = "0.24"
+metrics-exporter-prometheus = "0.16"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }

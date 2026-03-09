@@ -17,3 +17,4 @@ tracing-subscriber = { workspace = true }
 serde_yaml = { workspace = true }
 anyhow = { workspace = true }
 dotenvy = "0.15"
+metrics-exporter-prometheus = "0.16"

@@ -225,7 +225,15 @@ async fn handle_webhook(
         is_subagent: false,
     };
 
-    let _ = state.tx.send(incoming).await;
+    match state.tx.try_send(incoming) {
+        Ok(()) => {}
+        Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+            tracing::warn!(platform = "whatsapp-web", "Engine buffer full (backpressure)");
+        }
+        Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
+            tracing::error!(platform = "whatsapp-web", "Engine channel closed");
+        }
+    }
 
     "OK"
 }
