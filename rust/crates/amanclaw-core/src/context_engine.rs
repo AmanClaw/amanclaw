@@ -4,6 +4,7 @@ use amanclaw_traits::vector::VectorStore;
 use amanclaw_llm::client::{LlmClient, LlmResponse};
 use amanclaw_llm::embeddings::EmbeddingClient;
 use crate::registry::PluginRegistry;
+use crate::token_budget::TokenBudget;
 use anyhow::Result;
 use std::sync::Arc;
 use base64::Engine as Base64Engine;
@@ -39,7 +40,9 @@ impl ContextEngine for StandardContextEngine {
         let ns = &request.namespace;
         let user_id = &request.user_id;
 
-        // 1. Build system prompt
+        let mut budget = TokenBudget::new(profile.context.max_context_tokens);
+
+        // 1. Build system prompt (always included)
         let now = chrono::Local::now().format("%Y-%m-%d %H:%M %A").to_string();
         let base = if profile.system_prompt.is_empty() {
             self.base_system_prompt.clone()
@@ -47,23 +50,34 @@ impl ContextEngine for StandardContextEngine {
             profile.system_prompt.clone()
         };
         let mut system = base.replace("{datetime}", &now);
+        budget.force_reserve(&system);
 
-        // 2. Prepend summary if available
+        // 2. Prepend summary if available (budget-checked)
         if let Ok(Some(summary)) = self.memory.get_summary(ns, user_id).await {
-            system.push_str(&format!("\n\n## Previous conversation summary\n{}", summary));
+            let section = format!("\n\n## Previous conversation summary\n{}", summary);
+            if budget.reserve(&section) {
+                system.push_str(&section);
+            }
         }
 
-        // 3. Append known facts
+        // 3. Append known facts (budget-checked per line)
         if let Ok(facts) = self.memory.get_facts(user_id).await {
             if !facts.is_empty() {
-                system.push_str("\n\n## Known facts about this user");
-                for (k, v) in &facts {
-                    system.push_str(&format!("\n- {}: {}", k, v));
+                let header = "\n\n## Known facts about this user";
+                if budget.reserve(header) {
+                    system.push_str(header);
+                    for (k, v) in &facts {
+                        let line = format!("\n- {}: {}", k, v);
+                        if !budget.reserve(&line) {
+                            break;
+                        }
+                        system.push_str(&line);
+                    }
                 }
             }
         }
 
-        // 4. RAG retrieval if enabled
+        // 4. RAG retrieval if enabled (budget-checked per result)
         if profile.context.rag_enabled && !profile.context.rag_collections.is_empty() {
             if let Some(ref vs) = self.vector_store {
                 let mut all_results = Vec::new();
@@ -93,24 +107,43 @@ impl ContextEngine for StandardContextEngine {
                 if !all_results.is_empty() {
                     all_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
                     all_results.truncate(profile.context.rag_top_k);
-                    system.push_str("\n\n## Relevant knowledge");
-                    for doc in &all_results {
-                        system.push_str(&format!("\n- {}", doc.content));
+                    let header = "\n\n## Relevant knowledge";
+                    if budget.reserve(header) {
+                        system.push_str(header);
+                        for doc in &all_results {
+                            let line = format!("\n- {}", doc.content);
+                            if !budget.reserve(&line) {
+                                break;
+                            }
+                            system.push_str(&line);
+                        }
                     }
                 }
             }
         }
 
-        // 5. Build message array
+        // 5. User message is always included — reserve budget now
+        budget.force_reserve(&request.user_message);
+
+        // 6. Build message array
         let mut messages = vec![serde_json::json!({"role": "system", "content": system})];
 
-        // 6. Add history
+        // 7. Add history (most recent first, then reverse back to chronological)
         let history = self.memory.get_history(ns, user_id, profile.context.history_limit).await?;
-        for m in &history {
+        let mut selected: Vec<_> = Vec::new();
+        for m in history.iter().rev() {
+            if budget.reserve(&m.content) {
+                selected.push(m);
+            } else {
+                break;
+            }
+        }
+        selected.reverse();
+        for m in selected {
             messages.push(serde_json::json!({"role": m.role, "content": m.content}));
         }
 
-        // 7. Add user message (multimodal if image)
+        // 8. Add user message (multimodal if image)
         if let Some(ref image_data) = request.image_data {
             let b64 = base64::engine::general_purpose::STANDARD.encode(image_data);
             let text = if request.user_message.is_empty() {
@@ -127,7 +160,7 @@ impl ContextEngine for StandardContextEngine {
             messages.push(serde_json::json!({"role": "user", "content": request.user_message}));
         }
 
-        // 8. Filter tools by agent profile
+        // 9. Filter tools by agent profile
         let tools = self.registry.get_filtered_tool_definitions(&profile.allowed_skills);
 
         Ok(ContextResult { messages, tools })

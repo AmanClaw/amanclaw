@@ -2,6 +2,7 @@ pub mod pipeline;
 pub mod router;
 pub mod registry;
 pub mod context_engine;
+pub mod token_budget;
 pub mod soul;
 pub mod scheduler;
 pub mod webhooks;
