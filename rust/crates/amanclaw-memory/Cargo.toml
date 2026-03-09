@@ -3,6 +3,11 @@ name = "amanclaw-memory"
 version.workspace = true
 edition.workspace = true
 
+[features]
+default = ["sqlite"]
+sqlite = []
+postgres = []
+
 [dependencies]
 amanclaw-traits = { path = "../amanclaw-traits" }
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
