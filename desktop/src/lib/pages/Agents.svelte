@@ -64,7 +64,13 @@
 	async function loadRouting() {
 		try {
 			const data = await api.getRoutingRules() as any;
-			routingRules = data.rules || [];
+			routingRules = (data.rules || []).map((r: any) => ({
+				platform: r.match?.platform || '',
+				topic_id: r.match?.topic_id || '',
+				channel_id: r.match?.channel_id || '',
+				group_id: r.match?.group_id || '',
+				agent: r.agent || '',
+			}));
 			defaultAgent = data.default_agent || '';
 		} catch (_) {}
 	}
@@ -195,7 +201,16 @@
 	async function saveRouting() {
 		routingSaving = true;
 		try {
-			await api.saveRoutingRules(defaultAgent, routingRules);
+			const nested = routingRules.map(r => ({
+				match: {
+					platform: r.platform || null,
+					topic_id: r.topic_id || null,
+					channel_id: r.channel_id || null,
+					group_id: r.group_id || null,
+				},
+				agent: r.agent,
+			}));
+			await api.saveRoutingRules(defaultAgent, nested);
 			await loadRouting();
 		} catch (_) {}
 		routingSaving = false;
