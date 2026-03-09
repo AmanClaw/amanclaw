@@ -22,7 +22,7 @@ pub struct EngineHandle {
     /// Dropping this aborts the engine task.
     pub abort_handle: tokio::task::AbortHandle,
     /// Auth for user management.
-    pub auth: Arc<std::sync::Mutex<amanclaw_security::auth::Auth>>,
+    pub auth: Arc<tokio::sync::RwLock<amanclaw_security::auth::Auth>>,
     /// SQLite pool for queries.
     pub pool: sqlx::SqlitePool,
     /// Plugin registry for skill listing.

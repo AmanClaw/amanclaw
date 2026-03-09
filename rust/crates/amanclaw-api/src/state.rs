@@ -2,7 +2,7 @@ use amanclaw_core::registry::PluginRegistry;
 use amanclaw_core::webhooks::WebhookRouter;
 use amanclaw_security::auth::Auth;
 use sqlx::SqlitePool;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tokio::sync::RwLock;
 
 #[derive(Clone)]
@@ -11,7 +11,7 @@ pub struct ApiState {
     pub pool: SqlitePool,
     pub api_token: String,
     pub bot_status: Arc<RwLock<BotStatus>>,
-    pub auth: Arc<Mutex<Auth>>,
+    pub auth: Arc<RwLock<Auth>>,
     pub webhook_router: Option<Arc<WebhookRouter>>,
     pub gateway: Option<Arc<amanclaw_gateway::GatewayState>>,
 }

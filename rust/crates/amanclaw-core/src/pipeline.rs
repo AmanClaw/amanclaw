@@ -12,13 +12,14 @@ use crate::context_engine::maybe_summarize;
 use crate::registry::PluginRegistry;
 use anyhow::Result;
 use std::sync::{Arc, Mutex};
+use tokio::sync::RwLock;
 
 const MAX_TOOL_ROUNDS: usize = 5;
 
 /// Message processing pipeline.
 pub enum Pipeline {
     Full {
-        auth: Arc<Mutex<Auth>>,
+        auth: Arc<RwLock<Auth>>,
         rate_limiter: Mutex<RateLimiter>,
         context_engine: Arc<dyn ContextEngine>,
         memory: Arc<dyn MemoryBackend>,
@@ -34,7 +35,7 @@ impl Pipeline {
     }
 
     pub fn with_services(
-        auth: Arc<Mutex<Auth>>,
+        auth: Arc<RwLock<Auth>>,
         rate_limiter: RateLimiter,
         context_engine: Arc<dyn ContextEngine>,
         memory: Arc<dyn MemoryBackend>,
@@ -72,7 +73,7 @@ impl Pipeline {
     }
 
     async fn process_full(
-        auth: &Mutex<Auth>,
+        auth: &RwLock<Auth>,
         rate_limiter: &Mutex<RateLimiter>,
         context_engine: &Arc<dyn ContextEngine>,
         memory: &Arc<dyn MemoryBackend>,
@@ -105,11 +106,11 @@ impl Pipeline {
 
         if !is_internal {
             // 1. Auth check
-            let state = auth.lock().unwrap().get_user_state(user_id, platform);
+            let state = auth.read().await.get_user_state(user_id, platform);
             match state {
                 UserState::Blocked => return Ok(None),
                 UserState::New => {
-                    auth.lock().unwrap().register_user(user_id, platform);
+                    auth.write().await.register_user(user_id, platform);
                     return Ok(Some(OutgoingMessage {
                         chat_id: msg.chat_id,
                         text: "Welcome! You've been registered. An admin needs to approve your access.".into(),
@@ -293,7 +294,7 @@ impl Pipeline {
     }
 
     async fn handle_command(
-        auth: &Mutex<Auth>,
+        auth: &RwLock<Auth>,
         memory: &dyn MemoryBackend,
         msg: &IncomingMessage,
         state: &UserState,
@@ -314,7 +315,7 @@ impl Pipeline {
             }
             "/approve" if *state == UserState::Admin => {
                 if let Some(target) = parts.get(1) {
-                    auth.lock().unwrap().approve_user(target, &msg.platform);
+                    auth.write().await.approve_user(target, &msg.platform);
                     Some(format!("User `{}` approved.", target))
                 } else {
                     Some("Usage: /approve <user_id>".into())
@@ -322,14 +323,14 @@ impl Pipeline {
             }
             "/block" if *state == UserState::Admin => {
                 if let Some(target) = parts.get(1) {
-                    auth.lock().unwrap().block_user(target, &msg.platform);
+                    auth.write().await.block_user(target, &msg.platform);
                     Some(format!("User `{}` blocked.", target))
                 } else {
                     Some("Usage: /block <user_id>".into())
                 }
             }
             "/users" if *state == UserState::Admin => {
-                let users = auth.lock().unwrap().list_users();
+                let users = auth.read().await.list_users();
                 if users.is_empty() {
                     Some("No registered users.".into())
                 } else {

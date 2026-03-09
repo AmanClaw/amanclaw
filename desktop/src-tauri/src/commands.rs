@@ -376,7 +376,7 @@ pub async fn get_users(
         }
         AppMode::Local => {
             if let Some(handle) = &st.engine_handle {
-                let auth = handle.auth.lock().unwrap();
+                let auth = handle.auth.read().await;
                 let users = auth.list_users();
                 let user_list: Vec<serde_json::Value> = users.iter()
                     .map(|(id, platform, status)| {
@@ -407,7 +407,7 @@ pub async fn approve_user(
 ) -> Result<(), String> {
     let st = state.read().await;
     if let Some(handle) = &st.engine_handle {
-        let mut auth = handle.auth.lock().unwrap();
+        let mut auth = handle.auth.write().await;
         auth.approve_user(&user_id, &platform);
     } else {
         return Err("Engine not running".into());
@@ -434,7 +434,7 @@ pub async fn block_user(
 ) -> Result<(), String> {
     let st = state.read().await;
     if let Some(handle) = &st.engine_handle {
-        let mut auth = handle.auth.lock().unwrap();
+        let mut auth = handle.auth.write().await;
         auth.block_user(&user_id, &platform);
     } else {
         return Err("Engine not running".into());

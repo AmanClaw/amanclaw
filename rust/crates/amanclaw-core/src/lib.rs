@@ -32,7 +32,8 @@ use crate::router::AgentRouter;
 use anyhow::Result;
 use tokio::sync::mpsc;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::RwLock;
 use sqlx::SqlitePool;
 
 pub struct Engine {
@@ -43,7 +44,7 @@ pub struct Engine {
     channels: Vec<Arc<dyn Channel>>,
     rx: mpsc::Receiver<amanclaw_traits::message::IncomingMessage>,
     tx: Option<mpsc::Sender<amanclaw_traits::message::IncomingMessage>>,
-    auth: Arc<Mutex<Auth>>,
+    auth: Arc<RwLock<Auth>>,
     pool: SqlitePool,
     agent_router: AgentRouter,
     sched_rx: mpsc::Receiver<crate::scheduler::SchedulerEvent>,
@@ -182,7 +183,7 @@ impl Engine {
         );
 
         let registry = Arc::new(registry);
-        let auth_arc = Arc::new(Mutex::new(auth));
+        let auth_arc = Arc::new(RwLock::new(auth));
         let pool = memory.pool().clone();
         let memory_arc: Arc<dyn MemoryBackend> = Arc::new(memory);
         let llm_arc = Arc::new(llm);
@@ -329,7 +330,7 @@ impl Engine {
     }
 
     /// Get the shared auth instance for use by the management API.
-    pub fn auth(&self) -> &Arc<Mutex<Auth>> {
+    pub fn auth(&self) -> &Arc<RwLock<Auth>> {
         &self.auth
     }
 
