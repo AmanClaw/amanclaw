@@ -26,6 +26,7 @@
 	let loading = $state(true);
 	let saving = $state(false);
 	let deleting = $state(false);
+	let error = $state('');
 
 	// Editor state
 	let editId = $state('');
@@ -96,6 +97,7 @@
 
 	async function saveAgent() {
 		saving = true;
+		error = '';
 		try {
 			const skills = editAllowedSkills
 				.split(',')
@@ -112,7 +114,9 @@
 			await loadAgents();
 			selectedId = editId;
 			isNew = false;
-		} catch (_) {}
+		} catch (e: any) {
+			error = e?.toString() || 'Failed to save agent';
+		}
 		saving = false;
 	}
 
@@ -371,6 +375,9 @@
 
 					<!-- Save button -->
 					<div class="mt-4 pt-4 border-t border-gray-100">
+						{#if error}
+							<div class="mb-3 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">{error}</div>
+						{/if}
 						<button onclick={saveAgent} disabled={saving || !editName.trim()}
 							class="px-4 py-1.5 text-xs font-medium rounded-md bg-gray-900 text-white hover:bg-gray-800 transition-colors disabled:opacity-50">
 							{saving ? 'Saving...' : isNew ? 'Create Agent' : 'Save Changes'}
