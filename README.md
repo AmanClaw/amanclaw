@@ -15,13 +15,18 @@ Built in Malaysia. Open source. No bloat. Bilingual BM + English.
 AmanClaw is a personal AI assistant that lives in your chat apps. You message it, it thinks using an LLM, optionally calls skills (tools), and replies back.
 
 ```text
-You (Telegram / Discord / WhatsApp)
+You (Telegram / Discord / WhatsApp / Slack)
   │
-  ▼
-AmanClaw Engine ──► Auth ──► Rate Limit ──► Sanitize ──► LLM ◄──► Skills (WASM/built-in)
-  │                                                                       │
-  ▼                                                                       ▼
-Reply  ◄─────────────────────────────────────────────────────────────────-┘
+  ├── Chat message ──► Engine ──► Auth ──► Rate Limit ──► Sanitize ──► LLM ◄──► Skills
+  │                                                                               │
+  ├── Cron job ─────► Scheduler ──► Pipeline (bypass auth) ──► LLM ◄──► Skills   │
+  │                                                                               │
+  ├── Webhook ──────► Router ──► Auth (HMAC/Bearer) ──► Transform ──► Pipeline   │
+  │                                                                               │
+  ├── WebSocket ────► Gateway (JSON-RPC 2.0) ──► Session Manager                 │
+  │                                                                               │
+  ▼                                                                               ▼
+Reply  ◄──────────────────────────────────────────────────────────────────────────┘
 ```
 
 One binary. One SQLite database. One config file. ~2MB RAM on a Raspberry Pi.
@@ -45,8 +50,16 @@ One binary. One SQLite database. One config file. ~2MB RAM on a Raspberry Pi.
 - **Learning engine** — Remembers facts about users across conversations (`/remember`, `/forget`, `/learned`)
 - **Plugin hot reload** — Filesystem watcher detects new/modified `.wasm` plugins
 - **MCP integration** — Expose skills as MCP tools + consume external MCP servers as skills
+- **Hybrid search** — FTS5 full-text search with BM25 ranking + cosine vector similarity via Reciprocal Rank Fusion (RRF)
+- **SOUL.md agent personas** — YAML-frontmatter agent personality files with inheritance chains and variable interpolation
+- **Cron scheduler** — Scheduled jobs (direct messages, skill invocations, agent prompts) with timezone support and pipeline bypass
+- **Webhook triggers** — Inbound webhook routes with HMAC-SHA256/Bearer/header auth, Handlebars template transforms, and rate limiting
+- **WebSocket gateway** — JSON-RPC 2.0 real-time gateway with session management, topic subscriptions, and glob-based event routing
+- **Sub-agent spawning** — Parallel task execution via spawned sub-agents with per-session/global limits and max-depth control
+- **Skill marketplace** — `amanclaw-skill.toml` manifest format, local registry with SQLite-backed install/search, remote index with SHA256 verification
+- **Event system** — `EventEmitter` trait for broadcasting pipeline events (message.received, message.sent, security.*)
 - **Desktop admin app** — Cross-platform Tauri 2 desktop app (macOS, Windows, Linux) with system tray and native notifications
-- **REST management API** — Axum-based REST API for bot status, communities, skills, users management
+- **REST management API** — Axum-based REST API for bot status, communities, skills, users, webhooks management
 - **Production-ready** — Docker with hardened containers, systemd service, structured logging
 - **Cross-platform** — Runs on x86_64, ARM64 (Raspberry Pi), and anywhere Rust compiles
 
@@ -113,23 +126,25 @@ admin_users:
 
 ## Architecture
 
-AmanClaw is a Cargo workspace with 24 crates (11 core + 13 plugins) plus a Tauri desktop app:
+AmanClaw is a Cargo workspace with 27 crates (14 core + 13 plugins) plus a Tauri desktop app:
 
 ```text
 rust/
 ├── Cargo.toml                    # Workspace root
 ├── crates/
-│   ├── amanclaw-traits/          # Core types, traits, config
+│   ├── amanclaw-traits/          # Core types, traits, config, EventEmitter
 │   ├── amanclaw-cli/             # Binary entry point
-│   ├── amanclaw-core/            # Engine, pipeline, router, registry
+│   ├── amanclaw-core/            # Engine, pipeline, router, scheduler, webhooks, soul loader, sub-agents
 │   ├── amanclaw-security/        # Auth, rate limiter, sanitizer
-│   ├── amanclaw-memory/          # SQLite conversation, facts, summaries & vector store
+│   ├── amanclaw-memory/          # SQLite conversation, facts, summaries, vector store, FTS5 hybrid search
 │   ├── amanclaw-llm/             # OpenAI-compatible LLM client + tool calling + embeddings
 │   ├── amanclaw-wasm-runtime/    # WASM plugin loader, sandbox, runtime, watcher
 │   ├── amanclaw-plugin-sdk/      # SDK + macro for WASM plugin authors
 │   ├── amanclaw-mcp/            # MCP server + client bridge (stdio + HTTP)
 │   ├── amanclaw-script-runtime/ # Script plugin loader (Python/JS via subprocess)
-│   └── amanclaw-api/            # REST management API (Axum)
+│   ├── amanclaw-api/            # REST management API + WebSocket gateway (Axum)
+│   ├── amanclaw-gateway/        # WebSocket gateway (JSON-RPC 2.0, session management)
+│   └── amanclaw-registry/       # Skill marketplace (manifest, local/remote registry)
 ├── plugins/
 │   ├── skill-sysinfo/            # System info skill (built-in)
 │   ├── skill-shell/              # Whitelisted shell commands (built-in)
@@ -147,6 +162,8 @@ rust/
 ├── sdks/
 │   ├── assemblyscript/           # AssemblyScript (JS/TS) plugin SDK
 │   └── python/                   # Python plugin SDK
+├── souls/
+│   └── default.md                # Default agent personality (SOUL.md)
 ├── wit/
 │   └── skill.wit                 # WASM Interface Types contract
 ├── Dockerfile
@@ -173,11 +190,15 @@ desktop/                           # Tauri 2 desktop admin app
 ### How It Works
 
 1. **Channel adapters** receive messages from platforms and push them into the engine via async channels
-2. **Engine** pulls messages and runs them through the **pipeline**
-3. **Pipeline** checks auth → rate limit → sanitize input → build context (summary + facts + history + RAG retrieval) → call LLM
-4. **LLM** may request tool calls, which are executed via the **plugin registry** (up to 5 rounds)
-5. **Auto-summarization** kicks in when history exceeds 40 messages — LLM summarizes, old messages are pruned
-6. **Response** is routed back to the correct channel adapter by platform
+2. **Engine** multiplexes chat messages and scheduler events via `tokio::select!`
+3. **Agent router** resolves which agent profile handles the message (per-platform, per-topic, or default)
+4. **SOUL.md loader** resolves agent personality files with frontmatter, inheritance, and variable interpolation
+5. **Pipeline** checks auth → rate limit → sanitize input → build context (summary + facts + history + FTS5/vector hybrid search) → call LLM
+6. Internal messages (cron, webhook, sub-agent) bypass auth, rate limiting, and sanitization
+7. **LLM** may request tool calls, which are executed via the **plugin registry** (up to 5 rounds)
+8. **EventEmitter** broadcasts pipeline events (`message.received`, `message.sent`, `security.*`) to WebSocket subscribers
+9. **Auto-summarization** kicks in when history exceeds 40 messages — LLM summarizes, old messages are pruned
+10. **Response** is routed back to the correct channel adapter by platform
 
 ### Bot Commands
 
@@ -507,8 +528,11 @@ API_PORT=8090 API_TOKEN=my-secret-token ./amanclaw
 | Users | `/api/users` | GET | List all users |
 | Users | `/api/users/{platform}/{id}/approve` | POST | Approve a user |
 | Users | `/api/users/{platform}/{id}/block` | POST | Block a user |
+| Webhooks | `/api/webhooks` | GET | List configured webhooks |
+| Webhooks | `/hooks/{webhook_id}` | POST | Receive inbound webhook (own auth) |
+| Gateway | `/ws` | GET | WebSocket upgrade (JSON-RPC 2.0) |
 
-All endpoints require `Authorization: Bearer <token>`. The API binds to `127.0.0.1` only (not exposed to network by default).
+Authenticated endpoints require `Authorization: Bearer <token>`. Webhook receiver (`/hooks/*`) and WebSocket (`/ws`) use their own auth mechanisms. The API binds to `127.0.0.1` only (not exposed to network by default).
 
 ---
 
@@ -642,6 +666,79 @@ rate_limit_per_minute: 20
 
 plugins:
   dir: "./plugins"
+
+skills:
+  soul_dir: "./souls"           # SOUL.md agent personality files
+  disabled: []                  # Skills to disable by name
+  skill_timeout_seconds: 30
+
+# Agent profiles with SOUL.md support
+agents:
+  ustazbot:
+    id: ustazbot
+    name: UstazBot
+    system_prompt: ""
+    soul_file: "ustazbot.md"    # Loaded from soul_dir
+    allowed_skills: [solat, quran, doa]
+    memory_namespace: ustaz
+
+# Agent routing rules
+routing:
+  default_agent: default
+  rules:
+    - match: { platform: telegram, topic_id: "islamic" }
+      agent: ustazbot
+
+# Scheduled jobs
+cron:
+  timezone: "Asia/Kuala_Lumpur"
+  jobs:
+    morning_doa:
+      name: "Morning Doa"
+      schedule: "0 6 * * *"
+      type: skill_invocation
+      skill: doa
+      input: '{"category": "pagi"}'
+      targets:
+        - platform: telegram
+          chat_id: "-1001234567890"
+
+# Inbound webhooks
+webhooks:
+  base_path: "/hooks"
+  endpoints:
+    github:
+      name: "GitHub Events"
+      path: "/github"
+      auth:
+        type: hmac_sha256
+        secret: "${GITHUB_WEBHOOK_SECRET}"
+      transform:
+        type: template
+        template: "{{action}} on {{repository.full_name}}: {{pull_request.title}}"
+      targets:
+        - platform: telegram
+          chat_id: "-1001234567890"
+
+# WebSocket gateway
+gateway:
+  enabled: true
+  heartbeat_interval_secs: 30
+  max_connections: 50
+
+# Sub-agent spawning
+subagents:
+  enabled: true
+  max_per_session: 5
+  max_global: 20
+  max_depth: 2
+  default_timeout_secs: 120
+
+# Skill marketplace registry
+registry:
+  enabled: false
+  skills_dir: "./plugins/registry"
+  remote_url: "https://registry.amanclaw.my"
 ```
 
 ### Environment Overrides
@@ -1030,14 +1127,16 @@ RUST_LOG=amanclaw=debug cargo run -p amanclaw-cli
 ### Test coverage
 
 ```text
-130+ tests across 24 crates
-├── amanclaw-traits        11 tests (config, messages, skills, channels)
-├── amanclaw-core           7 tests (pipeline, router, registry, integration)
+210+ tests across 27 crates
+├── amanclaw-traits        17 tests (config, messages, skills, channels, agents, events)
+├── amanclaw-core          31 tests (pipeline, router, registry, scheduler, webhooks, soul, subagent, integration)
 ├── amanclaw-security      11 tests (auth, rate limiter, sanitizer)
-├── amanclaw-memory         7 tests (history, facts, summaries, pruning)
-├── amanclaw-llm            3 tests (LLM client, tool call parsing, thinking tags)
+├── amanclaw-memory        17 tests (history, facts, summaries, pruning, FTS5, hybrid RRF)
+├── amanclaw-llm            5 tests (LLM client, tool call parsing, thinking tags, embeddings)
 ├── amanclaw-wasm-runtime  13 tests (loader, host, sandbox, runtime, watcher)
 ├── amanclaw-mcp           17 tests (protocol, handler, HTTP, client, bridge)
+├── amanclaw-gateway       17 tests (protocol, session, handler, subscriptions)
+├── amanclaw-registry       9 tests (manifest, local install/uninstall/search, remote index)
 ├── amanclaw-plugin-sdk     5 tests
 ├── skill-sysinfo           2 tests
 ├── skill-shell             4 tests
@@ -1163,6 +1262,18 @@ The easiest way to contribute is by writing a new skill plugin. See the [WASM Pl
 - [x] Local/remote mode switching
 - [x] Apple-style clean minimal UI
 
+### Phase 1.75: OpenClaw Parity — Advanced Engine Features (Done)
+
+- [x] FTS5 hybrid search — BM25 full-text + cosine vector similarity via Reciprocal Rank Fusion
+- [x] SOUL.md agent personas — YAML frontmatter, inheritance chains, variable interpolation
+- [x] Cron scheduler — Timezone-aware jobs (direct message, skill invocation, agent prompt) with pipeline bypass
+- [x] Webhook triggers — Inbound routes with HMAC-SHA256/Bearer/header auth, Handlebars transforms
+- [x] WebSocket gateway — JSON-RPC 2.0 real-time protocol, session management, glob-based topic subscriptions
+- [x] Sub-agent spawning — Parallel task execution with per-session/global limits and max-depth control
+- [x] Skill marketplace — `amanclaw-skill.toml` manifest, local SQLite registry, remote index with checksum verification
+- [x] Event system — `EventEmitter` trait for broadcasting pipeline events to WebSocket subscribers
+- [x] Schema migrations — `cron_history` and `webhook_history` tables for execution tracking
+
 ### Phase 2: Community Onboarding
 
 - [ ] In-chat onboarding wizard (bot added to group → setup flow)
@@ -1183,8 +1294,12 @@ The easiest way to contribute is by writing a new skill plugin. See the [WASM Pl
 
 ### Phase 5: Plugin Marketplace
 
-- [ ] Open source skill marketplace for community contributions
-- [ ] Skill discovery and installation via bot commands
+- [x] Skill manifest format (`amanclaw-skill.toml`) with semver, dependencies, metadata
+- [x] Local registry — install, uninstall, search installed skills (SQLite-backed)
+- [x] Remote registry — index refresh, search, download with SHA256 checksum verification
+- [ ] Public registry hosting (registry.amanclaw.my)
+- [ ] Skill discovery and installation via bot commands (`/install`, `/search`)
+- [ ] Skill ratings and reviews
 
 ---
 
