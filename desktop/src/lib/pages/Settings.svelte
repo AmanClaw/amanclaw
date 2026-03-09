@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api';
+	import { currentPage } from '$lib/stores/app';
 
 	let mode = $state('local');
 	let remoteUrl = $state('');
@@ -26,6 +27,20 @@
 	let saving = $state(false);
 	let dataDir = $state('');
 
+	// Feature summaries
+	let agentCount = $state(0);
+	let routingRuleCount = $state(0);
+	let defaultAgent = $state('default');
+	let cronJobCount = $state(0);
+	let cronTimezone = $state('');
+	let webhookCount = $state(0);
+	let gatewayEnabled = $state(false);
+	let subagentsEnabled = $state(false);
+	let installedSkillCount = $state(0);
+	let embeddingConfigured = $state(false);
+	let embeddingModel = $state('');
+	let kbCount = $state(0);
+
 	onMount(async () => {
 		try {
 			const m = await api.getMode() as string;
@@ -49,10 +64,53 @@
 			}
 
 			dataDir = await api.getDataDir();
-		} catch (e) {
-			// Not connected
-		}
+
+			// Load feature summaries (fire-and-forget)
+			loadFeatureSummaries();
+		} catch (_) {}
 	});
+
+	async function loadFeatureSummaries() {
+		try {
+			const agents = await api.listAgents() as any;
+			agentCount = agents.count || 0;
+		} catch (_) {}
+		try {
+			const routing = await api.getRoutingRules() as any;
+			routingRuleCount = routing.rules?.length || 0;
+			defaultAgent = routing.default_agent || 'default';
+		} catch (_) {}
+		try {
+			const cron = await api.listCronJobs() as any;
+			cronJobCount = cron.count || 0;
+			cronTimezone = cron.timezone || 'UTC';
+		} catch (_) {}
+		try {
+			const wh = await api.listWebhookEndpoints() as any;
+			webhookCount = wh.count || 0;
+		} catch (_) {}
+		try {
+			const gw = await api.getGatewayConfig() as any;
+			gatewayEnabled = gw.enabled || false;
+		} catch (_) {}
+		try {
+			const sa = await api.getSubagentConfig() as any;
+			subagentsEnabled = sa.enabled || false;
+		} catch (_) {}
+		try {
+			const reg = await api.registryListInstalled() as any;
+			installedSkillCount = reg.count || 0;
+		} catch (_) {}
+		try {
+			const emb = await api.getEmbeddingConfig() as any;
+			embeddingConfigured = emb.configured || false;
+			embeddingModel = emb.model || '';
+		} catch (_) {}
+		try {
+			const kb = await api.listKnowledgeBases() as any;
+			kbCount = kb.count || 0;
+		} catch (_) {}
+	}
 
 	async function saveAll() {
 		saving = true;
@@ -72,11 +130,14 @@
 			});
 			saved = true;
 			setTimeout(() => saved = false, 2000);
-		} catch (e) {
-			// Handle error
+		} catch (_) {
 		} finally {
 			saving = false;
 		}
+	}
+
+	function goTo(page: string) {
+		currentPage.set(page);
 	}
 </script>
 
@@ -207,6 +268,81 @@
 		</button>
 		<p class="text-xs text-gray-400">Restart engine after changing LLM or channel settings</p>
 	</div>
+
+	<!-- Feature Summaries -->
+	<section class="mt-8 border-t border-gray-200 pt-6">
+		<h3 class="text-sm font-medium text-gray-900 mb-4">Feature Overview</h3>
+		<div class="grid grid-cols-2 gap-3">
+			<button onclick={() => goTo('agents')}
+				class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors text-left">
+				<div>
+					<p class="text-xs font-medium text-gray-900">Agent Routing</p>
+					<p class="text-[10px] text-gray-500">Default: {defaultAgent} · {routingRuleCount} rule{routingRuleCount !== 1 ? 's' : ''}</p>
+				</div>
+				<span class="text-xs text-gray-400">{agentCount} agent{agentCount !== 1 ? 's' : ''}</span>
+			</button>
+
+			<button onclick={() => goTo('cron')}
+				class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors text-left">
+				<div>
+					<p class="text-xs font-medium text-gray-900">Cron Jobs</p>
+					<p class="text-[10px] text-gray-500">Timezone: {cronTimezone || 'UTC'}</p>
+				</div>
+				<span class="text-xs text-gray-400">{cronJobCount} job{cronJobCount !== 1 ? 's' : ''}</span>
+			</button>
+
+			<button onclick={() => goTo('webhooks')}
+				class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors text-left">
+				<div>
+					<p class="text-xs font-medium text-gray-900">Webhooks</p>
+					<p class="text-[10px] text-gray-500">Base path: /hooks</p>
+				</div>
+				<span class="text-xs text-gray-400">{webhookCount} endpoint{webhookCount !== 1 ? 's' : ''}</span>
+			</button>
+
+			<button onclick={() => goTo('gateway')}
+				class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors text-left">
+				<div>
+					<p class="text-xs font-medium text-gray-900">Gateway</p>
+					<p class="text-[10px] text-gray-500">WebSocket event stream</p>
+				</div>
+				<span class="text-[10px] font-medium px-1.5 py-0.5 rounded {gatewayEnabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">
+					{gatewayEnabled ? 'Enabled' : 'Disabled'}
+				</span>
+			</button>
+
+			<button onclick={() => goTo('subagents')}
+				class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors text-left">
+				<div>
+					<p class="text-xs font-medium text-gray-900">Sub-Agents</p>
+					<p class="text-[10px] text-gray-500">Task delegation</p>
+				</div>
+				<span class="text-[10px] font-medium px-1.5 py-0.5 rounded {subagentsEnabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">
+					{subagentsEnabled ? 'Enabled' : 'Disabled'}
+				</span>
+			</button>
+
+			<button onclick={() => goTo('marketplace')}
+				class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors text-left">
+				<div>
+					<p class="text-xs font-medium text-gray-900">Marketplace</p>
+					<p class="text-[10px] text-gray-500">Skill registry</p>
+				</div>
+				<span class="text-xs text-gray-400">{installedSkillCount} installed</span>
+			</button>
+
+			<button onclick={() => goTo('knowledgebases')}
+				class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors text-left col-span-2">
+				<div>
+					<p class="text-xs font-medium text-gray-900">Knowledge Bases</p>
+					<p class="text-[10px] text-gray-500">{embeddingConfigured ? `Embeddings: ${embeddingModel}` : 'Embeddings not configured'} · {kbCount} KB{kbCount !== 1 ? 's' : ''}</p>
+				</div>
+				<span class="text-[10px] font-medium px-1.5 py-0.5 rounded {embeddingConfigured ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}">
+					{embeddingConfigured ? 'Configured' : 'Not configured'}
+				</span>
+			</button>
+		</div>
+	</section>
 
 	<!-- Data Dir -->
 	<section class="mt-8 border-t border-gray-200 pt-6">

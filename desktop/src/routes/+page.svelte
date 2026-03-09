@@ -3,7 +3,14 @@
 	import { api } from '$lib/api';
 	import { botStatus, currentPage, isFirstRun } from '$lib/stores/app';
 	import Communities from '$lib/pages/Communities.svelte';
+	import Agents from '$lib/pages/Agents.svelte';
 	import Skills from '$lib/pages/Skills.svelte';
+	import Marketplace from '$lib/pages/Marketplace.svelte';
+	import CronJobs from '$lib/pages/CronJobs.svelte';
+	import Webhooks from '$lib/pages/Webhooks.svelte';
+	import Gateway from '$lib/pages/Gateway.svelte';
+	import SubAgents from '$lib/pages/SubAgents.svelte';
+	import KnowledgeBases from '$lib/pages/KnowledgeBases.svelte';
 	import Users from '$lib/pages/Users.svelte';
 	import Settings from '$lib/pages/Settings.svelte';
 	import Logs from '$lib/pages/Logs.svelte';
@@ -89,21 +96,21 @@
 {:else if $currentPage === 'communities'}
 	<Communities />
 {:else if $currentPage === 'agents'}
-	<div class="p-8"><p class="text-sm text-gray-400">Agents — Coming soon</p></div>
+	<Agents />
 {:else if $currentPage === 'skills'}
 	<Skills />
 {:else if $currentPage === 'marketplace'}
-	<div class="p-8"><p class="text-sm text-gray-400">Marketplace — Coming soon</p></div>
+	<Marketplace />
 {:else if $currentPage === 'cron'}
-	<div class="p-8"><p class="text-sm text-gray-400">Cron Jobs — Coming soon</p></div>
+	<CronJobs />
 {:else if $currentPage === 'webhooks'}
-	<div class="p-8"><p class="text-sm text-gray-400">Webhooks — Coming soon</p></div>
+	<Webhooks />
 {:else if $currentPage === 'gateway'}
-	<div class="p-8"><p class="text-sm text-gray-400">Gateway — Coming soon</p></div>
+	<Gateway />
 {:else if $currentPage === 'subagents'}
-	<div class="p-8"><p class="text-sm text-gray-400">Sub-Agents — Coming soon</p></div>
+	<SubAgents />
 {:else if $currentPage === 'knowledgebases'}
-	<div class="p-8"><p class="text-sm text-gray-400">Knowledge Bases — Coming soon</p></div>
+	<KnowledgeBases />
 {:else if $currentPage === 'users'}
 	<Users />
 {:else if $currentPage === 'settings'}

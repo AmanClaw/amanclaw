@@ -201,7 +201,9 @@ version = "0.1.0"
 dependencies = [
  "amanclaw-api",
  "amanclaw-core",
+ "amanclaw-registry",
  "amanclaw-security",
+ "amanclaw-skill-doa",
  "amanclaw-traits",
  "anyhow",
  "chrono",
@@ -218,6 +220,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
