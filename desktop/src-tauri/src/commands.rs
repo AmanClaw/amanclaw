@@ -3,6 +3,7 @@ use crate::state::{AppMode, AppState, EngineHandle, EngineStatus};
 use amanclaw_traits::config::{AppConfig, LlmConfig, McpServerConfig};
 use std::collections::HashMap;
 use std::sync::Arc;
+use sqlx::Row;
 use tauri::{AppHandle, State};
 use tokio::sync::RwLock;
 
@@ -580,4 +581,766 @@ pub async fn get_disabled_skills(
     }
     let cfg = config::load_config(&app)?;
     Ok(cfg.skills.disabled)
+}
+
+// --- Agents ---
+
+#[tauri::command]
+pub async fn list_agents(
+    app: AppHandle,
+) -> Result<serde_json::Value, String> {
+    let cfg = config::load_config(&app)?;
+    let agents: Vec<serde_json::Value> = cfg.agents.iter().map(|(id, profile)| {
+        serde_json::json!({
+            "id": id,
+            "name": profile.name,
+            "system_prompt": profile.system_prompt,
+            "soul_file": profile.soul_file,
+            "allowed_skills": profile.allowed_skills,
+            "memory_namespace": profile.memory_namespace,
+        })
+    }).collect();
+    Ok(serde_json::json!({ "agents": agents, "count": agents.len() }))
+}
+
+#[tauri::command]
+pub async fn save_agent(
+    app: AppHandle,
+    id: String,
+    name: String,
+    system_prompt: String,
+    soul_file: Option<String>,
+    allowed_skills: Vec<String>,
+    memory_namespace: String,
+) -> Result<(), String> {
+    let mut cfg = config::load_config(&app)?;
+    let profile = amanclaw_traits::agent::AgentProfile {
+        id: id.clone(),
+        name,
+        system_prompt,
+        soul_file,
+        allowed_skills,
+        memory_namespace,
+        llm_override: None,
+        context: Default::default(),
+    };
+    cfg.agents.insert(id, profile);
+    config::save_config(&app, &cfg)
+}
+
+#[tauri::command]
+pub async fn delete_agent(
+    app: AppHandle,
+    id: String,
+) -> Result<(), String> {
+    let mut cfg = config::load_config(&app)?;
+    cfg.agents.remove(&id);
+    config::save_config(&app, &cfg)
+}
+
+#[tauri::command]
+pub async fn load_soul_file(
+    app: AppHandle,
+    filename: String,
+) -> Result<String, String> {
+    let cfg = config::load_config(&app)?;
+    let soul_dir = std::path::Path::new(&cfg.skills.soul_dir);
+    let path = soul_dir.join(&filename);
+    std::fs::read_to_string(&path).map_err(|e| format!("Failed to read {}: {}", filename, e))
+}
+
+#[tauri::command]
+pub async fn save_soul_file(
+    app: AppHandle,
+    filename: String,
+    content: String,
+) -> Result<(), String> {
+    let cfg = config::load_config(&app)?;
+    let soul_dir = std::path::Path::new(&cfg.skills.soul_dir);
+    std::fs::create_dir_all(soul_dir).map_err(|e| e.to_string())?;
+    let path = soul_dir.join(&filename);
+    std::fs::write(&path, &content).map_err(|e| format!("Failed to write {}: {}", filename, e))
+}
+
+#[tauri::command]
+pub async fn preview_soul(
+    app: AppHandle,
+    filename: String,
+) -> Result<serde_json::Value, String> {
+    let cfg = config::load_config(&app)?;
+    let soul_dir = std::path::Path::new(&cfg.skills.soul_dir);
+    match amanclaw_core::soul::SoulLoader::load(soul_dir, &filename) {
+        Ok(resolved) => Ok(serde_json::json!({
+            "prompt": resolved.prompt,
+            "variables": resolved.variables,
+            "tags": resolved.tags,
+        })),
+        Err(e) => Err(format!("Failed to resolve soul: {}", e)),
+    }
+}
+
+#[tauri::command]
+pub async fn get_routing_rules(
+    app: AppHandle,
+) -> Result<serde_json::Value, String> {
+    let cfg = config::load_config(&app)?;
+    let rules: Vec<serde_json::Value> = cfg.routing.rules.iter().map(|r| {
+        serde_json::json!({
+            "match": {
+                "platform": r.match_criteria.platform,
+                "topic_id": r.match_criteria.topic_id,
+                "channel_id": r.match_criteria.channel_id,
+                "group_id": r.match_criteria.group_id,
+            },
+            "agent": r.agent,
+        })
+    }).collect();
+    Ok(serde_json::json!({
+        "rules": rules,
+        "default_agent": cfg.routing.default_agent,
+    }))
+}
+
+#[tauri::command]
+pub async fn save_routing_rules(
+    app: AppHandle,
+    default_agent: String,
+    rules: Vec<serde_json::Value>,
+) -> Result<(), String> {
+    let mut cfg = config::load_config(&app)?;
+    cfg.routing.default_agent = default_agent;
+    cfg.routing.rules = rules.iter().map(|r| {
+        amanclaw_traits::config::RoutingRule {
+            match_criteria: amanclaw_traits::config::RoutingMatch {
+                platform: r["match"]["platform"].as_str().map(String::from),
+                topic_id: r["match"]["topic_id"].as_str().map(String::from),
+                channel_id: r["match"]["channel_id"].as_str().map(String::from),
+                group_id: r["match"]["group_id"].as_str().map(String::from),
+            },
+            agent: r["agent"].as_str().unwrap_or("default").to_string(),
+        }
+    }).collect();
+    config::save_config(&app, &cfg)
+}
+
+// --- Cron Jobs ---
+
+#[tauri::command]
+pub async fn list_cron_jobs(
+    app: AppHandle,
+) -> Result<serde_json::Value, String> {
+    let cfg = config::load_config(&app)?;
+    let jobs: Vec<serde_json::Value> = cfg.cron.jobs.iter().map(|(id, job)| {
+        serde_json::json!({
+            "id": id,
+            "name": job.name,
+            "schedule": job.schedule,
+            "timezone": job.timezone,
+            "type": job.job_type,
+            "skill": job.skill,
+            "input": job.input,
+            "prompt": job.prompt,
+            "template": job.template,
+            "targets": job.targets.iter().map(|t| serde_json::json!({
+                "platform": t.platform,
+                "chat_id": t.chat_id,
+                "topic_id": t.topic_id,
+            })).collect::<Vec<_>>(),
+            "agent": job.agent,
+            "enabled": job.enabled,
+        })
+    }).collect();
+    Ok(serde_json::json!({
+        "jobs": jobs,
+        "count": jobs.len(),
+        "timezone": cfg.cron.timezone,
+    }))
+}
+
+#[tauri::command]
+pub async fn save_cron_job(
+    app: AppHandle,
+    id: String,
+    job: serde_json::Value,
+) -> Result<(), String> {
+    let mut cfg = config::load_config(&app)?;
+    let cron_job: amanclaw_traits::config::CronJobConfig =
+        serde_json::from_value(job).map_err(|e| format!("Invalid job config: {}", e))?;
+    cfg.cron.jobs.insert(id, cron_job);
+    config::save_config(&app, &cfg)
+}
+
+#[tauri::command]
+pub async fn delete_cron_job(
+    app: AppHandle,
+    id: String,
+) -> Result<(), String> {
+    let mut cfg = config::load_config(&app)?;
+    cfg.cron.jobs.remove(&id);
+    config::save_config(&app, &cfg)
+}
+
+#[tauri::command]
+pub async fn get_cron_history(
+    state: State<'_, SharedState>,
+) -> Result<serde_json::Value, String> {
+    let st = state.read().await;
+    if let Some(handle) = &st.engine_handle {
+        let rows = sqlx::query(
+            "SELECT id, job_id, status, output, duration_ms, executed_at FROM cron_history ORDER BY executed_at DESC LIMIT 100"
+        )
+        .fetch_all(&handle.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        let entries: Vec<serde_json::Value> = rows.iter().map(|r| {
+            serde_json::json!({
+                "id": r.get::<i64, _>("id"),
+                "job_id": r.get::<String, _>("job_id"),
+                "status": r.get::<String, _>("status"),
+                "output": r.get::<Option<String>, _>("output"),
+                "duration_ms": r.get::<Option<i64>, _>("duration_ms"),
+                "executed_at": r.get::<String, _>("executed_at"),
+            })
+        }).collect();
+        Ok(serde_json::json!({ "entries": entries, "count": entries.len() }))
+    } else {
+        Ok(serde_json::json!({ "entries": [], "count": 0 }))
+    }
+}
+
+// --- Webhooks ---
+
+#[tauri::command]
+pub async fn list_webhook_endpoints(
+    app: AppHandle,
+) -> Result<serde_json::Value, String> {
+    let cfg = config::load_config(&app)?;
+    let endpoints: Vec<serde_json::Value> = cfg.webhooks.endpoints.iter().map(|(id, ep)| {
+        serde_json::json!({
+            "id": id,
+            "name": ep.name,
+            "path": ep.path,
+            "auth": { "type": ep.auth.auth_type },
+            "transform": { "type": ep.transform.transform_type },
+            "targets": ep.targets.iter().map(|t| serde_json::json!({
+                "platform": t.platform, "chat_id": t.chat_id, "topic_id": t.topic_id,
+            })).collect::<Vec<_>>(),
+            "agent": ep.agent,
+            "rate_limit": ep.rate_limit,
+            "enabled": ep.enabled,
+        })
+    }).collect();
+    Ok(serde_json::json!({
+        "endpoints": endpoints,
+        "count": endpoints.len(),
+        "base_path": cfg.webhooks.base_path,
+    }))
+}
+
+#[tauri::command]
+pub async fn save_webhook_endpoint(
+    app: AppHandle,
+    id: String,
+    endpoint: serde_json::Value,
+) -> Result<(), String> {
+    let mut cfg = config::load_config(&app)?;
+    let ep: amanclaw_traits::config::WebhookEndpointConfig =
+        serde_json::from_value(endpoint).map_err(|e| format!("Invalid webhook config: {}", e))?;
+    cfg.webhooks.endpoints.insert(id, ep);
+    config::save_config(&app, &cfg)
+}
+
+#[tauri::command]
+pub async fn delete_webhook_endpoint(
+    app: AppHandle,
+    id: String,
+) -> Result<(), String> {
+    let mut cfg = config::load_config(&app)?;
+    cfg.webhooks.endpoints.remove(&id);
+    config::save_config(&app, &cfg)
+}
+
+#[tauri::command]
+pub async fn get_webhook_history(
+    state: State<'_, SharedState>,
+) -> Result<serde_json::Value, String> {
+    let st = state.read().await;
+    if let Some(handle) = &st.engine_handle {
+        let rows = sqlx::query(
+            "SELECT id, webhook_id, status, source_ip, payload_preview, error, duration_ms, received_at FROM webhook_history ORDER BY received_at DESC LIMIT 100"
+        )
+        .fetch_all(&handle.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        let entries: Vec<serde_json::Value> = rows.iter().map(|r| {
+            serde_json::json!({
+                "id": r.get::<i64, _>("id"),
+                "webhook_id": r.get::<String, _>("webhook_id"),
+                "status": r.get::<String, _>("status"),
+                "source_ip": r.get::<Option<String>, _>("source_ip"),
+                "payload_preview": r.get::<Option<String>, _>("payload_preview"),
+                "error": r.get::<Option<String>, _>("error"),
+                "duration_ms": r.get::<Option<i64>, _>("duration_ms"),
+                "received_at": r.get::<String, _>("received_at"),
+            })
+        }).collect();
+        Ok(serde_json::json!({ "entries": entries, "count": entries.len() }))
+    } else {
+        Ok(serde_json::json!({ "entries": [], "count": 0 }))
+    }
+}
+
+// --- Gateway ---
+
+#[tauri::command]
+pub async fn get_gateway_config(
+    app: AppHandle,
+) -> Result<serde_json::Value, String> {
+    let cfg = config::load_config(&app)?;
+    Ok(serde_json::json!({
+        "enabled": cfg.gateway.enabled,
+        "heartbeat_interval_secs": cfg.gateway.heartbeat_interval_secs,
+        "max_connections": cfg.gateway.max_connections,
+        "stale_session_timeout_secs": cfg.gateway.stale_session_timeout_secs,
+    }))
+}
+
+#[tauri::command]
+pub async fn save_gateway_config(
+    app: AppHandle,
+    enabled: bool,
+    heartbeat_interval_secs: u64,
+    max_connections: usize,
+    stale_session_timeout_secs: u64,
+) -> Result<(), String> {
+    let mut cfg = config::load_config(&app)?;
+    cfg.gateway.enabled = enabled;
+    cfg.gateway.heartbeat_interval_secs = heartbeat_interval_secs;
+    cfg.gateway.max_connections = max_connections;
+    cfg.gateway.stale_session_timeout_secs = stale_session_timeout_secs;
+    config::save_config(&app, &cfg)
+}
+
+#[tauri::command]
+pub async fn get_gateway_status(
+    app: AppHandle,
+) -> Result<serde_json::Value, String> {
+    let cfg = config::load_config(&app)?;
+    Ok(serde_json::json!({
+        "enabled": cfg.gateway.enabled,
+        "connection_count": 0,
+    }))
+}
+
+// --- Sub-Agents ---
+
+#[tauri::command]
+pub async fn get_subagent_config(
+    app: AppHandle,
+) -> Result<serde_json::Value, String> {
+    let cfg = config::load_config(&app)?;
+    Ok(serde_json::json!({
+        "enabled": cfg.subagents.enabled,
+        "max_per_session": cfg.subagents.max_per_session,
+        "max_global": cfg.subagents.max_global,
+        "max_depth": cfg.subagents.max_depth,
+        "default_timeout_secs": cfg.subagents.default_timeout_secs,
+    }))
+}
+
+#[tauri::command]
+pub async fn save_subagent_config(
+    app: AppHandle,
+    enabled: bool,
+    max_per_session: usize,
+    max_global: usize,
+    max_depth: usize,
+    default_timeout_secs: u64,
+) -> Result<(), String> {
+    let mut cfg = config::load_config(&app)?;
+    cfg.subagents.enabled = enabled;
+    cfg.subagents.max_per_session = max_per_session;
+    cfg.subagents.max_global = max_global;
+    cfg.subagents.max_depth = max_depth;
+    cfg.subagents.default_timeout_secs = default_timeout_secs;
+    config::save_config(&app, &cfg)
+}
+
+#[tauri::command]
+pub async fn list_subagents(
+    state: State<'_, SharedState>,
+    session_filter: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let st = state.read().await;
+    if let Some(handle) = &st.engine_handle {
+        if let Some(mgr) = &handle.subagent_manager {
+            let agents = if let Some(session) = session_filter {
+                mgr.list(&session).await
+            } else {
+                vec![]
+            };
+            let list: Vec<serde_json::Value> = agents.iter().map(|a| {
+                serde_json::json!({
+                    "id": a.id,
+                    "agent_id": a.agent_id,
+                    "prompt": a.prompt,
+                    "parent_session": a.parent_session,
+                    "depth": a.depth,
+                    "status": format!("{:?}", a.status),
+                })
+            }).collect();
+            return Ok(serde_json::json!({ "subagents": list, "count": list.len() }));
+        }
+    }
+    Ok(serde_json::json!({ "subagents": [], "count": 0 }))
+}
+
+#[tauri::command]
+pub async fn cancel_subagent(
+    state: State<'_, SharedState>,
+    id: String,
+) -> Result<bool, String> {
+    let st = state.read().await;
+    if let Some(handle) = &st.engine_handle {
+        if let Some(mgr) = &handle.subagent_manager {
+            return Ok(mgr.cancel(&id).await);
+        }
+    }
+    Ok(false)
+}
+
+#[tauri::command]
+pub async fn cancel_all_subagents(
+    state: State<'_, SharedState>,
+    session: String,
+) -> Result<usize, String> {
+    let st = state.read().await;
+    if let Some(handle) = &st.engine_handle {
+        if let Some(mgr) = &handle.subagent_manager {
+            return Ok(mgr.cancel_all(&session).await);
+        }
+    }
+    Ok(0)
+}
+
+// --- Marketplace / Registry ---
+
+#[tauri::command]
+pub async fn registry_list_installed(
+    state: State<'_, SharedState>,
+    app: AppHandle,
+) -> Result<serde_json::Value, String> {
+    let st = state.read().await;
+    if let Some(handle) = &st.engine_handle {
+        let cfg = config::load_config(&app)?;
+        let registry = amanclaw_registry::local::SkillRegistry::new(
+            handle.pool.clone(), cfg.registry.skills_dir.clone()
+        ).await.map_err(|e| e.to_string())?;
+
+        let installed = registry.list_installed().await.map_err(|e| e.to_string())?;
+        let list: Vec<serde_json::Value> = installed.iter().map(|s| {
+            serde_json::json!({
+                "name": s.name, "version": s.version, "skill_type": s.skill_type,
+                "description": s.description, "entry": s.entry,
+                "install_dir": s.install_dir, "installed_at": s.installed_at,
+            })
+        }).collect();
+        Ok(serde_json::json!({ "skills": list, "count": list.len() }))
+    } else {
+        Ok(serde_json::json!({ "skills": [], "count": 0 }))
+    }
+}
+
+#[tauri::command]
+pub async fn registry_install_from_path(
+    state: State<'_, SharedState>,
+    app: AppHandle,
+    path: String,
+) -> Result<serde_json::Value, String> {
+    let st = state.read().await;
+    if let Some(handle) = &st.engine_handle {
+        let cfg = config::load_config(&app)?;
+        let registry = amanclaw_registry::local::SkillRegistry::new(
+            handle.pool.clone(), cfg.registry.skills_dir.clone()
+        ).await.map_err(|e| e.to_string())?;
+
+        let installed = registry.install_from_path(std::path::Path::new(&path))
+            .await.map_err(|e| e.to_string())?;
+        Ok(serde_json::json!({
+            "name": installed.name, "version": installed.version,
+        }))
+    } else {
+        Err("Engine not running".into())
+    }
+}
+
+#[tauri::command]
+pub async fn registry_uninstall(
+    state: State<'_, SharedState>,
+    app: AppHandle,
+    name: String,
+) -> Result<bool, String> {
+    let st = state.read().await;
+    if let Some(handle) = &st.engine_handle {
+        let cfg = config::load_config(&app)?;
+        let registry = amanclaw_registry::local::SkillRegistry::new(
+            handle.pool.clone(), cfg.registry.skills_dir.clone()
+        ).await.map_err(|e| e.to_string())?;
+        registry.uninstall(&name).await.map_err(|e| e.to_string())
+    } else {
+        Err("Engine not running".into())
+    }
+}
+
+#[tauri::command]
+pub async fn registry_search_installed(
+    state: State<'_, SharedState>,
+    app: AppHandle,
+    query: String,
+) -> Result<serde_json::Value, String> {
+    let st = state.read().await;
+    if let Some(handle) = &st.engine_handle {
+        let cfg = config::load_config(&app)?;
+        let registry = amanclaw_registry::local::SkillRegistry::new(
+            handle.pool.clone(), cfg.registry.skills_dir.clone()
+        ).await.map_err(|e| e.to_string())?;
+
+        let results = registry.search_installed(&query).await.map_err(|e| e.to_string())?;
+        let list: Vec<serde_json::Value> = results.iter().map(|s| {
+            serde_json::json!({
+                "name": s.name, "version": s.version, "skill_type": s.skill_type,
+                "description": s.description, "installed_at": s.installed_at,
+            })
+        }).collect();
+        Ok(serde_json::json!({ "skills": list, "count": list.len() }))
+    } else {
+        Ok(serde_json::json!({ "skills": [], "count": 0 }))
+    }
+}
+
+// --- Knowledge Bases ---
+
+#[tauri::command]
+pub async fn get_embedding_config(
+    app: AppHandle,
+) -> Result<serde_json::Value, String> {
+    let cfg = config::load_config(&app)?;
+    match &cfg.embeddings {
+        Some(ec) => Ok(serde_json::json!({
+            "configured": true,
+            "base_url": ec.base_url,
+            "model": ec.model,
+            "api_key": ec.api_key.is_some(),
+        })),
+        None => Ok(serde_json::json!({ "configured": false })),
+    }
+}
+
+#[tauri::command]
+pub async fn save_embedding_config(
+    app: AppHandle,
+    base_url: String,
+    model: String,
+    api_key: Option<String>,
+) -> Result<(), String> {
+    let mut cfg = config::load_config(&app)?;
+    cfg.embeddings = Some(amanclaw_traits::config::EmbeddingConfig {
+        base_url, model, api_key,
+    });
+    config::save_config(&app, &cfg)
+}
+
+#[tauri::command]
+pub async fn get_vector_config(
+    app: AppHandle,
+) -> Result<serde_json::Value, String> {
+    let cfg = config::load_config(&app)?;
+    match &cfg.vector {
+        Some(vc) => Ok(serde_json::json!({
+            "configured": true,
+            "backend": vc.backend,
+            "qdrant_url": vc.qdrant_url,
+        })),
+        None => Ok(serde_json::json!({ "configured": false, "backend": "sqlite-vec" })),
+    }
+}
+
+#[tauri::command]
+pub async fn save_vector_config(
+    app: AppHandle,
+    backend: String,
+    qdrant_url: Option<String>,
+) -> Result<(), String> {
+    let mut cfg = config::load_config(&app)?;
+    cfg.vector = Some(amanclaw_traits::config::VectorConfig {
+        backend, qdrant_url,
+    });
+    config::save_config(&app, &cfg)
+}
+
+#[tauri::command]
+pub async fn list_knowledge_bases(
+    app: AppHandle,
+) -> Result<serde_json::Value, String> {
+    let cfg = config::load_config(&app)?;
+    let kbs: Vec<serde_json::Value> = cfg.knowledge_bases.iter().map(|(name, kb)| {
+        serde_json::json!({
+            "name": name,
+            "collection": kb.collection,
+            "source": kb.source,
+        })
+    }).collect();
+    Ok(serde_json::json!({ "knowledge_bases": kbs, "count": kbs.len() }))
+}
+
+#[tauri::command]
+pub async fn save_knowledge_base(
+    app: AppHandle,
+    name: String,
+    collection: String,
+    source: String,
+) -> Result<(), String> {
+    let mut cfg = config::load_config(&app)?;
+    cfg.knowledge_bases.insert(name, amanclaw_traits::config::KnowledgeBaseConfig {
+        collection, source,
+    });
+    config::save_config(&app, &cfg)
+}
+
+#[tauri::command]
+pub async fn delete_knowledge_base(
+    app: AppHandle,
+    name: String,
+) -> Result<(), String> {
+    let mut cfg = config::load_config(&app)?;
+    cfg.knowledge_bases.remove(&name);
+    config::save_config(&app, &cfg)
+}
+
+// --- Communities CRUD ---
+
+#[tauri::command]
+pub async fn create_community(
+    state: State<'_, SharedState>,
+    name: String,
+    platform: String,
+    platform_group_id: String,
+    zone: String,
+    language: String,
+    enabled_skills: Vec<String>,
+) -> Result<serde_json::Value, String> {
+    let st = state.read().await;
+    if let Some(handle) = &st.engine_handle {
+        let id = uuid::Uuid::new_v4().to_string();
+        let skills_json = serde_json::to_string(&enabled_skills).unwrap_or_else(|_| "[]".into());
+        sqlx::query(
+            "INSERT INTO communities (id, name, platform, platform_group_id, zone, language, enabled_skills) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        )
+        .bind(&id).bind(&name).bind(&platform).bind(&platform_group_id)
+        .bind(&zone).bind(&language).bind(&skills_json)
+        .execute(&handle.pool).await.map_err(|e| e.to_string())?;
+        Ok(serde_json::json!({ "id": id }))
+    } else {
+        Err("Engine not running".into())
+    }
+}
+
+#[tauri::command]
+pub async fn update_community(
+    state: State<'_, SharedState>,
+    id: String,
+    name: String,
+    zone: String,
+    language: String,
+    enabled_skills: Vec<String>,
+) -> Result<(), String> {
+    let st = state.read().await;
+    if let Some(handle) = &st.engine_handle {
+        let skills_json = serde_json::to_string(&enabled_skills).unwrap_or_else(|_| "[]".into());
+        sqlx::query(
+            "UPDATE communities SET name = ?, zone = ?, language = ?, enabled_skills = ? WHERE id = ?"
+        )
+        .bind(&name).bind(&zone).bind(&language).bind(&skills_json).bind(&id)
+        .execute(&handle.pool).await.map_err(|e| e.to_string())?;
+        Ok(())
+    } else {
+        Err("Engine not running".into())
+    }
+}
+
+#[tauri::command]
+pub async fn delete_community(
+    state: State<'_, SharedState>,
+    id: String,
+) -> Result<(), String> {
+    let st = state.read().await;
+    if let Some(handle) = &st.engine_handle {
+        sqlx::query("DELETE FROM communities WHERE id = ?")
+            .bind(&id)
+            .execute(&handle.pool).await.map_err(|e| e.to_string())?;
+        Ok(())
+    } else {
+        Err("Engine not running".into())
+    }
+}
+
+// --- Content ---
+
+#[tauri::command]
+pub async fn get_doa_collection(
+    category: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let doas = if let Some(cat) = &category {
+        amanclaw_skill_doa::collection::by_category(cat)
+    } else {
+        amanclaw_skill_doa::collection::ALL_DOA.iter().collect()
+    };
+    let filtered: Vec<serde_json::Value> = doas.iter().map(|d| serde_json::json!({
+        "category": d.category,
+        "title_ms": d.title_ms,
+        "title_en": d.title_en,
+        "arabic": d.arabic,
+        "transliteration": d.transliteration,
+        "translation_ms": d.translation_ms,
+        "translation_en": d.translation_en,
+        "source": d.source,
+    })).collect();
+    Ok(serde_json::json!({ "doas": filtered, "count": filtered.len() }))
+}
+
+#[tauri::command]
+pub async fn search_doa(
+    query: String,
+) -> Result<serde_json::Value, String> {
+    let results = amanclaw_skill_doa::collection::search_doa(&query);
+    let list: Vec<serde_json::Value> = results.iter().map(|d| {
+        serde_json::json!({
+            "category": d.category,
+            "title_ms": d.title_ms,
+            "title_en": d.title_en,
+            "arabic": d.arabic,
+            "transliteration": d.transliteration,
+            "translation_ms": d.translation_ms,
+            "translation_en": d.translation_en,
+        })
+    }).collect();
+    Ok(serde_json::json!({ "doas": list, "count": list.len() }))
+}
+
+#[tauri::command]
+pub async fn get_zakat_rates() -> Result<serde_json::Value, String> {
+    Ok(serde_json::json!({
+        "fitrah": { "rate": 7.00, "currency": "MYR", "year": 2026 },
+        "note": "Rates from JAKIM — update via skill-zakat Python plugin",
+    }))
+}
+
+#[tauri::command]
+pub async fn get_latest_khutbah() -> Result<serde_json::Value, String> {
+    Ok(serde_json::json!({
+        "available": false,
+        "note": "Khutbah data available via skill-khutbah Python plugin",
+    }))
 }

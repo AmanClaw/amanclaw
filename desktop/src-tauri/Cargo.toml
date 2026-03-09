@@ -19,11 +19,15 @@ dotenvy = "0.15"
 anyhow = "1"
 sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
 
+uuid = { version = "1", features = ["v4"] }
+
 # AmanClaw engine
 amanclaw-core = { path = "../../rust/crates/amanclaw-core" }
 amanclaw-traits = { path = "../../rust/crates/amanclaw-traits" }
 amanclaw-api = { path = "../../rust/crates/amanclaw-api" }
 amanclaw-security = { path = "../../rust/crates/amanclaw-security" }
+amanclaw-registry = { path = "../../rust/crates/amanclaw-registry" }
+amanclaw-skill-doa = { path = "../../rust/plugins/skill-doa" }
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

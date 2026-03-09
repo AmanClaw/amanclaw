@@ -119,6 +119,57 @@ pub fn run() {
             commands::disable_skill,
             commands::enable_skill,
             commands::get_disabled_skills,
+            // Agents
+            commands::list_agents,
+            commands::save_agent,
+            commands::delete_agent,
+            commands::load_soul_file,
+            commands::save_soul_file,
+            commands::preview_soul,
+            commands::get_routing_rules,
+            commands::save_routing_rules,
+            // Cron Jobs
+            commands::list_cron_jobs,
+            commands::save_cron_job,
+            commands::delete_cron_job,
+            commands::get_cron_history,
+            // Webhooks
+            commands::list_webhook_endpoints,
+            commands::save_webhook_endpoint,
+            commands::delete_webhook_endpoint,
+            commands::get_webhook_history,
+            // Gateway
+            commands::get_gateway_config,
+            commands::save_gateway_config,
+            commands::get_gateway_status,
+            // Sub-Agents
+            commands::get_subagent_config,
+            commands::save_subagent_config,
+            commands::list_subagents,
+            commands::cancel_subagent,
+            commands::cancel_all_subagents,
+            // Marketplace / Registry
+            commands::registry_list_installed,
+            commands::registry_install_from_path,
+            commands::registry_uninstall,
+            commands::registry_search_installed,
+            // Knowledge Bases
+            commands::get_embedding_config,
+            commands::save_embedding_config,
+            commands::get_vector_config,
+            commands::save_vector_config,
+            commands::list_knowledge_bases,
+            commands::save_knowledge_base,
+            commands::delete_knowledge_base,
+            // Communities CRUD
+            commands::create_community,
+            commands::update_community,
+            commands::delete_community,
+            // Content
+            commands::get_doa_collection,
+            commands::search_doa,
+            commands::get_zakat_rates,
+            commands::get_latest_khutbah,
         ])
         .run(tauri::generate_context!())
         .expect("error running AmanClaw Desktop");

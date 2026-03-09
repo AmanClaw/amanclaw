@@ -1,4 +1,4 @@
-mod collection;
+pub mod collection;
 
 use amanclaw_traits::skill::{Skill, SkillInput, SkillMetadata, SkillResult};
 use collection::{by_category, get_categories, random_doa, search_doa, Doa};
