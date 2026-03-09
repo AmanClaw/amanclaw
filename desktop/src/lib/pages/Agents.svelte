@@ -198,8 +198,11 @@
 		editingRuleIndex = null;
 	}
 
+	let routingError = $state('');
+
 	async function saveRouting() {
 		routingSaving = true;
+		routingError = '';
 		try {
 			const nested = routingRules.map(r => ({
 				match: {
@@ -212,7 +215,9 @@
 			}));
 			await api.saveRoutingRules(defaultAgent, nested);
 			await loadRouting();
-		} catch (_) {}
+		} catch (e: any) {
+			routingError = e?.toString() || 'Failed to save routing rules';
+		}
 		routingSaving = false;
 	}
 
@@ -420,6 +425,9 @@
 				{routingSaving ? 'Saving...' : 'Save Rules'}
 			</button>
 		</div>
+		{#if routingError}
+			<div class="mb-3 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">{routingError}</div>
+		{/if}
 
 		<!-- Default agent -->
 		<div class="flex items-center gap-3 mb-4 bg-white rounded-lg border border-gray-200 p-3">
