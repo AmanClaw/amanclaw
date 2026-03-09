@@ -8,6 +8,7 @@ pub mod scheduler;
 pub mod webhooks;
 pub mod subagent;
 pub mod skills;
+pub mod handle;
 
 use amanclaw_traits::config::AppConfig;
 use amanclaw_traits::context::ContextEngine;
