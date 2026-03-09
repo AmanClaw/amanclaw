@@ -1,4 +1,5 @@
 pub mod context_engine;
+pub mod diagnostics;
 pub mod error;
 pub mod handle;
 pub mod middleware;

@@ -34,6 +34,9 @@ async fn cmd_run(config_path: &str) -> Result<()> {
     tracing::info!(model = %config.llm.model, base_url = %config.llm.base_url, "Config loaded");
     tracing::info!("Starting AmanClaw with config: {}", config_path.display());
 
+    let diag = amanclaw_core::diagnostics::run_startup_diagnostics(&config);
+    amanclaw_core::diagnostics::print_diagnostics(&diag);
+
     let metrics_handle = metrics_exporter_prometheus::PrometheusBuilder::new()
         .install_recorder()
         .ok();
