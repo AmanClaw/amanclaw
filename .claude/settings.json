@@ -37,7 +37,9 @@
       "Bash(cargo fmt --all --check)",
       "Bash(git log --oneline feature/surpass-openclaw-phase1 --not main)",
       "Bash(git checkout main)",
-      "Bash(git merge feature/surpass-openclaw-phase1 --no-ff -m \"feat: phase 1 — foundation + quick wins \\(surpass openclaw\\)\")"
+      "Bash(git merge feature/surpass-openclaw-phase1 --no-ff -m \"feat: phase 1 — foundation + quick wins \\(surpass openclaw\\)\")",
+      "Bash(git remote set-url origin git@github.com:AmanClaw/amanclaw.git)",
+      "Bash(git push origin main)"
     ]
   }
 }
