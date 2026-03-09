@@ -9,6 +9,7 @@ pub mod webhooks;
 pub mod subagent;
 pub mod skills;
 pub mod handle;
+pub mod middleware;
 
 use amanclaw_traits::config::AppConfig;
 use amanclaw_traits::context::ContextEngine;
