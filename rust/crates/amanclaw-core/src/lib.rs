@@ -117,6 +117,47 @@ impl Engine {
             }
         }
 
+        // Load registry-installed skills if enabled
+        if config.registry.enabled {
+            let reg_pool = SqlitePool::connect(
+                &format!("sqlite:{}", std::env::var("MEMORY_DB_PATH").unwrap_or_else(|_| "memory.db".into()))
+            ).await?;
+            if let Ok(skill_registry) = amanclaw_registry::local::SkillRegistry::new(
+                reg_pool, config.registry.skills_dir.clone()
+            ).await {
+                if let Ok(installed) = skill_registry.list_installed().await {
+                    for skill_info in &installed {
+                        let skill_dir = std::path::Path::new(&skill_info.install_dir);
+                        match skill_info.skill_type.as_str() {
+                            "wasm" => {
+                                if let Some(entry) = &skill_info.entry {
+                                    let wasm_path = skill_dir.join(entry);
+                                    let wasm_skills = amanclaw_wasm_runtime::runtime::load_all_plugins(&wasm_path);
+                                    for skill in wasm_skills {
+                                        registry.register(skill);
+                                    }
+                                }
+                            }
+                            "script" => {
+                                tracing::info!(
+                                    name = %skill_info.name,
+                                    "Registry skill (script) found — requires script runtime config"
+                                );
+                            }
+                            other => {
+                                tracing::warn!(
+                                    name = %skill_info.name,
+                                    skill_type = other,
+                                    "Unknown registry skill type"
+                                );
+                            }
+                        }
+                    }
+                    tracing::info!(count = installed.len(), "Registry skills loaded");
+                }
+            }
+        }
+
         // Load SOUL.md files for agents that have them configured
         let soul_dir = std::path::Path::new(&config.skills.soul_dir);
         for (_id, profile) in config.agents.iter_mut() {

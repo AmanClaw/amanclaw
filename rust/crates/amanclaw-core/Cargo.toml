@@ -11,6 +11,7 @@ amanclaw-llm = { path = "../amanclaw-llm" }
 amanclaw-wasm-runtime = { path = "../amanclaw-wasm-runtime" }
 amanclaw-mcp = { path = "../amanclaw-mcp" }
 amanclaw-script-runtime = { path = "../amanclaw-script-runtime" }
+amanclaw-registry = { path = "../amanclaw-registry" }
 amanclaw-channel-telegram = { path = "../../plugins/channel-telegram" }
 amanclaw-channel-discord = { path = "../../plugins/channel-discord" }
 amanclaw-channel-whatsapp = { path = "../../plugins/channel-whatsapp" }

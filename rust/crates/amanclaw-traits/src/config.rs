@@ -52,7 +52,26 @@ pub struct AppConfig {
 
     #[serde(default)]
     pub subagents: SubAgentConfig,
+
+    #[serde(default)]
+    pub registry: RegistryConfig,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RegistryConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_registry_skills_dir")]
+    pub skills_dir: String,
+    #[serde(default)]
+    pub remote_url: Option<String>,
+    #[serde(default)]
+    pub auto_update_check: bool,
+    #[serde(default)]
+    pub allow_unverified: bool,
+}
+
+fn default_registry_skills_dir() -> String { "./plugins/registry".into() }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmbeddingConfig {
