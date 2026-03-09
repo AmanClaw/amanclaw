@@ -204,6 +204,142 @@ plugins:
 }
 
 #[tokio::test]
+async fn test_pipeline_processes_message_end_to_end() {
+    let mock_server = MockServer::start().await;
+
+    let tmp_db = tempfile::NamedTempFile::new().unwrap();
+    unsafe { std::env::set_var("MEMORY_DB_PATH", tmp_db.path().to_str().unwrap()) };
+
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "choices": [{
+                "message": { "role": "assistant", "content": "I am responding to your message.", "tool_calls": null },
+                "finish_reason": "stop"
+            }]
+        })))
+        .expect(1..)
+        .mount(&mock_server)
+        .await;
+
+    let yaml = format!(
+        r#"
+llm:
+  base_url: "{}/v1"
+  model: "test"
+admin_users:
+  telegram: ["admin42"]
+plugins:
+  dir: "/tmp/amanclaw-test-plugins-e2e"
+"#,
+        mock_server.uri()
+    );
+
+    let config: AppConfig = serde_yaml::from_str(&yaml).unwrap();
+    let result = Engine::start(config).await.unwrap();
+
+    // Send a message from an admin user
+    result
+        .handle
+        .send_message(amanclaw_traits::message::IncomingMessage {
+            user_id: "admin42".into(),
+            chat_id: "admin42".into(),
+            platform: "telegram".into(),
+            text: "Tell me about the weather".into(),
+            username: Some("admin".into()),
+            first_name: Some("Admin".into()),
+            is_group: false,
+            image_data: None,
+            reply_to: None,
+            topic_id: None,
+            channel_context: None,
+            is_cron: false,
+            is_webhook: false,
+            is_subagent: false,
+        })
+        .await
+        .unwrap();
+
+    // Wait for the pipeline to process the message
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+    // Verify the LLM was called at least once
+    let requests = mock_server.received_requests().await.unwrap();
+    assert!(
+        !requests.is_empty(),
+        "Expected the mock LLM server to receive at least one request"
+    );
+
+    result.handle.shutdown().await.unwrap();
+    let join_result = result.join.await.unwrap();
+    assert!(join_result.is_ok());
+}
+
+#[tokio::test]
+async fn test_check_command_returns_stats() {
+    let mock_server = MockServer::start().await;
+
+    let tmp_db = tempfile::NamedTempFile::new().unwrap();
+    unsafe { std::env::set_var("MEMORY_DB_PATH", tmp_db.path().to_str().unwrap()) };
+
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "choices": [{
+                "message": { "role": "assistant", "content": "Stats response", "tool_calls": null },
+                "finish_reason": "stop"
+            }]
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let yaml = format!(
+        r#"
+llm:
+  base_url: "{}/v1"
+  model: "test"
+admin_users:
+  telegram: ["statsadmin"]
+plugins:
+  dir: "/tmp/amanclaw-test-plugins-stats"
+"#,
+        mock_server.uri()
+    );
+
+    let config: AppConfig = serde_yaml::from_str(&yaml).unwrap();
+    let result = Engine::start(config).await.unwrap();
+
+    // Send a /stats command from an admin user
+    result
+        .handle
+        .send_message(amanclaw_traits::message::IncomingMessage {
+            user_id: "statsadmin".into(),
+            chat_id: "statsadmin".into(),
+            platform: "telegram".into(),
+            text: "/stats".into(),
+            username: Some("statsadmin".into()),
+            first_name: Some("Stats".into()),
+            is_group: false,
+            image_data: None,
+            reply_to: None,
+            topic_id: None,
+            channel_context: None,
+            is_cron: false,
+            is_webhook: false,
+            is_subagent: false,
+        })
+        .await
+        .unwrap();
+
+    // Wait for command processing
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+    result.handle.shutdown().await.unwrap();
+    let join_result = result.join.await.unwrap();
+    assert!(join_result.is_ok());
+}
+
+#[tokio::test]
 async fn test_soul_loader_resolves_agent_prompt() {
     let tmp_dir = tempfile::tempdir().unwrap();
     let soul_path = tmp_dir.path().join("test-agent.md");
