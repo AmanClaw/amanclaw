@@ -1,0 +1,9 @@
+[package]
+name = "amanclaw-prayer-times"
+version = "0.1.0"
+edition = "2024"
+description = "Pure-Rust prayer time calculation engine supporting 6 global methods"
+
+[dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }

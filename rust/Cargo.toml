@@ -24,6 +24,7 @@ members = [
     "plugins/skill-echo-wasm",
     "plugins/skill-qiblat",
     "plugins/skill-hijri",
+    "crates/amanclaw-prayer-times",
     "plugins/skill-solat",
     "plugins/skill-doa",
     "plugins/skill-quran",

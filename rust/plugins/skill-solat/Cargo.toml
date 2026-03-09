@@ -10,3 +10,5 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 tokio = { version = "1", features = ["rt"] }
+amanclaw-prayer-times = { path = "../../crates/amanclaw-prayer-times" }
+chrono = { version = "0.4", features = ["clock"] }
