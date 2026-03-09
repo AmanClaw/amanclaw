@@ -76,6 +76,16 @@ pub async fn save_config(
         skills: Default::default(),
         mcp_servers: HashMap::new(),
         script_plugins: HashMap::new(),
+        agents: HashMap::new(),
+        routing: Default::default(),
+        embeddings: None,
+        vector: None,
+        knowledge_bases: HashMap::new(),
+        cron: Default::default(),
+        webhooks: Default::default(),
+        gateway: Default::default(),
+        subagents: Default::default(),
+        registry: Default::default(),
     };
 
     config::save_config(&app, &cfg)?;

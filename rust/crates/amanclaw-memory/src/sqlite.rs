@@ -22,12 +22,12 @@ impl SqliteMemory {
             .connect(&url)
             .await?;
 
-        sqlx::raw_sql(INIT_SQL).execute(&pool).await?;
-
-        // Attempt migration for existing databases (ignore errors if columns already exist)
+        // Run migrations first — adds columns to existing tables before INIT_SQL creates indexes on them
         for stmt in crate::schema::MIGRATE_NS_STMTS {
             let _ = sqlx::raw_sql(stmt).execute(&pool).await;
         }
+
+        sqlx::raw_sql(INIT_SQL).execute(&pool).await?;
 
         tracing::info!("Memory initialized at {}", db_path);
         Ok(Self { pool })
