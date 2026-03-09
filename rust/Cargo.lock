@@ -149,6 +149,7 @@ dependencies = [
  "clap",
  "dotenvy",
  "metrics-exporter-prometheus",
+ "notify",
  "serde_yaml",
  "tempfile",
  "tokio",

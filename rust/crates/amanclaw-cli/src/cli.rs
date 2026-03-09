@@ -18,7 +18,11 @@ pub enum Command {
     /// Initialize a new AmanClaw project
     Init,
     /// Start in development mode with mock LLM
-    Dev,
+    Dev {
+        /// Watch for file changes and auto-reload
+        #[arg(long)]
+        watch: bool,
+    },
     /// Validate config file
     Check,
     /// Manage skills (scaffold, test)
@@ -77,7 +81,13 @@ mod tests {
     #[test]
     fn test_cli_dev_subcommand() {
         let cli = Cli::parse_from(["amanclaw", "dev"]);
-        assert!(matches!(cli.command, Some(Command::Dev)));
+        assert!(matches!(cli.command, Some(Command::Dev { watch: false })));
+    }
+
+    #[test]
+    fn test_cli_dev_watch() {
+        let cli = Cli::parse_from(["amanclaw", "dev", "--watch"]);
+        assert!(matches!(cli.command, Some(Command::Dev { watch: true })));
     }
 
     #[test]

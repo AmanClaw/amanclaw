@@ -1,4 +1,5 @@
 mod cli;
+mod dev_watcher;
 mod scaffold;
 
 use anyhow::{Context, Result};
@@ -19,7 +20,7 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Some(Command::Init) => cmd_init().await,
-        Some(Command::Dev) => cmd_dev(&cli.config).await,
+        Some(Command::Dev { watch }) => cmd_dev(&cli.config, watch).await,
         Some(Command::Check) => cmd_check(&cli.config),
         Some(Command::Skill { action }) => cmd_skill(action),
         Some(Command::Run) | None => cmd_run(&cli.config).await,
@@ -152,7 +153,7 @@ async fn cmd_init() -> Result<()> {
     Ok(())
 }
 
-async fn cmd_dev(config_path: &str) -> Result<()> {
+async fn cmd_dev(config_path: &str, watch: bool) -> Result<()> {
     println!("Starting AmanClaw in development mode...");
     println!("Using mock LLM — no API key required");
     println!();
@@ -162,6 +163,33 @@ async fn cmd_dev(config_path: &str) -> Result<()> {
         println!("      Set LLM_BASE_URL to connect to a real LLM (e.g., Ollama at http://localhost:11434/v1)");
         println!();
     }
+
+    // Keep _watcher alive for the duration of cmd_run by binding at this scope
+    let _watcher_guard = if watch {
+        let watcher = dev_watcher::DevWatcher::new(config_path)
+            .context("Failed to start file watcher")?;
+        tracing::info!("Watch mode enabled — monitoring plugins/, souls/, and config for changes");
+
+        let (guard, mut rx) = watcher.into_parts();
+        tokio::spawn(async move {
+            while let Some(event) = rx.recv().await {
+                match event {
+                    dev_watcher::DevEvent::PluginChanged(path) => {
+                        tracing::info!(path = %path, "Plugin changed — reload triggered");
+                    }
+                    dev_watcher::DevEvent::SoulChanged(path) => {
+                        tracing::info!(path = %path, "Soul changed — reload triggered");
+                    }
+                    dev_watcher::DevEvent::ConfigChanged => {
+                        tracing::info!("Config changed — restart recommended");
+                    }
+                }
+            }
+        });
+        Some(guard)
+    } else {
+        None
+    };
 
     cmd_run(config_path).await
 }
