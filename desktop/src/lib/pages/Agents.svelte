@@ -106,10 +106,10 @@
 			await api.saveAgent({
 				id: editId,
 				name: editName,
-				system_prompt: editSystemPrompt,
-				soul_file: editSoulFile || undefined,
-				allowed_skills: skills,
-				memory_namespace: editMemoryNamespace,
+				systemPrompt: editSystemPrompt,
+				soulFile: editSoulFile || undefined,
+				allowedSkills: skills,
+				memoryNamespace: editMemoryNamespace,
 			});
 			await loadAgents();
 			selectedId = editId;

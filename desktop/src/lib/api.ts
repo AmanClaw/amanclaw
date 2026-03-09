@@ -58,8 +58,8 @@ export const api = {
 	// Agents
 	listAgents: () => invoke('list_agents'),
 	saveAgent: (params: {
-		id: string; name: string; system_prompt: string;
-		soul_file?: string; allowed_skills: string[]; memory_namespace: string;
+		id: string; name: string; systemPrompt: string;
+		soulFile?: string; allowedSkills: string[]; memoryNamespace: string;
 	}) => invoke('save_agent', params),
 	deleteAgent: (id: string) => invoke('delete_agent', { id }),
 	loadSoulFile: (filename: string) => invoke('load_soul_file', { filename }) as Promise<string>,
@@ -67,7 +67,7 @@ export const api = {
 	previewSoul: (filename: string) => invoke('preview_soul', { filename }),
 	getRoutingRules: () => invoke('get_routing_rules'),
 	saveRoutingRules: (defaultAgent: string, rules: any[]) =>
-		invoke('save_routing_rules', { default_agent: defaultAgent, rules }),
+		invoke('save_routing_rules', { defaultAgent, rules }),
 
 	// Cron Jobs
 	listCronJobs: () => invoke('list_cron_jobs'),
@@ -84,18 +84,18 @@ export const api = {
 	// Gateway
 	getGatewayConfig: () => invoke('get_gateway_config'),
 	saveGatewayConfig: (params: {
-		enabled: boolean; heartbeat_interval_secs: number;
-		max_connections: number; stale_session_timeout_secs: number;
+		enabled: boolean; heartbeatIntervalSecs: number;
+		maxConnections: number; staleSessionTimeoutSecs: number;
 	}) => invoke('save_gateway_config', params),
 	getGatewayStatus: () => invoke('get_gateway_status'),
 
 	// Sub-Agents
 	getSubagentConfig: () => invoke('get_subagent_config'),
 	saveSubagentConfig: (params: {
-		enabled: boolean; max_per_session: number; max_global: number;
-		max_depth: number; default_timeout_secs: number;
+		enabled: boolean; maxPerSession: number; maxGlobal: number;
+		maxDepth: number; defaultTimeoutSecs: number;
 	}) => invoke('save_subagent_config', params),
-	listSubagents: (sessionFilter?: string) => invoke('list_subagents', { session_filter: sessionFilter }),
+	listSubagents: (sessionFilter?: string) => invoke('list_subagents', { sessionFilter }),
 	cancelSubagent: (id: string) => invoke('cancel_subagent', { id }) as Promise<boolean>,
 	cancelAllSubagents: (session: string) => invoke('cancel_all_subagents', { session }) as Promise<number>,
 
@@ -107,10 +107,10 @@ export const api = {
 
 	// Knowledge Bases
 	getEmbeddingConfig: () => invoke('get_embedding_config'),
-	saveEmbeddingConfig: (params: { base_url: string; model: string; api_key?: string }) =>
+	saveEmbeddingConfig: (params: { baseUrl: string; model: string; apiKey?: string }) =>
 		invoke('save_embedding_config', params),
 	getVectorConfig: () => invoke('get_vector_config'),
-	saveVectorConfig: (params: { backend: string; qdrant_url?: string }) =>
+	saveVectorConfig: (params: { backend: string; qdrantUrl?: string }) =>
 		invoke('save_vector_config', params),
 	listKnowledgeBases: () => invoke('list_knowledge_bases'),
 	saveKnowledgeBase: (name: string, collection: string, source: string) =>
@@ -119,11 +119,11 @@ export const api = {
 
 	// Communities CRUD
 	createCommunity: (params: {
-		name: string; platform: string; platform_group_id: string;
-		zone: string; language: string; enabled_skills: string[];
+		name: string; platform: string; platformGroupId: string;
+		zone: string; language: string; enabledSkills: string[];
 	}) => invoke('create_community', params),
 	updateCommunity: (params: {
-		id: string; name: string; zone: string; language: string; enabled_skills: string[];
+		id: string; name: string; zone: string; language: string; enabledSkills: string[];
 	}) => invoke('update_community', params),
 	deleteCommunity: (id: string) => invoke('delete_community', { id }),
 

@@ -69,16 +69,16 @@
 					name: formName,
 					zone: formZone,
 					language: formLanguage,
-					enabled_skills: skills,
+					enabledSkills: skills,
 				});
 			} else {
 				await api.createCommunity({
 					name: formName,
 					platform: formPlatform,
-					platform_group_id: formGroupId,
+					platformGroupId: formGroupId,
 					zone: formZone,
 					language: formLanguage,
-					enabled_skills: skills,
+					enabledSkills: skills,
 				});
 			}
 			resetForm();
