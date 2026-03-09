@@ -36,7 +36,8 @@ One binary. One SQLite database. One config file. ~2MB RAM on a Raspberry Pi.
 ## Features
 
 - **Blazing fast** — Rust async runtime, ~2MB memory footprint, instant startup
-- **Islamic community skills** — Prayer times (JAKIM), Quran, Halal check, Zakat calculator, Qiblat, Hijri calendar, Doa & Zikir, Hadith, Masjid finder, Khutbah, JAKIM services
+- **Islamic community skills** — Prayer times (JAKIM + 6 global methods), Quran, Halal check, Zakat calculator, Qiblat, Hijri calendar, Doa & Zikir, Hadith, Masjid finder, Khutbah, JAKIM services
+- **Global prayer times** — Pure-Rust calculation engine supporting MWL, ISNA, Egyptian, Karachi, Umm al-Qura, and JAKIM methods — works offline, no API needed
 - **Multi-community** — One instance serves many groups with per-community config (zone, language, skills)
 - **Plugin system** — WASM plugins (Rust/AssemblyScript) + script plugins (Python/JS) + built-in Rust skills
 - **Multi-channel** — Telegram, Discord, WhatsApp (official + unofficial), Slack
@@ -48,6 +49,10 @@ One binary. One SQLite database. One config file. ~2MB RAM on a Raspberry Pi.
 - **Conversation memory** — SQLite-backed history with auto-summarization and pruning
 - **RAG (Retrieval-Augmented Generation)** — Load knowledge bases at startup, index with embeddings, retrieve relevant context during conversations
 - **Learning engine** — Remembers facts about users across conversations (`/remember`, `/forget`, `/learned`)
+- **Skill scaffolding** — `amanclaw skill new my-skill --lang rust|python` generates complete skill projects from templates
+- **Interactive playground** — `amanclaw playground` serves a local web UI for testing skills interactively
+- **Live reload** — `amanclaw dev --watch` watches plugins, souls, and config for changes
+- **WhatsApp interactive messages** — Buttons and list messages for rich WhatsApp UX (beyond plain text)
 - **Plugin hot reload** — Filesystem watcher detects new/modified `.wasm` plugins
 - **MCP integration** — Expose skills as MCP tools + consume external MCP servers as skills
 - **Hybrid search** — FTS5 full-text search with BM25 ranking + cosine vector similarity via Reciprocal Rank Fusion (RRF)
@@ -76,12 +81,32 @@ One binary. One SQLite database. One config file. ~2MB RAM on a Raspberry Pi.
 ### 1. Clone and build
 
 ```bash
-git clone https://github.com/amanasmuei/amanclaw.git
+git clone https://github.com/AmanClaw/amanclaw.git
 cd amanclaw/rust
 cargo build --release
 ```
 
 The binary is at `target/release/amanclaw`.
+
+### Quick Setup (alternative)
+
+```bash
+# Initialize project with defaults
+amanclaw init
+
+# Start in development mode (no API key needed)
+amanclaw dev
+
+# Start with live reload
+amanclaw dev --watch
+
+# Open interactive playground
+amanclaw playground
+
+# Create a new skill
+amanclaw skill new my-skill --lang rust
+amanclaw skill new my-skill --lang python
+```
 
 ### 2. Configure secrets
 
@@ -124,9 +149,32 @@ admin_users:
 
 ---
 
+## Global Prayer Time Methods
+
+AmanClaw includes a pure-Rust prayer time calculation engine — works offline, no API dependency:
+
+| Method | Region | Fajr | Isha |
+| ------ | ------ | ---- | ---- |
+| MWL | Muslim World League | 18° | 17° |
+| ISNA | North America | 15° | 15° |
+| Egyptian | Egypt | 19.5° | 17.5° |
+| Karachi | Pakistan/India | 18° | 18° |
+| Umm al-Qura | Saudi Arabia | 18.5° | 90 min after Maghrib |
+| JAKIM | Malaysia | 20° | 18° |
+
+```bash
+# Via skill
+{"action": "calculate", "latitude": 40.7128, "longitude": -74.006, "timezone": -4, "method": "isna"}
+
+# List all methods
+{"action": "list_methods"}
+```
+
+---
+
 ## Architecture
 
-AmanClaw is a Cargo workspace with 27 crates (14 core + 13 plugins) plus a Tauri desktop app:
+AmanClaw is a Cargo workspace with 28 crates (15 core + 13 plugins) plus a Tauri desktop app:
 
 ```text
 rust/
