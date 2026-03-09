@@ -6,6 +6,7 @@ pub mod soul;
 pub mod scheduler;
 pub mod webhooks;
 pub mod subagent;
+pub mod skills;
 
 use amanclaw_traits::config::AppConfig;
 use amanclaw_traits::context::ContextEngine;
@@ -76,6 +77,13 @@ impl Engine {
                 continue;
             }
             registry.register(skill);
+        }
+
+        // Register sub-agent skill if enabled
+        if config.subagents.enabled {
+            let subagent_mgr = Arc::new(subagent::SubAgentManager::new(config.subagents.clone()));
+            let subagent_skill = Arc::new(skills::subagent_skill::SubAgentSkill::new(subagent_mgr));
+            registry.register(subagent_skill);
         }
 
         // Load WASM plugins
