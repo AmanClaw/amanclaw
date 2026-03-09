@@ -39,7 +39,24 @@
       "Bash(git checkout main)",
       "Bash(git merge feature/surpass-openclaw-phase1 --no-ff -m \"feat: phase 1 — foundation + quick wins \\(surpass openclaw\\)\")",
       "Bash(git remote set-url origin git@github.com:AmanClaw/amanclaw.git)",
-      "Bash(git push origin main)"
+      "Bash(git push origin main)",
+      "Bash(git worktree add .worktrees/surpass-openclaw-phase2 -b feature/surpass-openclaw-phase2)",
+      "Read(//Users/aman-asmuei/.claude/plugins/cache/claude-plugins-official/superpowers/4.3.1/skills/subagent-driven-development/**)",
+      "Bash(cargo test -p amanclaw-prayer-times)",
+      "Bash(cargo test -p skill-solat)",
+      "Bash(cargo test -p amanclaw-skill-solat)",
+      "Read(//Users/aman-asmuei/.claude/projects/-Users-aman-asmuei-Personals-aman-office-secureclaw-simple/044dfad6-d7ca-4b1c-a72a-8ba115c89cb7/subagents/**)",
+      "Bash(cargo check --workspace)",
+      "Bash(cargo test -p amanclaw-traits -p amanclaw-channel-whatsapp)",
+      "Bash(git reset HEAD)",
+      "Bash(git add rust/crates/amanclaw-traits/src/message.rs rust/plugins/channel-whatsapp/src/lib.rs rust/crates/amanclaw-core/src/middleware/auth.rs rust/crates/amanclaw-core/src/middleware/command.rs rust/crates/amanclaw-core/src/middleware/mod.rs rust/crates/amanclaw-core/src/middleware/rate_limit.rs rust/crates/amanclaw-core/src/middleware/tool_calling.rs rust/crates/amanclaw-core/src/pipeline.rs rust/crates/amanclaw-core/src/scheduler.rs rust/crates/amanclaw-core/src/webhooks.rs)",
+      "Bash(cargo bench -p amanclaw-prayer-times -- --test)",
+      "Bash(git add README.md)",
+      "Bash(cargo clippy --workspace -- -D warnings)",
+      "Bash(git log --oneline feature/surpass-openclaw-phase2 --not main)",
+      "Bash(git merge --no-ff feature/surpass-openclaw-phase2 -m \"feat: implement Phase 2 — DX + Differentiators \\(skill scaffolding, prayer times, WhatsApp interactive, playground, live reload, benchmarks\\)\")",
+      "Bash(git worktree remove .worktrees/surpass-openclaw-phase1)",
+      "Bash(git worktree remove .worktrees/surpass-openclaw-phase2)"
     ]
   }
 }
