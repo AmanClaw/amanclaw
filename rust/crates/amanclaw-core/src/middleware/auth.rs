@@ -44,6 +44,7 @@ impl PipelineMiddleware for AuthMiddleware {
                     reply_to: None,
                     platform: None,
                     topic_id: None,
+                    interactive: None,
                 }));
             }
             UserState::Pending => {
@@ -54,6 +55,7 @@ impl PipelineMiddleware for AuthMiddleware {
                     reply_to: None,
                     platform: None,
                     topic_id: None,
+                    interactive: None,
                 }));
             }
             UserState::Admin | UserState::Approved => {}

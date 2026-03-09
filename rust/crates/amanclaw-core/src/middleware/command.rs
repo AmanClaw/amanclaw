@@ -45,6 +45,7 @@ impl PipelineMiddleware for CommandMiddleware {
                 reply_to: None,
                 platform: None,
                 topic_id: None,
+                interactive: None,
             }));
         }
 
@@ -159,5 +160,6 @@ async fn handle_command(
         reply_to: None,
         platform: None,
         topic_id: None,
+        interactive: None,
     }))
 }

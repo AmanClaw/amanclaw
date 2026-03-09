@@ -1,12 +1,13 @@
 use amanclaw_traits::channel::Channel;
-use amanclaw_traits::message::{IncomingMessage, OutgoingMessage};
+use amanclaw_traits::message::{IncomingMessage, InteractiveMessage, OutgoingMessage};
 use axum::{
     Json, Router,
     extract::State,
     routing::{get, post},
 };
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde_json::json;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
@@ -41,8 +42,22 @@ struct WaMessage {
     msg_type: String,
     text: Option<WaText>,
     image: Option<WaMedia>,
+    interactive: Option<WaInteractive>,
     #[allow(dead_code)]
     id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct WaInteractive {
+    button_reply: Option<WaReply>,
+    list_reply: Option<WaReply>,
+}
+
+#[derive(Debug, Deserialize)]
+struct WaReply {
+    #[allow(dead_code)]
+    id: String,
+    title: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -72,20 +87,6 @@ struct WaProfile {
 struct WaMetadata {
     #[allow(dead_code)]
     phone_number_id: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-struct SendMessagePayload {
-    messaging_product: String,
-    to: String,
-    #[serde(rename = "type")]
-    msg_type: String,
-    text: SendText,
-}
-
-#[derive(Debug, Serialize)]
-struct SendText {
-    body: String,
 }
 
 struct AppState {
@@ -203,11 +204,85 @@ impl Channel for WhatsAppChannel {
             self.phone_number_id
         );
 
-        let payload = SendMessagePayload {
-            messaging_product: "whatsapp".into(),
-            to: msg.chat_id,
-            msg_type: "text".into(),
-            text: SendText { body: msg.text },
+        let payload = if let Some(interactive) = &msg.interactive {
+            match interactive {
+                InteractiveMessage::Buttons { body, buttons } => {
+                    let wa_buttons: Vec<serde_json::Value> = buttons
+                        .iter()
+                        .take(3) // WhatsApp allows max 3 buttons
+                        .map(|b| {
+                            json!({
+                                "type": "reply",
+                                "reply": {
+                                    "id": b.id,
+                                    "title": b.title
+                                }
+                            })
+                        })
+                        .collect();
+
+                    json!({
+                        "messaging_product": "whatsapp",
+                        "to": msg.chat_id,
+                        "type": "interactive",
+                        "interactive": {
+                            "type": "button",
+                            "body": { "text": body },
+                            "action": { "buttons": wa_buttons }
+                        }
+                    })
+                }
+                InteractiveMessage::List {
+                    body,
+                    button_text,
+                    sections,
+                } => {
+                    let wa_sections: Vec<serde_json::Value> = sections
+                        .iter()
+                        .map(|s| {
+                            let rows: Vec<serde_json::Value> = s
+                                .rows
+                                .iter()
+                                .map(|r| {
+                                    let mut row = json!({
+                                        "id": r.id,
+                                        "title": r.title
+                                    });
+                                    if let Some(desc) = &r.description {
+                                        row["description"] = json!(desc);
+                                    }
+                                    row
+                                })
+                                .collect();
+                            json!({
+                                "title": s.title,
+                                "rows": rows
+                            })
+                        })
+                        .collect();
+
+                    json!({
+                        "messaging_product": "whatsapp",
+                        "to": msg.chat_id,
+                        "type": "interactive",
+                        "interactive": {
+                            "type": "list",
+                            "body": { "text": body },
+                            "action": {
+                                "button": button_text,
+                                "sections": wa_sections
+                            }
+                        }
+                    })
+                }
+            }
+        } else {
+            json!({
+                "messaging_product": "whatsapp",
+                "to": msg.chat_id,
+                "type": "text",
+                "text": { "body": msg.text }
+            })
         };
 
         let resp = self
@@ -247,6 +322,19 @@ async fn handle_webhook(
                                             "[Image: media_id={}]",
                                             wa_msg.image.map(|i| i.id).unwrap_or_default()
                                         )
+                                    }
+                                    "interactive" => {
+                                        if let Some(interactive) = wa_msg.interactive {
+                                            if let Some(reply) = interactive.button_reply {
+                                                reply.title
+                                            } else if let Some(reply) = interactive.list_reply {
+                                                reply.title
+                                            } else {
+                                                "[Interactive: no reply data]".into()
+                                            }
+                                        } else {
+                                            "[Interactive: missing payload]".into()
+                                        }
                                     }
                                     _ => format!("[Unsupported message type: {}]", wa_msg.msg_type),
                                 };
@@ -307,6 +395,80 @@ mod tests {
     fn test_platform_name() {
         let channel = WhatsAppChannel::new("token".into(), "12345".into(), "verify".into(), 8080);
         assert_eq!(channel.platform(), "whatsapp");
+    }
+
+    #[test]
+    fn test_deserialize_interactive_button_reply() {
+        let json = r#"{
+            "entry": [{
+                "changes": [{
+                    "value": {
+                        "messages": [{
+                            "from": "601234567890",
+                            "type": "interactive",
+                            "interactive": {
+                                "button_reply": {
+                                    "id": "btn_1",
+                                    "title": "Option 1"
+                                }
+                            },
+                            "id": "msg_456"
+                        }],
+                        "contacts": [{
+                            "profile": {"name": "Aman"},
+                            "wa_id": "601234567890"
+                        }]
+                    }
+                }]
+            }]
+        }"#;
+
+        let payload: WebhookPayload = serde_json::from_str(json).unwrap();
+        let entry = &payload.entry.unwrap()[0];
+        let change = &entry.changes.as_ref().unwrap()[0];
+        let value = change.value.as_ref().unwrap();
+        let msg = &value.messages.as_ref().unwrap()[0];
+        assert_eq!(msg.msg_type, "interactive");
+        let interactive = msg.interactive.as_ref().unwrap();
+        assert_eq!(interactive.button_reply.as_ref().unwrap().title, "Option 1");
+        assert_eq!(interactive.button_reply.as_ref().unwrap().id, "btn_1");
+    }
+
+    #[test]
+    fn test_deserialize_interactive_list_reply() {
+        let json = r#"{
+            "entry": [{
+                "changes": [{
+                    "value": {
+                        "messages": [{
+                            "from": "601234567890",
+                            "type": "interactive",
+                            "interactive": {
+                                "list_reply": {
+                                    "id": "row_2",
+                                    "title": "Row 2"
+                                }
+                            },
+                            "id": "msg_789"
+                        }],
+                        "contacts": [{
+                            "profile": {"name": "Aman"},
+                            "wa_id": "601234567890"
+                        }]
+                    }
+                }]
+            }]
+        }"#;
+
+        let payload: WebhookPayload = serde_json::from_str(json).unwrap();
+        let entry = &payload.entry.unwrap()[0];
+        let change = &entry.changes.as_ref().unwrap()[0];
+        let value = change.value.as_ref().unwrap();
+        let msg = &value.messages.as_ref().unwrap()[0];
+        assert_eq!(msg.msg_type, "interactive");
+        let interactive = msg.interactive.as_ref().unwrap();
+        assert!(interactive.button_reply.is_none());
+        assert_eq!(interactive.list_reply.as_ref().unwrap().title, "Row 2");
     }
 
     #[test]

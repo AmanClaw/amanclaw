@@ -47,6 +47,43 @@ pub struct OutgoingMessage {
     /// Topic/thread ID for Telegram topics or Discord threads.
     #[serde(default)]
     pub topic_id: Option<String>,
+
+    /// Interactive message (buttons or lists) for platforms that support it.
+    #[serde(default)]
+    pub interactive: Option<InteractiveMessage>,
+}
+
+/// Interactive message types for rich UI elements (buttons, lists).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum InteractiveMessage {
+    Buttons {
+        body: String,
+        buttons: Vec<MessageButton>,
+    },
+    List {
+        body: String,
+        button_text: String,
+        sections: Vec<ListSection>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MessageButton {
+    pub id: String,
+    pub title: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListSection {
+    pub title: String,
+    pub rows: Vec<ListRow>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListRow {
+    pub id: String,
+    pub title: String,
+    pub description: Option<String>,
 }
 
 #[cfg(test)]
@@ -84,8 +121,94 @@ mod tests {
             reply_to: None,
             platform: None,
             topic_id: None,
+            interactive: None,
         };
         assert_eq!(msg.text, "Hi there!");
+    }
+
+    #[test]
+    fn test_interactive_buttons_serialization() {
+        let interactive = InteractiveMessage::Buttons {
+            body: "Choose an option".into(),
+            buttons: vec![
+                MessageButton {
+                    id: "btn_1".into(),
+                    title: "Option 1".into(),
+                },
+                MessageButton {
+                    id: "btn_2".into(),
+                    title: "Option 2".into(),
+                },
+            ],
+        };
+        let json = serde_json::to_string(&interactive).unwrap();
+        let deserialized: InteractiveMessage = serde_json::from_str(&json).unwrap();
+        match deserialized {
+            InteractiveMessage::Buttons { body, buttons } => {
+                assert_eq!(body, "Choose an option");
+                assert_eq!(buttons.len(), 2);
+                assert_eq!(buttons[0].id, "btn_1");
+                assert_eq!(buttons[1].title, "Option 2");
+            }
+            _ => panic!("Expected Buttons variant"),
+        }
+    }
+
+    #[test]
+    fn test_interactive_list_serialization() {
+        let interactive = InteractiveMessage::List {
+            body: "Select from list".into(),
+            button_text: "View options".into(),
+            sections: vec![ListSection {
+                title: "Section 1".into(),
+                rows: vec![
+                    ListRow {
+                        id: "row_1".into(),
+                        title: "Row 1".into(),
+                        description: Some("Description 1".into()),
+                    },
+                    ListRow {
+                        id: "row_2".into(),
+                        title: "Row 2".into(),
+                        description: None,
+                    },
+                ],
+            }],
+        };
+        let json = serde_json::to_string(&interactive).unwrap();
+        let deserialized: InteractiveMessage = serde_json::from_str(&json).unwrap();
+        match deserialized {
+            InteractiveMessage::List {
+                body,
+                button_text,
+                sections,
+            } => {
+                assert_eq!(body, "Select from list");
+                assert_eq!(button_text, "View options");
+                assert_eq!(sections.len(), 1);
+                assert_eq!(sections[0].rows.len(), 2);
+                assert_eq!(sections[0].rows[0].description, Some("Description 1".into()));
+                assert_eq!(sections[0].rows[1].description, None);
+            }
+            _ => panic!("Expected List variant"),
+        }
+    }
+
+    #[test]
+    fn test_outgoing_message_text_serialization_still_works() {
+        let msg = OutgoingMessage {
+            chat_id: "12345".into(),
+            text: "plain text".into(),
+            parse_mode: None,
+            reply_to: None,
+            platform: None,
+            topic_id: None,
+            interactive: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        let deserialized: OutgoingMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.text, "plain text");
+        assert!(deserialized.interactive.is_none());
     }
 
     #[test]

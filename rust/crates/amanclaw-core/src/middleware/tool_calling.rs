@@ -61,6 +61,7 @@ impl PipelineMiddleware for ToolCallingMiddleware {
             reply_to: None,
             platform: None,
             topic_id: None,
+            interactive: None,
         }))
     }
 }
