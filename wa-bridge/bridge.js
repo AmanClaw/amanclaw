@@ -10,6 +10,7 @@ app.use(express.json());
 
 let waClient = null;
 let isReady = false;
+let botWid = null; // Bot's own WhatsApp ID (e.g. "60123456789@c.us")
 
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: "./.wa-session" }),
@@ -38,6 +39,11 @@ client.on("ready", () => {
   console.log("[wa-bridge] WhatsApp client ready!");
   isReady = true;
   waClient = client;
+  // Capture the bot's own WhatsApp ID
+  if (client.info && client.info.wid) {
+    botWid = client.info.wid._serialized;
+    console.log("[wa-bridge] Bot WID:", botWid);
+  }
 });
 
 client.on("authenticated", () => {
@@ -58,6 +64,15 @@ client.on("message", async (msg) => {
   const chat = await msg.getChat();
   const contact = await msg.getContact();
 
+  // Extract mentioned IDs (for group @mention detection)
+  let mentionedIds = [];
+  try {
+    const mentions = await msg.getMentions();
+    mentionedIds = mentions.map((c) => c.id._serialized);
+  } catch (_) {
+    // getMentions may fail on some message types
+  }
+
   const payload = {
     event: "message",
     session: "default",
@@ -70,6 +85,7 @@ client.on("message", async (msg) => {
       fromMe: msg.fromMe,
       hasMedia: msg.hasMedia,
       chatId: chat.id._serialized,
+      mentionedIds,
       _data: {
         notifyName: contact.pushname || contact.name || null,
       },
@@ -106,7 +122,11 @@ app.post("/api/sendText", async (req, res) => {
 
 // GET /api/sessions
 app.get("/api/sessions", (req, res) => {
-  res.json([{ name: "default", status: isReady ? "WORKING" : "STARTING" }]);
+  res.json([{
+    name: "default",
+    status: isReady ? "WORKING" : "STARTING",
+    me: botWid || null,
+  }]);
 });
 
 // Health

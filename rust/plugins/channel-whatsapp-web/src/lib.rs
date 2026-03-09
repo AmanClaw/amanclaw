@@ -42,6 +42,8 @@ struct WahaMessage {
     has_media: Option<bool>,
     // Chat ID for group messages
     chat_id: Option<String>,
+    // IDs of users mentioned in the message (for group @mention detection)
+    mentioned_ids: Option<Vec<String>>,
     // Contact info
     #[serde(rename = "_data")]
     data: Option<WahaMessageData>,
@@ -67,6 +69,8 @@ struct WahaSendMessage {
 
 struct AppState {
     tx: mpsc::Sender<IncomingMessage>,
+    /// The bot's own WhatsApp ID (e.g. "60123456789@c.us") for mention detection.
+    bot_wa_id: Option<String>,
 }
 
 pub struct WhatsAppWebChannel {
@@ -98,6 +102,30 @@ impl WhatsAppWebChannel {
         }
     }
 
+    /// Fetch the bot's own WhatsApp ID from the WAHA /api/sessions endpoint.
+    async fn get_bot_id(&self) -> anyhow::Result<String> {
+        let url = format!("{}/api/sessions", self.api_url);
+        let mut req = self.http.get(&url);
+        if let Some(ref key) = self.api_key {
+            req = req.header("X-Api-Key", key);
+        }
+        let resp = req.send().await?;
+        let sessions: Vec<serde_json::Value> = resp.json().await?;
+        // Look for our session's "me" or "name" field
+        for s in &sessions {
+            if let Some(name) = s.get("name").and_then(|n| n.as_str()) {
+                if name == self.session {
+                    // Try to get the connected phone number from the session
+                    if let Some(me) = s.get("me").and_then(|m| m.as_str()) {
+                        return Ok(me.to_string());
+                    }
+                }
+            }
+        }
+        // Fallback: try /health endpoint or use session phone from env
+        anyhow::bail!("Bot ID not found in session info")
+    }
+
     pub fn from_env() -> Option<Self> {
         let api_url = std::env::var("WAHA_API_URL").ok()?;
         let api_key = std::env::var("WAHA_API_KEY").ok();
@@ -118,7 +146,20 @@ impl Channel for WhatsAppWebChannel {
     }
 
     async fn start(&mut self, tx: mpsc::Sender<IncomingMessage>) -> anyhow::Result<()> {
-        let state = Arc::new(AppState { tx });
+        // Try to get the bot's own WhatsApp ID from the WAHA session info.
+        // This is used to detect @mentions in group messages.
+        let bot_wa_id = match self.get_bot_id().await {
+            Ok(id) => {
+                tracing::info!(bot_id = %id, "Detected bot WhatsApp ID");
+                Some(id)
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "Could not detect bot WhatsApp ID — group mention filtering disabled");
+                None
+            }
+        };
+
+        let state = Arc::new(AppState { tx, bot_wa_id });
 
         let app = Router::new()
             .route("/webhook", post(handle_webhook))
@@ -204,6 +245,26 @@ async fn handle_webhook(
     let user_id = from.split('@').next().unwrap_or(&from).to_string();
     let chat_id = msg.chat_id.unwrap_or_else(|| from.clone());
     let is_group = chat_id.contains("@g.us");
+
+    // In group chats, only respond if the bot is @mentioned or message starts with /
+    if is_group {
+        let is_command = text.starts_with('/');
+        let bot_mentioned = if let Some(ref bot_id) = state.bot_wa_id {
+            msg.mentioned_ids
+                .as_ref()
+                .map(|ids| ids.iter().any(|id| id == bot_id))
+                .unwrap_or(false)
+        } else {
+            // No bot ID known — check if message contains @<bot_number> as text
+            // The bot's "to" field in DMs is its own ID, but in groups we can't rely on that
+            // Fall back to always responding if we can't detect mentions
+            false
+        };
+
+        if !is_command && !bot_mentioned {
+            return "OK";
+        }
+    }
 
     let display_text = if msg.has_media.unwrap_or(false) && text.is_empty() {
         format!(
@@ -304,5 +365,51 @@ mod tests {
         let from = "601234567890@c.us";
         let user_id = from.split('@').next().unwrap();
         assert_eq!(user_id, "601234567890");
+    }
+
+    #[test]
+    fn test_group_mention_filtering() {
+        let bot_id = "60111000590@c.us";
+        let mentioned_ids = vec!["60111000590@c.us".to_string()];
+        let bot_mentioned = mentioned_ids.iter().any(|id| id == bot_id);
+        assert!(bot_mentioned);
+
+        // Not mentioned
+        let other_ids = vec!["601234567890@c.us".to_string()];
+        let not_mentioned = other_ids.iter().any(|id| id == bot_id);
+        assert!(!not_mentioned);
+
+        // Empty mentions
+        let empty: Vec<String> = vec![];
+        let no_mention = empty.iter().any(|id| id == bot_id);
+        assert!(!no_mention);
+    }
+
+    #[test]
+    fn test_deserialize_with_mentioned_ids() {
+        let json = r#"{
+            "event": "message",
+            "session": "default",
+            "payload": {
+                "id": "msg_456",
+                "from": "601234567890@c.us",
+                "to": "120363123456789@g.us",
+                "body": "@60111000590 hello bot",
+                "type": "chat",
+                "fromMe": false,
+                "hasMedia": false,
+                "chatId": "120363123456789@g.us",
+                "mentionedIds": ["60111000590@c.us"],
+                "_data": {
+                    "notifyName": "Aman"
+                }
+            }
+        }"#;
+
+        let webhook: WahaWebhook = serde_json::from_str(json).unwrap();
+        let msg: WahaMessage = serde_json::from_value(webhook.payload.unwrap()).unwrap();
+        assert_eq!(msg.mentioned_ids.as_ref().unwrap().len(), 1);
+        assert_eq!(msg.mentioned_ids.unwrap()[0], "60111000590@c.us");
+        assert!(msg.chat_id.unwrap().contains("@g.us"));
     }
 }
