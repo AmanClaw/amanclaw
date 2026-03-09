@@ -1,7 +1,11 @@
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "amanclaw", version, about = "Modular AI assistant for communities")]
+#[command(
+    name = "amanclaw",
+    version,
+    about = "Modular AI assistant for communities"
+)]
 pub struct Cli {
     /// Path to config file
     #[arg(short, long, default_value = "config.yaml")]
@@ -125,8 +129,7 @@ mod tests {
 
     #[test]
     fn test_cli_skill_new_python() {
-        let cli =
-            Cli::parse_from(["amanclaw", "skill", "new", "my-skill", "--lang", "python"]);
+        let cli = Cli::parse_from(["amanclaw", "skill", "new", "my-skill", "--lang", "python"]);
         match cli.command {
             Some(Command::Skill {
                 action: SkillAction::New { name, lang, output },
@@ -142,7 +145,12 @@ mod tests {
     #[test]
     fn test_cli_skill_new_with_output() {
         let cli = Cli::parse_from([
-            "amanclaw", "skill", "new", "my-skill", "--output", "/tmp/skills",
+            "amanclaw",
+            "skill",
+            "new",
+            "my-skill",
+            "--output",
+            "/tmp/skills",
         ]);
         match cli.command {
             Some(Command::Skill {

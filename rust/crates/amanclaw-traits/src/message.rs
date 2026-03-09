@@ -187,7 +187,10 @@ mod tests {
                 assert_eq!(button_text, "View options");
                 assert_eq!(sections.len(), 1);
                 assert_eq!(sections[0].rows.len(), 2);
-                assert_eq!(sections[0].rows[0].description, Some("Description 1".into()));
+                assert_eq!(
+                    sections[0].rows[0].description,
+                    Some("Description 1".into())
+                );
                 assert_eq!(sections[0].rows[1].description, None);
             }
             _ => panic!("Expected List variant"),

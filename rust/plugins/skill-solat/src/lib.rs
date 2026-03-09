@@ -126,9 +126,7 @@ impl Skill for SolatSkill {
                         return SkillResult {
                             success: false,
                             output: String::new(),
-                            error: Some(
-                                "latitude is required for calculate action".into(),
-                            ),
+                            error: Some("latitude is required for calculate action".into()),
                         };
                     }
                 };
@@ -138,21 +136,13 @@ impl Skill for SolatSkill {
                         return SkillResult {
                             success: false,
                             output: String::new(),
-                            error: Some(
-                                "longitude is required for calculate action".into(),
-                            ),
+                            error: Some("longitude is required for calculate action".into()),
                         };
                     }
                 };
-                let tz = args
-                    .get("timezone")
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0);
+                let tz = args.get("timezone").and_then(|v| v.as_f64()).unwrap_or(0.0);
 
-                let method_str = args
-                    .get("method")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("MWL");
+                let method_str = args.get("method").and_then(|v| v.as_str()).unwrap_or("MWL");
                 let method = match CalculationMethod::from_str_loose(method_str) {
                     Some(m) => m,
                     None => {

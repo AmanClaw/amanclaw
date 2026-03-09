@@ -89,10 +89,9 @@ fn eccentricity(jc: f64) -> f64 {
 /// Sun's equation of center (degrees).
 fn sun_equation_of_center(jc: f64) -> f64 {
     let m = sun_mean_anomaly(jc) * DEG_TO_RAD;
-    let c = m.sin() * (1.914602 - jc * (0.004817 + 0.000014 * jc))
+    m.sin() * (1.914602 - jc * (0.004817 + 0.000014 * jc))
         + (2.0 * m).sin() * (0.019993 - 0.000101 * jc)
-        + (3.0 * m).sin() * 0.000289;
-    c
+        + (3.0 * m).sin() * 0.000289
 }
 
 /// Sun's true longitude (degrees).
@@ -133,9 +132,7 @@ fn equation_of_time(jc: f64) -> f64 {
 
     let y = (obl / 2.0).tan().powi(2);
 
-    let eq = y * (2.0 * l0).sin()
-        - 2.0 * e * m.sin()
-        + 4.0 * e * y * m.sin() * (2.0 * l0).cos()
+    let eq = y * (2.0 * l0).sin() - 2.0 * e * m.sin() + 4.0 * e * y * m.sin() * (2.0 * l0).cos()
         - 0.5 * y * y * (4.0 * l0).sin()
         - 1.25 * e * e * (2.0 * m).sin();
 
@@ -259,7 +256,11 @@ mod tests {
         let times = calculate(date, 3.1390, 101.6869, 8.0, CalculationMethod::MWL);
 
         // Fajr around 5-7
-        assert!(times.fajr.0 >= 5 && times.fajr.0 <= 7, "Fajr hour: {}", times.fajr.0);
+        assert!(
+            times.fajr.0 >= 5 && times.fajr.0 <= 7,
+            "Fajr hour: {}",
+            times.fajr.0
+        );
         // Dhuhr around 12-14
         assert!(
             times.dhuhr.0 >= 12 && times.dhuhr.0 <= 14,
@@ -283,7 +284,11 @@ mod tests {
         let times = calculate(date, 40.7128, -74.0060, -4.0, CalculationMethod::ISNA);
 
         // Fajr around 3-5 in summer
-        assert!(times.fajr.0 >= 3 && times.fajr.0 <= 5, "Fajr hour: {}", times.fajr.0);
+        assert!(
+            times.fajr.0 >= 3 && times.fajr.0 <= 5,
+            "Fajr hour: {}",
+            times.fajr.0
+        );
         assert!(times.is_ordered(), "Times not in order: {times:?}");
     }
 
@@ -314,11 +319,17 @@ mod tests {
 
             // Test with Makkah
             let times = calculate(date, 21.4225, 39.8262, 3.0, *method);
-            assert!(times.is_ordered(), "{method} Makkah times not in order: {times:?}");
+            assert!(
+                times.is_ordered(),
+                "{method} Makkah times not in order: {times:?}"
+            );
 
             // Test with London
             let times = calculate(date, 51.5074, -0.1278, 0.0, *method);
-            assert!(times.is_ordered(), "{method} London times not in order: {times:?}");
+            assert!(
+                times.is_ordered(),
+                "{method} London times not in order: {times:?}"
+            );
         }
     }
 
@@ -332,9 +343,18 @@ mod tests {
 
     #[test]
     fn test_from_str_loose() {
-        assert_eq!(CalculationMethod::from_str_loose("mwl"), Some(CalculationMethod::MWL));
-        assert_eq!(CalculationMethod::from_str_loose("MWL"), Some(CalculationMethod::MWL));
-        assert_eq!(CalculationMethod::from_str_loose("isna"), Some(CalculationMethod::ISNA));
+        assert_eq!(
+            CalculationMethod::from_str_loose("mwl"),
+            Some(CalculationMethod::MWL)
+        );
+        assert_eq!(
+            CalculationMethod::from_str_loose("MWL"),
+            Some(CalculationMethod::MWL)
+        );
+        assert_eq!(
+            CalculationMethod::from_str_loose("isna"),
+            Some(CalculationMethod::ISNA)
+        );
         assert_eq!(
             CalculationMethod::from_str_loose("egyptian"),
             Some(CalculationMethod::Egyptian)
@@ -355,7 +375,10 @@ mod tests {
             CalculationMethod::from_str_loose("makkah"),
             Some(CalculationMethod::UmmAlQura)
         );
-        assert_eq!(CalculationMethod::from_str_loose("jakim"), Some(CalculationMethod::JAKIM));
+        assert_eq!(
+            CalculationMethod::from_str_loose("jakim"),
+            Some(CalculationMethod::JAKIM)
+        );
         assert_eq!(CalculationMethod::from_str_loose("invalid"), None);
     }
 

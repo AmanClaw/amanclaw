@@ -5,9 +5,9 @@ use tokio::sync::mpsc;
 /// Events emitted by the dev file watcher.
 #[derive(Debug)]
 pub enum DevEvent {
-    PluginChanged(String),
-    SoulChanged(String),
-    ConfigChanged,
+    Plugin(String),
+    Soul(String),
+    Config,
 }
 
 /// Opaque guard that keeps the file watcher alive.
@@ -24,25 +24,24 @@ impl DevWatcher {
         let (tx, rx) = mpsc::channel(64);
         let config_path_buf = PathBuf::from(config_path).canonicalize().ok();
 
-        let mut watcher =
-            notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
-                let event = match res {
-                    Ok(e) => e,
-                    Err(_) => return,
-                };
+        let mut watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
+            let event = match res {
+                Ok(e) => e,
+                Err(_) => return,
+            };
 
-                // Only care about create/modify/remove events
-                match event.kind {
-                    EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) => {}
-                    _ => return,
-                }
+            // Only care about create/modify/remove events
+            match event.kind {
+                EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) => {}
+                _ => return,
+            }
 
-                for path in &event.paths {
-                    if let Some(dev_event) = classify_path(path, config_path_buf.as_deref()) {
-                        let _ = tx.blocking_send(dev_event);
-                    }
+            for path in &event.paths {
+                if let Some(dev_event) = classify_path(path, config_path_buf.as_deref()) {
+                    let _ = tx.blocking_send(dev_event);
                 }
-            })?;
+            }
+        })?;
 
         // Watch plugins/ directory if it exists
         let plugins_dir = PathBuf::from("plugins");
@@ -81,14 +80,14 @@ fn classify_path(path: &Path, config_path: Option<&Path>) -> Option<DevEvent> {
     if let Some(cfg) = config_path {
         if let Ok(canonical) = path.canonicalize() {
             if canonical == cfg {
-                return Some(DevEvent::ConfigChanged);
+                return Some(DevEvent::Config);
             }
         }
     }
     // Fallback: check by filename
     let file_name = path.file_name()?.to_string_lossy();
     if file_name == "config.yaml" || file_name == "config.yml" {
-        return Some(DevEvent::ConfigChanged);
+        return Some(DevEvent::Config);
     }
 
     // Check extension for plugin files
@@ -96,12 +95,12 @@ fn classify_path(path: &Path, config_path: Option<&Path>) -> Option<DevEvent> {
     match ext.as_ref() {
         "wasm" | "py" | "js" => {
             if path_str.contains("plugins") {
-                return Some(DevEvent::PluginChanged(path_str.into_owned()));
+                return Some(DevEvent::Plugin(path_str.into_owned()));
             }
         }
         "md" => {
             if path_str.contains("souls") {
-                return Some(DevEvent::SoulChanged(path_str.into_owned()));
+                return Some(DevEvent::Soul(path_str.into_owned()));
             }
         }
         _ => {}
@@ -138,23 +137,22 @@ mod tests {
         let (tx, mut rx) = mpsc::channel(64);
         let config_canon = config.canonicalize().ok();
 
-        let mut watcher =
-            notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
-                let event = match res {
-                    Ok(e) => e,
-                    Err(_) => return,
-                };
-                match event.kind {
-                    EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) => {}
-                    _ => return,
+        let mut watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
+            let event = match res {
+                Ok(e) => e,
+                Err(_) => return,
+            };
+            match event.kind {
+                EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) => {}
+                _ => return,
+            }
+            for path in &event.paths {
+                if let Some(dev_event) = classify_path(path, config_canon.as_deref()) {
+                    let _ = tx.blocking_send(dev_event);
                 }
-                for path in &event.paths {
-                    if let Some(dev_event) = classify_path(path, config_canon.as_deref()) {
-                        let _ = tx.blocking_send(dev_event);
-                    }
-                }
-            })
-            .unwrap();
+            }
+        })
+        .unwrap();
 
         watcher.watch(&plugins, RecursiveMode::Recursive).unwrap();
 
@@ -169,8 +167,8 @@ mod tests {
         assert!(event.is_ok(), "should receive an event");
         let event = event.unwrap().unwrap();
         assert!(
-            matches!(event, DevEvent::PluginChanged(ref p) if p.contains("test_plugin.py")),
-            "expected PluginChanged, got {:?}",
+            matches!(event, DevEvent::Plugin(ref p) if p.contains("test_plugin.py")),
+            "expected Plugin, got {:?}",
             event
         );
 
@@ -185,23 +183,22 @@ mod tests {
         let (tx, mut rx) = mpsc::channel(64);
         let config_canon = config.canonicalize().ok();
 
-        let mut watcher =
-            notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
-                let event = match res {
-                    Ok(e) => e,
-                    Err(_) => return,
-                };
-                match event.kind {
-                    EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) => {}
-                    _ => return,
+        let mut watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
+            let event = match res {
+                Ok(e) => e,
+                Err(_) => return,
+            };
+            match event.kind {
+                EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) => {}
+                _ => return,
+            }
+            for path in &event.paths {
+                if let Some(dev_event) = classify_path(path, config_canon.as_deref()) {
+                    let _ = tx.blocking_send(dev_event);
                 }
-                for path in &event.paths {
-                    if let Some(dev_event) = classify_path(path, config_canon.as_deref()) {
-                        let _ = tx.blocking_send(dev_event);
-                    }
-                }
-            })
-            .unwrap();
+            }
+        })
+        .unwrap();
 
         watcher.watch(&souls, RecursiveMode::Recursive).unwrap();
 
@@ -214,8 +211,8 @@ mod tests {
         assert!(event.is_ok(), "should receive an event");
         let event = event.unwrap().unwrap();
         assert!(
-            matches!(event, DevEvent::SoulChanged(ref p) if p.contains("default.md")),
-            "expected SoulChanged, got {:?}",
+            matches!(event, DevEvent::Soul(ref p) if p.contains("default.md")),
+            "expected Soul, got {:?}",
             event
         );
 
@@ -226,21 +223,21 @@ mod tests {
     fn test_classify_path_plugin() {
         let path = PathBuf::from("/some/project/plugins/my_plugin.py");
         let result = classify_path(&path, None);
-        assert!(matches!(result, Some(DevEvent::PluginChanged(_))));
+        assert!(matches!(result, Some(DevEvent::Plugin(_))));
     }
 
     #[test]
     fn test_classify_path_soul() {
         let path = PathBuf::from("/some/project/souls/default.md");
         let result = classify_path(&path, None);
-        assert!(matches!(result, Some(DevEvent::SoulChanged(_))));
+        assert!(matches!(result, Some(DevEvent::Soul(_))));
     }
 
     #[test]
     fn test_classify_path_config() {
         let path = PathBuf::from("/some/project/config.yaml");
         let result = classify_path(&path, None);
-        assert!(matches!(result, Some(DevEvent::ConfigChanged)));
+        assert!(matches!(result, Some(DevEvent::Config)));
     }
 
     #[test]

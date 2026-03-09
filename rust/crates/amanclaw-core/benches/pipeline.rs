@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 
 use amanclaw_core::diagnostics::run_startup_diagnostics;
 use amanclaw_traits::config::AppConfig;

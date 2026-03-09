@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 
 const CARGO_TOML: &str = "Cargo.toml";
@@ -10,7 +10,7 @@ pub fn scaffold_skill(name: &str, lang: &str, output_dir: Option<&str>) -> Resul
     match lang {
         "rust" => scaffold_rust_skill(name, output_dir),
         "python" => scaffold_python_skill(name, output_dir),
-        other => bail!("Unsupported language: {}. Use 'rust' or 'python'.", other),
+        other => bail!("Unsupported language: {other}. Use 'rust' or 'python'."),
     }
 }
 
@@ -208,8 +208,7 @@ pub fn scaffold_python_skill(name: &str, output_dir: Option<&str>) -> Result<Pat
 }
 
 fn write_file(path: &Path, content: &str) -> Result<()> {
-    std::fs::write(path, content)
-        .with_context(|| format!("Failed to write {}", path.display()))?;
+    std::fs::write(path, content).with_context(|| format!("Failed to write {}", path.display()))?;
     Ok(())
 }
 

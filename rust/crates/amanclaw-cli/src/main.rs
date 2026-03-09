@@ -109,13 +109,11 @@ async fn cmd_init() -> Result<()> {
     } else {
         let example = PathBuf::from("config.example.yaml");
         if example.exists() {
-            std::fs::copy(&example, &config_path)
-                .context("Failed to copy config.example.yaml")?;
+            std::fs::copy(&example, &config_path).context("Failed to copy config.example.yaml")?;
             println!("  Created config.yaml from config.example.yaml");
         } else {
             let minimal = include_str!("../../../config_minimal.yaml");
-            std::fs::write(&config_path, minimal)
-                .context("Failed to write config.yaml")?;
+            std::fs::write(&config_path, minimal).context("Failed to write config.yaml")?;
             println!("  Created minimal config.yaml");
         }
     }
@@ -162,27 +160,29 @@ async fn cmd_dev(config_path: &str, watch: bool) -> Result<()> {
 
     if std::env::var("LLM_BASE_URL").is_err() {
         println!("Note: LLM_BASE_URL not set. Using echo mode.");
-        println!("      Set LLM_BASE_URL to connect to a real LLM (e.g., Ollama at http://localhost:11434/v1)");
+        println!(
+            "      Set LLM_BASE_URL to connect to a real LLM (e.g., Ollama at http://localhost:11434/v1)"
+        );
         println!();
     }
 
     // Keep _watcher alive for the duration of cmd_run by binding at this scope
     let _watcher_guard = if watch {
-        let watcher = dev_watcher::DevWatcher::new(config_path)
-            .context("Failed to start file watcher")?;
+        let watcher =
+            dev_watcher::DevWatcher::new(config_path).context("Failed to start file watcher")?;
         tracing::info!("Watch mode enabled — monitoring plugins/, souls/, and config for changes");
 
         let (guard, mut rx) = watcher.into_parts();
         tokio::spawn(async move {
             while let Some(event) = rx.recv().await {
                 match event {
-                    dev_watcher::DevEvent::PluginChanged(path) => {
+                    dev_watcher::DevEvent::Plugin(path) => {
                         tracing::info!(path = %path, "Plugin changed — reload triggered");
                     }
-                    dev_watcher::DevEvent::SoulChanged(path) => {
+                    dev_watcher::DevEvent::Soul(path) => {
                         tracing::info!(path = %path, "Soul changed — reload triggered");
                     }
-                    dev_watcher::DevEvent::ConfigChanged => {
+                    dev_watcher::DevEvent::Config => {
                         tracing::info!("Config changed — restart recommended");
                     }
                 }
@@ -232,9 +232,12 @@ fn cmd_check(config_path: &str) -> Result<()> {
 fn cmd_skill(action: SkillAction) -> Result<()> {
     match action {
         SkillAction::New { name, lang, output } => {
-            let project_dir =
-                scaffold::scaffold_skill(&name, &lang, output.as_deref())?;
-            println!("Created {} skill '{name}' at {}", lang, project_dir.display());
+            let project_dir = scaffold::scaffold_skill(&name, &lang, output.as_deref())?;
+            println!(
+                "Created {} skill '{name}' at {}",
+                lang,
+                project_dir.display()
+            );
             Ok(())
         }
         SkillAction::Test { name } => {

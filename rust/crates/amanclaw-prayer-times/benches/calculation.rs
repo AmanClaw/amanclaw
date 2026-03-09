@@ -1,6 +1,6 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
-use amanclaw_prayer_times::{calculate, CalculationMethod};
+use amanclaw_prayer_times::{CalculationMethod, calculate};
 use chrono::NaiveDate;
 
 fn bench_prayer_time_calculation(c: &mut Criterion) {
