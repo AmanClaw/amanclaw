@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la rust/crates/*/Cargo.toml)",
+      "Bash(ls -la Dockerfile* docker-compose*)",
+      "Bash(cargo --version)",
+      "Bash(rustc --version)",
+      "Bash(grep -r \"publish\\\\|repository\\\\|homepage\" rust/crates/*/Cargo.toml)"
+    ]
+  }
+}
