@@ -165,6 +165,7 @@ pub async fn start_engine(
         .map_err(|e| format!("Engine init failed: {}", e))?;
 
     // Grab handles from the start result
+    let engine_handle = result.handle.clone();
     let auth = result.auth.clone();
     let pool = result.pool.clone();
     let registry = result.registry.clone();
@@ -196,7 +197,8 @@ pub async fn start_engine(
         st.config = Some(cfg);
         st.started_at = Some(std::time::Instant::now());
         st.engine_handle = Some(EngineHandle {
-            abort_handle: join_handle.abort_handle(),
+            engine_handle,
+            join_handle,
             auth,
             pool,
             registry,
@@ -211,9 +213,13 @@ pub async fn start_engine(
 pub async fn stop_engine(
     state: State<'_, SharedState>,
 ) -> Result<(), String> {
-    let mut st = state.write().await;
-    if let Some(handle) = st.engine_handle.take() {
-        handle.abort_handle.abort();
+    let handle = {
+        let mut st = state.write().await;
+        st.engine_handle.take()
+    };
+    if let Some(handle) = handle {
+        handle.engine_handle.shutdown().await.map_err(|e| e.to_string())?;
+        let mut st = state.write().await;
         st.engine_status = EngineStatus::Stopped;
         st.started_at = None;
         Ok(())
@@ -229,9 +235,13 @@ pub async fn restart_engine(
 ) -> Result<(), String> {
     // Stop if running
     {
-        let mut st = state.write().await;
-        if let Some(handle) = st.engine_handle.take() {
-            handle.abort_handle.abort();
+        let handle = {
+            let mut st = state.write().await;
+            st.engine_handle.take()
+        };
+        if let Some(handle) = handle {
+            let _ = handle.engine_handle.shutdown().await;
+            let mut st = state.write().await;
             st.engine_status = EngineStatus::Stopped;
             st.started_at = None;
         }
@@ -249,9 +259,17 @@ pub async fn get_status(
     state: State<'_, SharedState>,
 ) -> Result<serde_json::Value, String> {
     let st = state.read().await;
+
+    // Prefer real-time status from core handle when available
+    let status: EngineStatus = if let Some(ref handle) = st.engine_handle {
+        handle.engine_handle.status().into()
+    } else {
+        st.engine_status.clone()
+    };
+
     let uptime_secs = st.started_at.map(|t| t.elapsed().as_secs()).unwrap_or(0);
 
-    let (status_str, error_msg) = match &st.engine_status {
+    let (status_str, error_msg) = match &status {
         EngineStatus::Stopped => ("stopped", None),
         EngineStatus::Starting => ("starting", None),
         EngineStatus::Running => ("running", None),
@@ -260,7 +278,7 @@ pub async fn get_status(
 
     Ok(serde_json::json!({
         "engine_status": status_str,
-        "bot_running": matches!(st.engine_status, EngineStatus::Running),
+        "bot_running": matches!(status, EngineStatus::Running),
         "mode": match &st.mode {
             AppMode::Local => "local",
             AppMode::Remote { .. } => "remote",

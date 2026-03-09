@@ -52,6 +52,7 @@ pub fn run() {
                         Ok(cfg) => {
                             match amanclaw_core::Engine::start(cfg.clone()).await {
                                 Ok(result) => {
+                                    let engine_handle = result.handle.clone();
                                     let auth = result.auth.clone();
                                     let pool = result.pool.clone();
                                     let registry = result.registry.clone();
@@ -78,7 +79,8 @@ pub fn run() {
                                     st.config = Some(cfg);
                                     st.started_at = Some(std::time::Instant::now());
                                     st.engine_handle = Some(state::EngineHandle {
-                                        abort_handle: join_handle.abort_handle(),
+                                        engine_handle,
+                                        join_handle,
                                         auth,
                                         pool,
                                         registry,
