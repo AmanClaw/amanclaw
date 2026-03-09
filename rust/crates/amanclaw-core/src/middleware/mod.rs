@@ -222,6 +222,7 @@ mod tests {
                 platform: None,
                 reply_to: None,
                 topic_id: None,
+                interactive: None,
             }))
         }
     }
@@ -255,6 +256,7 @@ mod tests {
                 platform: None,
                 reply_to: None,
                 topic_id: None,
+                interactive: None,
             }))
         }
     }

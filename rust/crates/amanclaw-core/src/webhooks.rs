@@ -94,6 +94,7 @@ impl WebhookRouter {
                             reply_to: None,
                             platform: Some(target.platform.clone()),
                             topic_id: target.topic_id.clone(),
+                            interactive: None,
                         }))
                         .await?;
                 }

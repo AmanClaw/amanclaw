@@ -1,7 +1,9 @@
 mod jakim;
 mod zones;
 
+use amanclaw_prayer_times::{CalculationMethod, PrayerTimes, calculate};
 use amanclaw_traits::skill::{Skill, SkillInput, SkillMetadata, SkillResult};
+use chrono::NaiveDate;
 
 pub struct SolatSkill;
 
@@ -22,12 +24,32 @@ impl Skill for SolatSkill {
             "properties": {
                 "zone": {
                     "type": "string",
-                    "description": "JAKIM zone code e.g. SGR01, WLY01, JHR02. If not provided, lists available states and zones."
+                    "description": "JAKIM zone code e.g. SGR01, WLY01, JHR02. Required for 'today' action."
                 },
                 "action": {
                     "type": "string",
-                    "enum": ["today", "list_zones", "list_states"],
+                    "enum": ["today", "list_zones", "list_states", "calculate", "list_methods"],
                     "description": "Action to perform. Default: today"
+                },
+                "latitude": {
+                    "type": "number",
+                    "description": "Latitude for 'calculate' action (positive = North)"
+                },
+                "longitude": {
+                    "type": "number",
+                    "description": "Longitude for 'calculate' action (positive = East)"
+                },
+                "timezone": {
+                    "type": "number",
+                    "description": "UTC offset in hours for 'calculate' action (e.g. 8 for Malaysia, -5 for US East)"
+                },
+                "method": {
+                    "type": "string",
+                    "description": "Calculation method for 'calculate' action: MWL, ISNA, Egyptian, Karachi, UmmAlQura, JAKIM"
+                },
+                "date": {
+                    "type": "string",
+                    "description": "Date in YYYY-MM-DD format for 'calculate' action. Defaults to today."
                 }
             },
             "required": []
@@ -80,6 +102,96 @@ impl Skill for SolatSkill {
                     } else {
                         list.join("\n")
                     },
+                    error: None,
+                }
+            }
+            "list_methods" => {
+                let methods: Vec<String> = CalculationMethod::all()
+                    .iter()
+                    .map(|m| format!("{m} — {}", m.display_name()))
+                    .collect();
+                SkillResult {
+                    success: true,
+                    output: format!(
+                        "Available prayer time calculation methods:\n{}",
+                        methods.join("\n")
+                    ),
+                    error: None,
+                }
+            }
+            "calculate" => {
+                let lat = match args.get("latitude").and_then(|v| v.as_f64()) {
+                    Some(v) => v,
+                    None => {
+                        return SkillResult {
+                            success: false,
+                            output: String::new(),
+                            error: Some("latitude is required for calculate action".into()),
+                        };
+                    }
+                };
+                let lon = match args.get("longitude").and_then(|v| v.as_f64()) {
+                    Some(v) => v,
+                    None => {
+                        return SkillResult {
+                            success: false,
+                            output: String::new(),
+                            error: Some("longitude is required for calculate action".into()),
+                        };
+                    }
+                };
+                let tz = args.get("timezone").and_then(|v| v.as_f64()).unwrap_or(0.0);
+
+                let method_str = args.get("method").and_then(|v| v.as_str()).unwrap_or("MWL");
+                let method = match CalculationMethod::from_str_loose(method_str) {
+                    Some(m) => m,
+                    None => {
+                        return SkillResult {
+                            success: false,
+                            output: String::new(),
+                            error: Some(format!(
+                                "Unknown method '{method_str}'. Use action=list_methods to see available methods."
+                            )),
+                        };
+                    }
+                };
+
+                let date = if let Some(ds) = args.get("date").and_then(|v| v.as_str()) {
+                    match NaiveDate::parse_from_str(ds, "%Y-%m-%d") {
+                        Ok(d) => d,
+                        Err(e) => {
+                            return SkillResult {
+                                success: false,
+                                output: String::new(),
+                                error: Some(format!(
+                                    "Invalid date '{ds}': {e}. Use YYYY-MM-DD format."
+                                )),
+                            };
+                        }
+                    }
+                } else {
+                    chrono::Local::now().date_naive()
+                };
+
+                let times = calculate(date, lat, lon, tz, method);
+                let output = format!(
+                    "Prayer Times ({}, {}):\nDate: {}\nCoordinates: {:.4}, {:.4} (UTC{:+.1})\n\nFajr:    {}\nSunrise: {}\nDhuhr:   {}\nAsr:     {}\nMaghrib: {}\nIsha:    {}",
+                    method,
+                    method.display_name(),
+                    date,
+                    lat,
+                    lon,
+                    tz,
+                    PrayerTimes::format_time(times.fajr),
+                    PrayerTimes::format_time(times.sunrise),
+                    PrayerTimes::format_time(times.dhuhr),
+                    PrayerTimes::format_time(times.asr),
+                    PrayerTimes::format_time(times.maghrib),
+                    PrayerTimes::format_time(times.isha),
+                );
+                SkillResult {
+                    success: true,
+                    output,
                     error: None,
                 }
             }

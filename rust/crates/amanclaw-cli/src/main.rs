@@ -1,8 +1,11 @@
 mod cli;
+mod dev_watcher;
+mod playground;
+mod scaffold;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use cli::{Cli, Command};
+use cli::{Cli, Command, SkillAction};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing_subscriber::EnvFilter;
@@ -18,8 +21,10 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Some(Command::Init) => cmd_init().await,
-        Some(Command::Dev) => cmd_dev(&cli.config).await,
+        Some(Command::Dev { watch }) => cmd_dev(&cli.config, watch).await,
         Some(Command::Check) => cmd_check(&cli.config),
+        Some(Command::Skill { action }) => cmd_skill(action),
+        Some(Command::Playground { port }) => playground::run_playground(port).await,
         Some(Command::Run) | None => cmd_run(&cli.config).await,
     }
 }
@@ -104,13 +109,11 @@ async fn cmd_init() -> Result<()> {
     } else {
         let example = PathBuf::from("config.example.yaml");
         if example.exists() {
-            std::fs::copy(&example, &config_path)
-                .context("Failed to copy config.example.yaml")?;
+            std::fs::copy(&example, &config_path).context("Failed to copy config.example.yaml")?;
             println!("  Created config.yaml from config.example.yaml");
         } else {
             let minimal = include_str!("../../../config_minimal.yaml");
-            std::fs::write(&config_path, minimal)
-                .context("Failed to write config.yaml")?;
+            std::fs::write(&config_path, minimal).context("Failed to write config.yaml")?;
             println!("  Created minimal config.yaml");
         }
     }
@@ -150,16 +153,45 @@ async fn cmd_init() -> Result<()> {
     Ok(())
 }
 
-async fn cmd_dev(config_path: &str) -> Result<()> {
+async fn cmd_dev(config_path: &str, watch: bool) -> Result<()> {
     println!("Starting AmanClaw in development mode...");
     println!("Using mock LLM — no API key required");
     println!();
 
     if std::env::var("LLM_BASE_URL").is_err() {
         println!("Note: LLM_BASE_URL not set. Using echo mode.");
-        println!("      Set LLM_BASE_URL to connect to a real LLM (e.g., Ollama at http://localhost:11434/v1)");
+        println!(
+            "      Set LLM_BASE_URL to connect to a real LLM (e.g., Ollama at http://localhost:11434/v1)"
+        );
         println!();
     }
+
+    // Keep _watcher alive for the duration of cmd_run by binding at this scope
+    let _watcher_guard = if watch {
+        let watcher =
+            dev_watcher::DevWatcher::new(config_path).context("Failed to start file watcher")?;
+        tracing::info!("Watch mode enabled — monitoring plugins/, souls/, and config for changes");
+
+        let (guard, mut rx) = watcher.into_parts();
+        tokio::spawn(async move {
+            while let Some(event) = rx.recv().await {
+                match event {
+                    dev_watcher::DevEvent::Plugin(path) => {
+                        tracing::info!(path = %path, "Plugin changed — reload triggered");
+                    }
+                    dev_watcher::DevEvent::Soul(path) => {
+                        tracing::info!(path = %path, "Soul changed — reload triggered");
+                    }
+                    dev_watcher::DevEvent::Config => {
+                        tracing::info!("Config changed — restart recommended");
+                    }
+                }
+            }
+        });
+        Some(guard)
+    } else {
+        None
+    };
 
     cmd_run(config_path).await
 }
@@ -193,6 +225,39 @@ fn cmd_check(config_path: &str) -> Result<()> {
             println!("Config invalid: {}", config_path.display());
             println!("  Error: {e}");
             std::process::exit(1);
+        }
+    }
+}
+
+fn cmd_skill(action: SkillAction) -> Result<()> {
+    match action {
+        SkillAction::New { name, lang, output } => {
+            let project_dir = scaffold::scaffold_skill(&name, &lang, output.as_deref())?;
+            println!(
+                "Created {} skill '{name}' at {}",
+                lang,
+                project_dir.display()
+            );
+            Ok(())
+        }
+        SkillAction::Test { name } => {
+            let skill_dir = PathBuf::from(format!("skill-{name}"));
+            if !skill_dir.exists() {
+                anyhow::bail!(
+                    "Skill directory '{}' not found. Run from the parent directory.",
+                    skill_dir.display()
+                );
+            }
+            println!("Running tests for skill '{name}'...");
+            let status = std::process::Command::new("cargo")
+                .arg("test")
+                .current_dir(&skill_dir)
+                .status()
+                .context("Failed to run cargo test")?;
+            if !status.success() {
+                anyhow::bail!("Tests failed for skill '{name}'");
+            }
+            Ok(())
         }
     }
 }
