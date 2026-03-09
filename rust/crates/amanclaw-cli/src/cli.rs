@@ -21,6 +21,33 @@ pub enum Command {
     Dev,
     /// Validate config file
     Check,
+    /// Manage skills (scaffold, test)
+    Skill {
+        #[command(subcommand)]
+        action: SkillAction,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum SkillAction {
+    /// Create a new skill from template
+    New {
+        /// Skill name (e.g. "my-skill")
+        name: String,
+
+        /// Language: "rust" or "python"
+        #[arg(short, long, default_value = "rust")]
+        lang: String,
+
+        /// Output directory (defaults to current directory)
+        #[arg(short, long)]
+        output: Option<String>,
+    },
+    /// Run tests for a skill
+    Test {
+        /// Skill name or directory
+        name: String,
+    },
 }
 
 #[cfg(test)]
@@ -63,5 +90,64 @@ mod tests {
     fn test_cli_custom_config() {
         let cli = Cli::parse_from(["amanclaw", "-c", "my-config.yaml"]);
         assert_eq!(cli.config, "my-config.yaml");
+    }
+
+    #[test]
+    fn test_cli_skill_new_rust_default() {
+        let cli = Cli::parse_from(["amanclaw", "skill", "new", "my-skill"]);
+        match cli.command {
+            Some(Command::Skill {
+                action: SkillAction::New { name, lang, output },
+            }) => {
+                assert_eq!(name, "my-skill");
+                assert_eq!(lang, "rust");
+                assert!(output.is_none());
+            }
+            _ => panic!("expected Skill New command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_skill_new_python() {
+        let cli =
+            Cli::parse_from(["amanclaw", "skill", "new", "my-skill", "--lang", "python"]);
+        match cli.command {
+            Some(Command::Skill {
+                action: SkillAction::New { name, lang, output },
+            }) => {
+                assert_eq!(name, "my-skill");
+                assert_eq!(lang, "python");
+                assert!(output.is_none());
+            }
+            _ => panic!("expected Skill New command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_skill_new_with_output() {
+        let cli = Cli::parse_from([
+            "amanclaw", "skill", "new", "my-skill", "--output", "/tmp/skills",
+        ]);
+        match cli.command {
+            Some(Command::Skill {
+                action: SkillAction::New { output, .. },
+            }) => {
+                assert_eq!(output.as_deref(), Some("/tmp/skills"));
+            }
+            _ => panic!("expected Skill New command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_skill_test() {
+        let cli = Cli::parse_from(["amanclaw", "skill", "test", "my-skill"]);
+        match cli.command {
+            Some(Command::Skill {
+                action: SkillAction::Test { name },
+            }) => {
+                assert_eq!(name, "my-skill");
+            }
+            _ => panic!("expected Skill Test command"),
+        }
     }
 }

@@ -19,3 +19,6 @@ anyhow = { workspace = true }
 clap.workspace = true
 dotenvy = "0.15"
 metrics-exporter-prometheus = "0.16"
+
+[dev-dependencies]
+tempfile = "3"

@@ -1,8 +1,9 @@
 mod cli;
+mod scaffold;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use cli::{Cli, Command};
+use cli::{Cli, Command, SkillAction};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing_subscriber::EnvFilter;
@@ -20,6 +21,7 @@ async fn main() -> Result<()> {
         Some(Command::Init) => cmd_init().await,
         Some(Command::Dev) => cmd_dev(&cli.config).await,
         Some(Command::Check) => cmd_check(&cli.config),
+        Some(Command::Skill { action }) => cmd_skill(action),
         Some(Command::Run) | None => cmd_run(&cli.config).await,
     }
 }
@@ -193,6 +195,36 @@ fn cmd_check(config_path: &str) -> Result<()> {
             println!("Config invalid: {}", config_path.display());
             println!("  Error: {e}");
             std::process::exit(1);
+        }
+    }
+}
+
+fn cmd_skill(action: SkillAction) -> Result<()> {
+    match action {
+        SkillAction::New { name, lang, output } => {
+            let project_dir =
+                scaffold::scaffold_skill(&name, &lang, output.as_deref())?;
+            println!("Created {} skill '{name}' at {}", lang, project_dir.display());
+            Ok(())
+        }
+        SkillAction::Test { name } => {
+            let skill_dir = PathBuf::from(format!("skill-{name}"));
+            if !skill_dir.exists() {
+                anyhow::bail!(
+                    "Skill directory '{}' not found. Run from the parent directory.",
+                    skill_dir.display()
+                );
+            }
+            println!("Running tests for skill '{name}'...");
+            let status = std::process::Command::new("cargo")
+                .arg("test")
+                .current_dir(&skill_dir)
+                .status()
+                .context("Failed to run cargo test")?;
+            if !status.success() {
+                anyhow::bail!("Tests failed for skill '{name}'");
+            }
+            Ok(())
         }
     }
 }
