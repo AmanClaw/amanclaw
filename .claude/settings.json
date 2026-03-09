@@ -56,7 +56,15 @@
       "Bash(git log --oneline feature/surpass-openclaw-phase2 --not main)",
       "Bash(git merge --no-ff feature/surpass-openclaw-phase2 -m \"feat: implement Phase 2 — DX + Differentiators \\(skill scaffolding, prayer times, WhatsApp interactive, playground, live reload, benchmarks\\)\")",
       "Bash(git worktree remove .worktrees/surpass-openclaw-phase1)",
-      "Bash(git worktree remove .worktrees/surpass-openclaw-phase2)"
+      "Bash(git worktree remove .worktrees/surpass-openclaw-phase2)",
+      "Bash(git worktree add .worktrees/surpass-openclaw-phase3 -b feature/surpass-openclaw-phase3)",
+      "Bash(git add docs/plans/2026-03-09-amanclaw-surpass-openclaw-phase3-impl.md)",
+      "Bash(cargo test -p amanclaw-skill-index)",
+      "Bash(git add souls/)",
+      "Bash(git add rust/crates/amanclaw-cli/src/scaffold.rs)",
+      "Bash(cargo clippy --workspace)",
+      "Bash(git worktree remove .worktrees/surpass-openclaw-phase3)",
+      "Bash(git branch -d feature/surpass-openclaw-phase3)"
     ]
   }
 }
