@@ -378,6 +378,7 @@ impl Engine {
         mut sched_rx: mpsc::Receiver<crate::scheduler::SchedulerEvent>,
     ) -> Result<()> {
         let semaphore = Arc::new(Semaphore::new(32));
+        let mut join_set = tokio::task::JoinSet::<()>::new();
         let mut messages_processed: u64 = 0;
         let started_at = Instant::now();
 
@@ -398,10 +399,10 @@ impl Engine {
                                 started_at,
                                 messages_processed,
                             });
-                            self.spawn_process_message(msg, &semaphore).await;
+                            self.spawn_process_message(msg, &semaphore, &mut join_set);
                         }
                         EngineCommand::SchedulerEvent(event) => {
-                            self.handle_scheduler_event(event, &semaphore).await;
+                            self.handle_scheduler_event(event, &semaphore, &mut join_set);
                         }
                         EngineCommand::GetStatus(reply) => {
                             let _ = reply.send(EngineStatus::Running {
@@ -413,10 +414,24 @@ impl Engine {
                             let _ = reply.send(self.registry.list_skill_metadata());
                         }
                         EngineCommand::Shutdown(reply) => {
-                            tracing::info!("Shutdown command received");
+                            tracing::info!("Engine shutdown requested");
                             let _ = status_tx.send(EngineStatus::Stopped);
+                            // Wait for in-flight tasks (with timeout)
+                            let deadline = tokio::time::sleep(std::time::Duration::from_secs(30));
+                            tokio::pin!(deadline);
+                            loop {
+                                tokio::select! {
+                                    result = join_set.join_next() => {
+                                        if result.is_none() { break; } // all done
+                                    }
+                                    _ = &mut deadline => {
+                                        tracing::warn!("Shutdown timeout, {} tasks still running", join_set.len());
+                                        break;
+                                    }
+                                }
+                            }
                             let _ = reply.send(());
-                            break;
+                            return Ok(());
                         }
                     }
                 }
@@ -426,10 +441,10 @@ impl Engine {
                         started_at,
                         messages_processed,
                     });
-                    self.spawn_process_message(msg, &semaphore).await;
+                    self.spawn_process_message(msg, &semaphore, &mut join_set);
                 }
                 Some(event) = sched_rx.recv() => {
-                    self.handle_scheduler_event(event, &semaphore).await;
+                    self.handle_scheduler_event(event, &semaphore, &mut join_set);
                 }
                 else => break,
             }
@@ -440,16 +455,15 @@ impl Engine {
     }
 
     /// Spawn a task to process an incoming message with concurrency control.
-    async fn spawn_process_message(&self, msg: IncomingMessage, semaphore: &Arc<Semaphore>) {
-        let permit = semaphore.clone().acquire_owned().await;
-        let Ok(permit) = permit else { return };
-
+    fn spawn_process_message(&self, msg: IncomingMessage, semaphore: &Arc<Semaphore>, join_set: &mut tokio::task::JoinSet<()>) {
+        let semaphore = semaphore.clone();
         let pipeline = self.pipeline.clone();
         let registry = self.registry.clone();
         let agent_router = self.agent_router.clone();
         let channels = self.channels.clone();
 
-        tokio::spawn(async move {
+        join_set.spawn(async move {
+            let _permit = semaphore.acquire_owned().await.unwrap();
             let platform = msg.platform.clone();
             let profile = agent_router.resolve(&msg);
             tracing::debug!(agent = %profile.id, "Routed to agent");
@@ -460,31 +474,33 @@ impl Engine {
                 Ok(None) => {}
                 Err(e) => tracing::error!(error = %e, "Pipeline error"),
             }
-            drop(permit);
         });
     }
 
     /// Handle a scheduler event with concurrency control.
-    async fn handle_scheduler_event(
+    fn handle_scheduler_event(
         &self,
         event: crate::scheduler::SchedulerEvent,
         semaphore: &Arc<Semaphore>,
+        join_set: &mut tokio::task::JoinSet<()>,
     ) {
         match event {
             crate::scheduler::SchedulerEvent::SendMessage(response) => {
-                let platform = response.platform.clone().unwrap_or_default();
-                Self::send_to_channel(&self.channels, &platform, response).await;
+                let channels = self.channels.clone();
+                join_set.spawn(async move {
+                    let platform = response.platform.clone().unwrap_or_default();
+                    Self::send_to_channel(&channels, &platform, response).await;
+                });
             }
             crate::scheduler::SchedulerEvent::InjectMessage(msg) => {
-                let permit = semaphore.clone().acquire_owned().await;
-                let Ok(permit) = permit else { return };
-
+                let semaphore = semaphore.clone();
                 let pipeline = self.pipeline.clone();
                 let registry = self.registry.clone();
                 let agent_router = self.agent_router.clone();
                 let channels = self.channels.clone();
 
-                tokio::spawn(async move {
+                join_set.spawn(async move {
+                    let _permit = semaphore.acquire_owned().await.unwrap();
                     let platform = msg.platform.clone();
                     let profile = agent_router.resolve(&msg);
                     match pipeline.process(msg, &registry, &profile).await {
@@ -494,7 +510,6 @@ impl Engine {
                         Ok(None) => {}
                         Err(e) => tracing::error!(error = %e, "Cron pipeline error"),
                     }
-                    drop(permit);
                 });
             }
         }
