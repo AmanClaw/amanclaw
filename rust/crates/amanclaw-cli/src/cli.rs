@@ -30,6 +30,12 @@ pub enum Command {
         #[command(subcommand)]
         action: SkillAction,
     },
+    /// Open interactive web playground
+    Playground {
+        /// Port for playground server
+        #[arg(short, long, default_value = "3000")]
+        port: u16,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -146,6 +152,24 @@ mod tests {
             }
             _ => panic!("expected Skill New command"),
         }
+    }
+
+    #[test]
+    fn test_cli_playground() {
+        let cli = Cli::parse_from(["amanclaw", "playground", "--port", "4000"]);
+        assert!(matches!(
+            cli.command,
+            Some(Command::Playground { port: 4000 })
+        ));
+    }
+
+    #[test]
+    fn test_cli_playground_default_port() {
+        let cli = Cli::parse_from(["amanclaw", "playground"]);
+        assert!(matches!(
+            cli.command,
+            Some(Command::Playground { port: 3000 })
+        ));
     }
 
     #[test]

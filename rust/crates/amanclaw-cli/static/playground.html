@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AmanClaw Playground</title>
+<style>
+  :root {
+    --bg: #1a1b26; --surface: #24283b; --border: #3b4261;
+    --text: #c0caf5; --text-dim: #565f89; --accent: #7aa2f7;
+    --accent-hover: #89b4fa; --user-bg: #3d59a1; --bot-bg: #2f334d;
+    --input-bg: #1f2335; --radius: 8px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg); color: var(--text); height: 100vh;
+    display: grid; grid-template-columns: 240px 1fr; grid-template-rows: 56px 1fr; }
+  header { grid-column: 1 / -1; background: var(--surface); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 20px; gap: 12px; }
+  header h1 { font-size: 18px; font-weight: 600; }
+  header span { font-size: 12px; color: var(--text-dim); background: var(--bg);
+    padding: 2px 8px; border-radius: 4px; }
+  aside { background: var(--surface); border-right: 1px solid var(--border);
+    padding: 16px; overflow-y: auto; }
+  aside h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--text-dim); margin-bottom: 12px; }
+  .skill { padding: 8px 10px; border-radius: var(--radius); cursor: pointer;
+    margin-bottom: 4px; transition: background 0.15s; }
+  .skill:hover { background: var(--bg); }
+  .skill-name { font-size: 14px; font-weight: 500; }
+  .skill-desc { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  main { display: flex; flex-direction: column; }
+  #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex;
+    flex-direction: column; gap: 12px; }
+  .msg { max-width: 75%; padding: 10px 14px; border-radius: var(--radius);
+    font-size: 14px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+  .msg.user { align-self: flex-end; background: var(--user-bg); }
+  .msg.bot { align-self: flex-start; background: var(--bot-bg); }
+  .empty-state { flex: 1; display: flex; align-items: center; justify-content: center;
+    color: var(--text-dim); font-size: 15px; }
+  #input-bar { padding: 16px 20px; border-top: 1px solid var(--border);
+    display: flex; gap: 10px; }
+  #input-bar input { flex: 1; background: var(--input-bg); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 10px 14px; color: var(--text);
+    font-size: 14px; outline: none; }
+  #input-bar input:focus { border-color: var(--accent); }
+  #input-bar button { background: var(--accent); color: #1a1b26; border: none;
+    border-radius: var(--radius); padding: 10px 20px; font-weight: 600;
+    cursor: pointer; font-size: 14px; transition: background 0.15s; }
+  #input-bar button:hover { background: var(--accent-hover); }
+  #input-bar button:disabled { opacity: 0.5; cursor: not-allowed; }
+  @media (max-width: 640px) {
+    body { grid-template-columns: 1fr; }
+    aside { display: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>AmanClaw Playground</h1>
+  <span id="version">loading...</span>
+</header>
+<aside>
+  <h2>Skills</h2>
+  <div id="skills"></div>
+</aside>
+<main>
+  <div id="messages"><div class="empty-state">Send a message to get started</div></div>
+  <div id="input-bar">
+    <input id="msg" type="text" placeholder="Type a message..." autocomplete="off">
+    <button id="send">Send</button>
+  </div>
+</main>
+<script>
+(function() {
+  var msgs = document.getElementById('messages');
+  var input = document.getElementById('msg');
+  var btn = document.getElementById('send');
+  var skillsEl = document.getElementById('skills');
+
+  function createSkillEl(s) {
+    var div = document.createElement('div');
+    div.className = 'skill';
+    div.addEventListener('click', function() {
+      input.value = '/' + s.name + ' ';
+      input.focus();
+    });
+    var nameEl = document.createElement('div');
+    nameEl.className = 'skill-name';
+    nameEl.textContent = s.name;
+    var descEl = document.createElement('div');
+    descEl.className = 'skill-desc';
+    descEl.textContent = s.description;
+    div.appendChild(nameEl);
+    div.appendChild(descEl);
+    return div;
+  }
+
+  fetch('/api/skills').then(function(r) { return r.json(); }).then(function(skills) {
+    skills.forEach(function(s) {
+      skillsEl.appendChild(createSkillEl(s));
+    });
+    document.getElementById('version').textContent = skills.length + ' skills';
+  }).catch(function() {
+    document.getElementById('version').textContent = 'offline';
+  });
+
+  function addMsg(text, cls) {
+    var empty = msgs.querySelector('.empty-state');
+    if (empty) empty.remove();
+    var d = document.createElement('div');
+    d.className = 'msg ' + cls;
+    d.textContent = text;
+    msgs.appendChild(d);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  async function send() {
+    var text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    addMsg(text, 'user');
+    btn.disabled = true;
+    try {
+      var r = await fetch('/api/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text })
+      });
+      var data = await r.json();
+      addMsg(data.reply, 'bot');
+    } catch (e) {
+      addMsg('Error: ' + e.message, 'bot');
+    }
+    btn.disabled = false;
+    input.focus();
+  }
+
+  btn.addEventListener('click', send);
+  input.addEventListener('keydown', function(e) { if (e.key === 'Enter') send(); });
+})();
+</script>
+</body>
+</html>

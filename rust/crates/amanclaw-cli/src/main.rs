@@ -1,5 +1,6 @@
 mod cli;
 mod dev_watcher;
+mod playground;
 mod scaffold;
 
 use anyhow::{Context, Result};
@@ -23,6 +24,7 @@ async fn main() -> Result<()> {
         Some(Command::Dev { watch }) => cmd_dev(&cli.config, watch).await,
         Some(Command::Check) => cmd_check(&cli.config),
         Some(Command::Skill { action }) => cmd_skill(action),
+        Some(Command::Playground { port }) => playground::run_playground(port).await,
         Some(Command::Run) | None => cmd_run(&cli.config).await,
     }
 }
