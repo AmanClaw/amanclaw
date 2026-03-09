@@ -28,6 +28,7 @@ members = [
     "plugins/skill-solat",
     "plugins/skill-doa",
     "plugins/skill-quran",
+    "crates/amanclaw-skill-index",
 ]
 
 [workspace.package]
@@ -49,3 +50,4 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 thiserror = "2"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
+reqwest = { version = "0.12", features = ["json"] }
