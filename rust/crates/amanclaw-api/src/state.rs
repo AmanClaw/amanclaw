@@ -13,6 +13,7 @@ pub struct ApiState {
     pub bot_status: Arc<RwLock<BotStatus>>,
     pub auth: Arc<Mutex<Auth>>,
     pub webhook_router: Option<Arc<WebhookRouter>>,
+    pub gateway: Option<Arc<amanclaw_gateway::GatewayState>>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]

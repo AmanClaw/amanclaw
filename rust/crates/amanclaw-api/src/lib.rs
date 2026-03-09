@@ -2,7 +2,13 @@ pub mod auth;
 pub mod routes;
 pub mod state;
 
-use axum::{middleware, routing::{get, post, put, delete}, Router};
+use axum::{
+    middleware,
+    routing::{get, post, put, delete},
+    Router,
+    extract::{State, ws::{WebSocket, WebSocketUpgrade}},
+    response::IntoResponse,
+};
 use state::ApiState;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
@@ -26,13 +32,63 @@ pub fn api_router(state: ApiState) -> Router {
     // Webhook receiver — no auth middleware (uses its own auth)
     let webhook_routes = Router::new()
         .route("/hooks/{webhook_id}", post(routes::webhooks::receive_webhook))
+        .with_state(state.clone());
+
+    // WebSocket gateway — no auth middleware (uses JSON-RPC auth)
+    let ws_routes = Router::new()
+        .route("/ws", get(ws_upgrade))
         .with_state(state);
 
     Router::new()
         .merge(authed)
         .merge(webhook_routes)
+        .merge(ws_routes)
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
+}
+
+async fn ws_upgrade(
+    ws: WebSocketUpgrade,
+    State(state): State<ApiState>,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_ws(socket, state))
+}
+
+async fn handle_ws(mut socket: WebSocket, state: ApiState) {
+    use futures::StreamExt;
+
+    let gateway = match &state.gateway {
+        Some(g) => g.clone(),
+        None => {
+            tracing::warn!("WebSocket connection rejected: gateway not enabled");
+            return;
+        }
+    };
+
+    let session_id = gateway.session_manager.connect().await;
+    tracing::info!(session_id = %session_id, "WebSocket connected");
+
+    while let Some(Ok(msg)) = socket.next().await {
+        match msg {
+            axum::extract::ws::Message::Text(text) => {
+                let request: amanclaw_gateway::protocol::JsonRpcRequest = match serde_json::from_str(&text) {
+                    Ok(r) => r,
+                    Err(_) => continue,
+                };
+                let response = gateway.handler.dispatch(&request, &session_id).await;
+                if let Ok(json) = serde_json::to_string(&response) {
+                    if socket.send(axum::extract::ws::Message::Text(json.into())).await.is_err() {
+                        break;
+                    }
+                }
+            }
+            axum::extract::ws::Message::Close(_) => break,
+            _ => {}
+        }
+    }
+
+    gateway.session_manager.disconnect(&session_id).await;
+    tracing::info!(session_id = %session_id, "WebSocket disconnected");
 }
 
 pub async fn run_api_server(state: ApiState, port: u16) -> anyhow::Result<()> {

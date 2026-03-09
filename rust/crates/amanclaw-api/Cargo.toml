@@ -8,7 +8,8 @@ amanclaw-traits = { path = "../amanclaw-traits" }
 amanclaw-memory = { path = "../amanclaw-memory" }
 amanclaw-core = { path = "../amanclaw-core" }
 amanclaw-security = { path = "../amanclaw-security" }
-axum = { version = "0.8", features = ["json"] }
+amanclaw-gateway = { path = "../amanclaw-gateway" }
+axum = { version = "0.8", features = ["json", "ws"] }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -18,6 +19,7 @@ chrono = "0.4"
 uuid = { version = "1", features = ["v4"] }
 anyhow = { workspace = true }
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
+futures = "0.3"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }

@@ -81,6 +81,7 @@ async fn main() -> Result<()> {
                 )),
                 auth: engine.auth().clone(),
                 webhook_router: None,
+                gateway: None,
             };
             tokio::spawn(async move {
                 if let Err(e) = amanclaw_api::run_api_server(api_state, port).await {
