@@ -1,0 +1,20 @@
+app = "communitybot"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  LLM_BASE_URL = "http://localhost:11434/v1"
+  LLM_MODEL = "llama3"
+
+[http_service]
+  internal_port = 8443
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

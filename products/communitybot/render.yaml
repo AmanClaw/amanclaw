@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: communitybot
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    envVars:
+      - key: LLM_BASE_URL
+        value: http://localhost:11434/v1
+      - key: LLM_MODEL
+        value: llama3
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
