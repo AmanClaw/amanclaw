@@ -3,6 +3,7 @@ use amanclaw_core::webhooks::WebhookRouter;
 use amanclaw_security::auth::Auth;
 use sqlx::SqlitePool;
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::RwLock;
 
 #[derive(Clone)]
@@ -17,6 +18,7 @@ pub struct ApiState {
     pub metrics_handle: Option<metrics_exporter_prometheus::PrometheusHandle>,
     pub admin_password: Option<String>,
     pub jwt_secret: String,
+    pub started_at: Instant,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]

@@ -87,6 +87,7 @@ async fn cmd_run(config_path: &str) -> Result<()> {
                         .collect();
                     secret
                 }),
+                started_at: std::time::Instant::now(),
             };
             tokio::spawn(async move {
                 if let Err(e) = amanclaw_api::run_api_server(api_state, port).await {
