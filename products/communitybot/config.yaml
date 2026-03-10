@@ -1,0 +1,28 @@
+# CommunityBot — Pre-configured AmanClaw for community groups
+# Docs: https://github.com/AmanClaw/amanclaw/tree/main/products/communitybot
+
+llm:
+  base_url: "http://localhost:11434/v1"
+  model: "llama3"
+  max_tokens: 1024
+  temperature: 0.7
+
+admin_users:
+  telegram: []
+
+skills:
+  disabled: []
+
+memory:
+  db_path: "data/memory.db"
+
+agents:
+  - name: community
+    soul: "souls/community.md"
+
+learning:
+  enabled: true
+
+rate_limit:
+  max_messages_per_minute: 30
+  max_messages_per_hour: 300
