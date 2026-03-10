@@ -40,6 +40,11 @@ pub enum Command {
         #[arg(short, long, default_value = "3000")]
         port: u16,
     },
+    /// Manage product templates (pre-configured bot distributions)
+    Product {
+        #[command(subcommand)]
+        action: ProductAction,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -91,6 +96,20 @@ pub enum SkillAction {
         #[arg(default_value = ".")]
         path: String,
     },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ProductAction {
+    /// Create a new product from template
+    New {
+        /// Product template name (e.g. "communitybot")
+        template: String,
+        /// Output directory (defaults to "products")
+        #[arg(short, long)]
+        output: Option<String>,
+    },
+    /// List available product templates
+    List,
 }
 
 #[cfg(test)]
@@ -285,5 +304,35 @@ mod tests {
             }
             _ => panic!("expected Skill Test command"),
         }
+    }
+
+    #[test]
+    fn test_cli_product_new() {
+        let cli = Cli::parse_from(["amanclaw", "product", "new", "communitybot"]);
+        match cli.command {
+            Some(Command::Product { action: ProductAction::New { template, output } }) => {
+                assert_eq!(template, "communitybot");
+                assert!(output.is_none());
+            }
+            _ => panic!("expected Product New command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_product_new_with_output() {
+        let cli = Cli::parse_from(["amanclaw", "product", "new", "communitybot", "--output", "/tmp/bots"]);
+        match cli.command {
+            Some(Command::Product { action: ProductAction::New { template, output } }) => {
+                assert_eq!(template, "communitybot");
+                assert_eq!(output.as_deref(), Some("/tmp/bots"));
+            }
+            _ => panic!("expected Product New command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_product_list() {
+        let cli = Cli::parse_from(["amanclaw", "product", "list"]);
+        assert!(matches!(cli.command, Some(Command::Product { action: ProductAction::List })));
     }
 }
