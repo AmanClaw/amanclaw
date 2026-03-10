@@ -5,7 +5,7 @@ use reqwest::Client;
 use serde_json::Value;
 
 use crate::prompts::SYSTEM_PROMPT_BASE;
-use crate::tools::strip_thinking;
+use crate::tools::{parse_xml_tool_calls, strip_thinking};
 
 /// A tool call requested by the LLM.
 #[derive(Debug, Clone)]
@@ -129,15 +129,19 @@ impl LlmClient {
         let data = self.call_api(messages, tool_ref).await?;
         let message = &data["choices"][0]["message"];
 
-        // Check for tool calls first
+        // Check for JSON tool calls first (OpenAI format)
         if let Some(calls) = Self::parse_tool_calls(message) {
             return Ok(LlmResponse::ToolCalls(calls));
         }
 
-        // Otherwise extract text
-        let content = message["content"].as_str().unwrap_or("").to_string();
+        // Check for XML tool calls in content (Qwen and similar models)
+        let content = message["content"].as_str().unwrap_or("");
+        if let Some(calls) = parse_xml_tool_calls(content) {
+            tracing::info!(count = calls.len(), "Parsed XML-style tool calls from LLM text");
+            return Ok(LlmResponse::ToolCalls(calls));
+        }
 
-        Ok(LlmResponse::Text(strip_thinking(&content)))
+        Ok(LlmResponse::Text(strip_thinking(content)))
     }
 
     /// Get the raw assistant message value (for appending to conversation).
@@ -156,13 +160,35 @@ impl LlmClient {
         let data = self.call_api(messages, tool_ref).await?;
         let message = data["choices"][0]["message"].clone();
 
+        // Check for JSON tool calls first (OpenAI format)
         if let Some(calls) = Self::parse_tool_calls(&message) {
             return Ok((LlmResponse::ToolCalls(calls), message));
         }
 
-        let content = message["content"].as_str().unwrap_or("").to_string();
+        // Check for XML tool calls in content (Qwen and similar models)
+        let content = message["content"].as_str().unwrap_or("");
+        if let Some(calls) = parse_xml_tool_calls(content) {
+            tracing::info!(count = calls.len(), "Parsed XML-style tool calls from LLM text");
+            // Reconstruct the message as if it had proper tool_calls for conversation history
+            let tool_calls_json: Vec<Value> = calls.iter().map(|c| {
+                serde_json::json!({
+                    "id": c.id,
+                    "type": "function",
+                    "function": {
+                        "name": c.name,
+                        "arguments": c.arguments,
+                    }
+                })
+            }).collect();
+            let synthetic_message = serde_json::json!({
+                "role": "assistant",
+                "content": null,
+                "tool_calls": tool_calls_json,
+            });
+            return Ok((LlmResponse::ToolCalls(calls), synthetic_message));
+        }
 
-        Ok((LlmResponse::Text(strip_thinking(&content)), message))
+        Ok((LlmResponse::Text(strip_thinking(content)), message))
     }
 
     /// Simple respond: send message with history, get text back (no tool calling).
