@@ -1,13 +1,14 @@
 mod cli;
 mod dev_watcher;
 mod playground;
+mod product_scaffold;
 mod scaffold;
 mod skill_installer;
 mod skill_publisher;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use cli::{Cli, Command, SkillAction};
+use cli::{Cli, Command, ProductAction, SkillAction};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing_subscriber::EnvFilter;
@@ -27,6 +28,7 @@ async fn main() -> Result<()> {
         Some(Command::Check) => cmd_check(&cli.config),
         Some(Command::Skill { action }) => cmd_skill(action).await,
         Some(Command::Playground { port }) => playground::run_playground(port).await,
+        Some(Command::Product { action }) => cmd_product(action),
         Some(Command::Run) | None => cmd_run(&cli.config).await,
     }
 }
@@ -378,6 +380,31 @@ async fn cmd_skill(action: SkillAction) -> Result<()> {
             println!("  2. Create a release with .wasm or .py artifacts");
             println!("  3. Submit a PR to https://github.com/AmanClaw/skill-index");
             println!("     adding your skill entry to index.json");
+            Ok(())
+        }
+    }
+}
+
+fn cmd_product(action: ProductAction) -> Result<()> {
+    match action {
+        ProductAction::New { template, output } => {
+            let dir = product_scaffold::scaffold_product(&template, output.as_deref())?;
+            println!("Created product '{template}' at {}", dir.display());
+            println!();
+            println!("Next steps:");
+            println!("  1. cd {}", dir.display());
+            println!("  2. cp .env.example .env");
+            println!("  3. Edit .env with your bot token and LLM settings");
+            println!("  4. docker compose up -d");
+            Ok(())
+        }
+        ProductAction::List => {
+            let templates = product_scaffold::list_templates();
+            println!("Available product templates:\n");
+            for (name, desc) in &templates {
+                println!("  {name} — {desc}");
+            }
+            println!("\nCreate one: amanclaw product new <template>");
             Ok(())
         }
     }

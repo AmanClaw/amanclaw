@@ -35,6 +35,7 @@ One binary. One SQLite database. One config file. ~2MB RAM on a Raspberry Pi.
 
 ## Features
 
+- **Pre-built products** — CommunityBot: deploy a ready-made community assistant to Fly.io, Railway, or Render in 3 commands
 - **Blazing fast** — Rust async runtime, ~2MB memory footprint, instant startup
 - **Islamic community skills** — Prayer times (JAKIM + 6 global methods), Quran, Halal check, Zakat calculator, Qiblat, Hijri calendar, Doa & Zikir, Hadith, Masjid finder, Khutbah, JAKIM services
 - **Global prayer times** — Pure-Rust calculation engine supporting MWL, ISNA, Egyptian, Karachi, Umm al-Qura, and JAKIM methods — works offline, no API needed
@@ -236,6 +237,33 @@ souls/
 ```
 
 Each persona defines personality, capabilities, and guidelines. The LLM uses these to shape its responses.
+
+---
+
+## Specialized Products
+
+Pre-configured bot distributions — deploy without touching code.
+
+### CommunityBot
+
+A friendly AI assistant for community group chats. Multilingual, all skills enabled, ready to deploy.
+
+```bash
+# Deploy with Docker
+cd products/communitybot
+cp .env.example .env        # Add your bot token
+docker compose up -d
+
+# Or deploy to Fly.io
+fly launch
+fly secrets set TELEGRAM_BOT_TOKEN=your-token
+
+# Or scaffold a new product
+amanclaw product new communitybot
+amanclaw product list
+```
+
+See [products/communitybot/README.md](products/communitybot/README.md) for full setup guide.
 
 ---
 

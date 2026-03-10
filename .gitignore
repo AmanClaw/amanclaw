@@ -1,6 +1,8 @@
 # Secrets — NEVER commit these
 .env
 config.yaml
+# Allow product template configs
+!products/**/config.yaml
 
 # Rust
 rust/target/
