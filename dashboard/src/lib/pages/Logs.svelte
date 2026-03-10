@@ -47,7 +47,7 @@
     class="w-full max-w-md mb-4 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
   />
 
-  <div class="flex-1 bg-gray-900 rounded-xl p-4 overflow-auto font-mono text-xs text-gray-300 min-h-[400px]">
+  <div class="flex-1 bg-gray-900 rounded-xl p-4 overflow-auto font-mono text-xs text-gray-300 min-h-100">
     {#if loading}
       <p class="text-gray-500">Loading...</p>
     {:else if filteredLogs.length === 0}
