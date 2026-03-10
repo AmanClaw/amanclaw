@@ -179,8 +179,8 @@ async fn handle_ws(mut socket: WebSocket, state: ApiState) {
 
 pub async fn run_api_server(state: ApiState, port: u16) -> anyhow::Result<()> {
     let app = api_router(state);
-    let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{port}")).await?;
-    tracing::info!("Management API listening on http://127.0.0.1:{}", port);
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
+    tracing::info!("Management API listening on http://0.0.0.0:{}", port);
     axum::serve(listener, app).await?;
     Ok(())
 }

@@ -64,7 +64,20 @@
       "Bash(git add rust/crates/amanclaw-cli/src/scaffold.rs)",
       "Bash(cargo clippy --workspace)",
       "Bash(git worktree remove .worktrees/surpass-openclaw-phase3)",
-      "Bash(git branch -d feature/surpass-openclaw-phase3)"
+      "Bash(git branch -d feature/surpass-openclaw-phase3)",
+      "Bash(git worktree add .worktrees/surpass-openclaw-phase4 -b feature/surpass-openclaw-phase4)",
+      "Bash(export PATH=\"$HOME/.cargo/bin:$PATH\")",
+      "Read(//Users/aman-asmuei/Personals/aman-office/secureclaw-simple/.worktrees/surpass-openclaw-phase4/rust/$HOME/.cargo/bin/**)",
+      "Read(//opt/homebrew/bin/**)",
+      "Read(//usr/local/bin/**)",
+      "Bash(PATH=\"$HOME/.cargo/bin:$PATH\")",
+      "Bash($HOME/.cargo/bin/cargo test -p amanclaw-cli)",
+      "Bash(git add products/communitybot/fly.toml products/communitybot/railway.json products/communitybot/render.yaml)",
+      "Bash(git add products/communitybot/index.html)",
+      "Bash(git add products/communitybot/README.md)",
+      "Bash(git add rust/crates/amanclaw-cli/src/cli.rs rust/crates/amanclaw-cli/src/main.rs rust/crates/amanclaw-cli/src/product_scaffold.rs)",
+      "Bash(git worktree remove --force .worktrees/surpass-openclaw-phase4)",
+      "Bash(git branch -d feature/surpass-openclaw-phase4)"
     ]
   }
 }
