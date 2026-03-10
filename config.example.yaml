@@ -80,6 +80,11 @@ slack:
   socket_mode: true
   allowed_channels: []
 
+# --- Web Dashboard (optional) ---
+# Set ADMIN_PASSWORD in .env to enable the web dashboard.
+# Access at http://your-host:8443/admin
+# API_PORT defaults to 8443.
+
 # --- Security (optional overrides) ---
 security:
   injection_rules: "default"     # "default" or "owasp_agentic"

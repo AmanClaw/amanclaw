@@ -1,9 +1,21 @@
+# Stage 1: Build Svelte dashboard
+FROM node:20-slim AS dashboard-builder
+WORKDIR /dashboard
+COPY dashboard/package*.json ./
+RUN npm ci
+COPY dashboard/ .
+RUN npm run build
+
+# Stage 2: Build Rust binary (with embedded dashboard)
 FROM rust:1.88-slim AS builder
 WORKDIR /app
 RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
-COPY . .
+COPY rust/ ./rust/
+COPY --from=dashboard-builder /dashboard/dist ./dashboard/dist
+WORKDIR /app/rust
 RUN cargo build --release -p amanclaw-cli
 
+# Stage 3: Runtime
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y \
     ca-certificates \
@@ -13,7 +25,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 RUN useradd --system --create-home amanclaw
 WORKDIR /home/amanclaw
-COPY --from=builder /app/target/release/amanclaw /usr/local/bin/amanclaw
+COPY --from=builder /app/rust/target/release/amanclaw /usr/local/bin/amanclaw
 RUN mkdir -p plugins data
 RUN chown -R amanclaw:amanclaw /home/amanclaw
 USER amanclaw

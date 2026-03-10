@@ -75,6 +75,16 @@ async fn cmd_run(config_path: &str) -> Result<()> {
                 webhook_router: None,
                 gateway: None,
                 metrics_handle: metrics_handle.clone(),
+                admin_password: std::env::var("ADMIN_PASSWORD").ok(),
+                jwt_secret: std::env::var("JWT_SECRET").unwrap_or_else(|_| {
+                    use rand::Rng;
+                    let secret: String = rand::rng()
+                        .sample_iter(&rand::distr::Alphanumeric)
+                        .take(64)
+                        .map(char::from)
+                        .collect();
+                    secret
+                }),
             };
             tokio::spawn(async move {
                 if let Err(e) = amanclaw_api::run_api_server(api_state, port).await {

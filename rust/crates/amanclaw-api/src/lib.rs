@@ -8,13 +8,17 @@ use axum::{
         State,
         ws::{WebSocket, WebSocketUpgrade},
     },
+    http::{header, StatusCode as HttpStatus, Uri},
     middleware,
-    response::IntoResponse,
+    response::{Html, IntoResponse},
     routing::{delete, get, post, put},
 };
+use include_dir::{include_dir, Dir};
 use state::ApiState;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
+
+static DASHBOARD_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../../dashboard/dist");
 
 pub fn api_router(state: ApiState) -> Router {
     let authed = Router::new()
@@ -69,18 +73,55 @@ pub fn api_router(state: ApiState) -> Router {
         .route("/metrics", get(metrics_handler))
         .with_state(state.clone());
 
+    // Login endpoint — no auth middleware (used to obtain JWT)
+    let login_route = Router::new()
+        .route("/api/login", post(auth::login))
+        .with_state(state.clone());
+
     // WebSocket gateway — no auth middleware (uses JSON-RPC auth)
     let ws_routes = Router::new()
         .route("/ws", get(ws_upgrade))
         .with_state(state);
 
+    let dashboard_routes = Router::new()
+        .route("/admin/{*path}", get(serve_dashboard))
+        .route("/admin", get(serve_dashboard));
+
     Router::new()
         .merge(authed)
+        .merge(login_route)
         .merge(webhook_routes)
         .merge(metrics_routes)
         .merge(ws_routes)
+        .merge(dashboard_routes)
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
+}
+
+async fn serve_dashboard(uri: Uri) -> impl IntoResponse {
+    let path = uri.path().strip_prefix("/admin/").unwrap_or("");
+    let path = if path.is_empty() { "index.html" } else { path };
+
+    match DASHBOARD_DIR.get_file(path) {
+        Some(file) => {
+            let mime = mime_guess::from_path(path).first_or_octet_stream();
+            (
+                HttpStatus::OK,
+                [(header::CONTENT_TYPE, mime.as_ref().to_string())],
+                file.contents(),
+            )
+                .into_response()
+        }
+        None => {
+            // SPA fallback — serve index.html for client-side routing
+            match DASHBOARD_DIR.get_file("index.html") {
+                Some(index) => {
+                    Html(std::str::from_utf8(index.contents()).unwrap_or("")).into_response()
+                }
+                None => (HttpStatus::NOT_FOUND, "Dashboard not found").into_response(),
+            }
+        }
+    }
 }
 
 async fn metrics_handler(State(state): State<ApiState>) -> String {

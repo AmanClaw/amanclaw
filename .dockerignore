@@ -1,0 +1,10 @@
+rust/target/
+dashboard/node_modules/
+dashboard/.svelte-kit/
+.git/
+.github/
+docs/
+*.md
+LICENSE
+.env
+.env.example
