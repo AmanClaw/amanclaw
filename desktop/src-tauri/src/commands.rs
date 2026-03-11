@@ -1146,6 +1146,45 @@ pub async fn registry_search_installed(
     }
 }
 
+// --- Marketplace Browse (Skill Index) ---
+
+/// Bundled seed index (compiled into the binary from docs/skill-index.json).
+const SEED_INDEX_JSON: &str = include_str!("../../../docs/skill-index.json");
+
+#[tauri::command]
+pub async fn marketplace_browse(
+    query: Option<String>,
+) -> Result<serde_json::Value, String> {
+    use amanclaw_skill_index::IndexClient;
+
+    // Try remote first, fall back to bundled seed
+    let index = match IndexClient::new().fetch_index().await {
+        Ok(idx) => idx,
+        Err(_) => IndexClient::parse_index(SEED_INDEX_JSON).map_err(|e| e.to_string())?,
+    };
+
+    let skills: Vec<serde_json::Value> = match &query {
+        Some(q) if !q.trim().is_empty() => index
+            .search(q)
+            .into_iter()
+            .map(|s| serde_json::to_value(s).unwrap())
+            .collect(),
+        _ => index
+            .skills
+            .iter()
+            .map(|s| serde_json::to_value(s).unwrap())
+            .collect(),
+    };
+
+    let packs: serde_json::Value = serde_json::to_value(&index.packs).unwrap_or_default();
+
+    Ok(serde_json::json!({
+        "skills": skills,
+        "packs": packs,
+        "count": skills.len(),
+    }))
+}
+
 // --- Knowledge Bases ---
 
 #[tauri::command]

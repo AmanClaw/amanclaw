@@ -3,7 +3,7 @@
 	import { api } from '$lib/api';
 
 	// --- State ---
-	let tab = $state<'browse' | 'installed' | 'publish'>('installed');
+	let tab = $state<'browse' | 'installed' | 'publish'>('browse');
 	let installed: any[] = $state([]);
 	let loading = $state(true);
 	let search = $state('');
@@ -12,6 +12,43 @@
 	let showInstallForm = $state(false);
 	let installPath = $state('');
 	let installing = $state(false);
+
+	// Browse state
+	let browseSkills: any[] = $state([]);
+	let browsePacks: Record<string, string[]> = $state({});
+	let browseLoading = $state(true);
+	let browseSearch = $state('');
+	let browseFilter = $state<'all' | 'official' | 'verified' | 'community'>('all');
+	let selectedPack = $state<string | null>(null);
+	let installedNames = $state<Set<string>>(new Set());
+
+	const filteredBrowse = $derived(() => {
+		let list = browseSkills;
+
+		// Filter by tier
+		if (browseFilter !== 'all') {
+			list = list.filter((s: any) => s.tier === browseFilter);
+		}
+
+		// Filter by pack
+		if (selectedPack && browsePacks[selectedPack]) {
+			const packNames = new Set(browsePacks[selectedPack]);
+			list = list.filter((s: any) => packNames.has(s.name));
+		}
+
+		// Filter by search
+		if (browseSearch.trim()) {
+			const q = browseSearch.toLowerCase();
+			list = list.filter((s: any) =>
+				(s.name || '').toLowerCase().includes(q) ||
+				(s.description || '').toLowerCase().includes(q) ||
+				(s.tags || []).some((t: string) => t.toLowerCase().includes(q)) ||
+				(s.author || '').toLowerCase().includes(q)
+			);
+		}
+
+		return list;
+	});
 
 	const filteredInstalled = $derived(() => {
 		if (!search.trim()) return installed;
@@ -24,10 +61,21 @@
 	});
 
 	// --- Actions ---
+	async function loadBrowse() {
+		browseLoading = true;
+		try {
+			const data = await api.marketplaceBrowse() as any;
+			browseSkills = data.skills || [];
+			browsePacks = data.packs || {};
+		} catch (_) {}
+		browseLoading = false;
+	}
+
 	async function loadInstalled() {
 		try {
 			const data = await api.registryListInstalled() as any;
-			installed = data.plugins || data || [];
+			installed = data.plugins || data.skills || data || [];
+			installedNames = new Set(installed.map((p: any) => p.name));
 		} catch (_) {}
 		loading = false;
 	}
@@ -70,7 +118,28 @@
 		}
 	}
 
-	onMount(() => { loadInstalled(); });
+	function tierBadge(tier: string): { label: string; icon: string; cls: string } {
+		switch (tier) {
+			case 'official': return { label: 'Official', icon: '⭐', cls: 'bg-amber-100 text-amber-800' };
+			case 'verified': return { label: 'Verified', icon: '✅', cls: 'bg-green-100 text-green-800' };
+			case 'community': return { label: 'Community', icon: '🌱', cls: 'bg-blue-100 text-blue-700' };
+			default: return { label: tier, icon: '', cls: 'bg-gray-100 text-gray-600' };
+		}
+	}
+
+	function langBadge(lang: string): string {
+		switch (lang) {
+			case 'rust': return 'bg-orange-100 text-orange-700';
+			case 'python': return 'bg-blue-100 text-blue-700';
+			case 'javascript': case 'js': return 'bg-yellow-100 text-yellow-700';
+			default: return 'bg-gray-100 text-gray-500';
+		}
+	}
+
+	onMount(() => {
+		loadBrowse();
+		loadInstalled();
+	});
 </script>
 
 <div class="p-8 max-w-4xl">
@@ -80,7 +149,10 @@
 			<h2 class="text-xl font-semibold text-gray-900 tracking-tight">Marketplace</h2>
 			<p class="text-sm text-gray-500 mt-1">Browse, install, and manage skill packages</p>
 		</div>
-		{#if tab === 'installed'}
+		{#if tab === 'browse'}
+			<input type="text" bind:value={browseSearch} placeholder="Search skills..."
+				class="px-3 py-1.5 text-xs border border-gray-200 rounded-md w-56 focus:outline-none focus:ring-2 focus:ring-gray-900">
+		{:else if tab === 'installed'}
 			<input type="text" bind:value={search} placeholder="Search installed..."
 				class="px-3 py-1.5 text-xs border border-gray-200 rounded-md w-48 focus:outline-none focus:ring-2 focus:ring-gray-900">
 		{/if}
@@ -107,12 +179,128 @@
 
 	<!-- ===================== BROWSE TAB ===================== -->
 	{#if tab === 'browse'}
-		<div class="text-center py-20 bg-gray-50 rounded-xl border border-gray-200">
-			<div class="text-gray-300 text-4xl mb-3">&#9741;</div>
-			<p class="text-sm text-gray-500 font-medium">No remote registry configured</p>
-			<p class="text-xs text-gray-400 mt-1">A public skill registry will be available in a future release.</p>
-			<p class="text-xs text-gray-400 mt-0.5">For now, install skills from local folders in the Installed tab.</p>
+		<!-- Filters row -->
+		<div class="flex items-center gap-3 mb-4 flex-wrap">
+			<!-- Tier filter pills -->
+			<div class="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+				{#each [['all', 'All'], ['official', '⭐ Official'], ['verified', '✅ Verified'], ['community', '🌱 Community']] as [value, label]}
+					<button onclick={() => browseFilter = value as any}
+						class="px-3 py-1 text-[11px] font-medium rounded-md transition-colors
+							{browseFilter === value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}">
+						{label}
+					</button>
+				{/each}
+			</div>
+
+			<!-- Pack filter dropdown -->
+			<select bind:value={selectedPack}
+				class="px-2.5 py-1 text-xs border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-gray-900">
+				<option value={null}>All Packs</option>
+				{#each Object.keys(browsePacks) as pack}
+					<option value={pack}>{pack} ({browsePacks[pack].length})</option>
+				{/each}
+			</select>
+
+			<span class="text-xs text-gray-400 ml-auto">{filteredBrowse().length} skill{filteredBrowse().length !== 1 ? 's' : ''}</span>
 		</div>
+
+		{#if browseLoading}
+			<div class="text-center py-16">
+				<p class="text-sm text-gray-500">Loading skill index...</p>
+			</div>
+		{:else if filteredBrowse().length === 0}
+			<div class="text-center py-16 bg-gray-50 rounded-xl border border-gray-200">
+				<p class="text-sm text-gray-500">No skills match your filters</p>
+				<button onclick={() => { browseSearch = ''; browseFilter = 'all'; selectedPack = null; }}
+					class="mt-2 text-xs text-gray-900 underline hover:no-underline">Clear filters</button>
+			</div>
+		{:else}
+			<!-- Packs showcase (only when no filter is active) -->
+			{#if !browseSearch.trim() && browseFilter === 'all' && !selectedPack && Object.keys(browsePacks).length > 0}
+				<div class="mb-6">
+					<h3 class="text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-2">Skill Packs</h3>
+					<div class="grid grid-cols-3 gap-3">
+						{#each Object.entries(browsePacks) as [packName, packSkills]}
+							<button onclick={() => selectedPack = packName}
+								class="bg-white rounded-xl border border-gray-200 p-4 text-left hover:border-gray-300 hover:shadow-sm transition-all">
+								<p class="text-sm font-medium text-gray-900 capitalize">{packName}</p>
+								<p class="text-xs text-gray-500 mt-1">{packSkills.length} skill{packSkills.length !== 1 ? 's' : ''}</p>
+								<div class="flex flex-wrap gap-1 mt-2">
+									{#each packSkills.slice(0, 3) as name}
+										<span class="inline-flex px-1.5 py-0.5 text-[10px] font-mono rounded bg-gray-100 text-gray-500">{name}</span>
+									{/each}
+									{#if packSkills.length > 3}
+										<span class="text-[10px] text-gray-400">+{packSkills.length - 3} more</span>
+									{/if}
+								</div>
+							</button>
+						{/each}
+					</div>
+				</div>
+			{/if}
+
+			<!-- Selected pack header -->
+			{#if selectedPack}
+				<div class="flex items-center gap-2 mb-4">
+					<span class="text-xs font-medium text-gray-700">Pack: <span class="capitalize">{selectedPack}</span></span>
+					<button onclick={() => selectedPack = null}
+						class="text-xs text-gray-400 hover:text-gray-600">✕ Clear</button>
+				</div>
+			{/if}
+
+			<!-- Skill cards grid -->
+			<div class="grid grid-cols-1 gap-3">
+				{#each filteredBrowse() as skill}
+					{@const tier = tierBadge(skill.tier)}
+					{@const isInstalled = installedNames.has(skill.name)}
+					<div class="bg-white rounded-xl border border-gray-200 p-4 hover:border-gray-300 hover:shadow-sm transition-all">
+						<div class="flex items-start justify-between gap-4">
+							<div class="min-w-0 flex-1">
+								<div class="flex items-center gap-2 flex-wrap">
+									<h4 class="text-sm font-semibold text-gray-900">{skill.name}</h4>
+									<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium rounded {tier.cls}">
+										{tier.icon} {tier.label}
+									</span>
+									<span class="inline-flex px-1.5 py-0.5 text-[10px] font-medium rounded {langBadge(skill.lang)}">
+										{skill.lang}
+									</span>
+									<span class="text-[10px] text-gray-400 font-mono">v{skill.version}</span>
+								</div>
+								<p class="text-xs text-gray-500 mt-1.5">{skill.description}</p>
+								<div class="flex items-center gap-3 mt-2">
+									<span class="text-[10px] text-gray-400">by {skill.author}</span>
+									{#if skill.tags && skill.tags.length > 0}
+										<div class="flex gap-1 flex-wrap">
+											{#each skill.tags as tag}
+												<span class="inline-flex px-1.5 py-0.5 text-[9px] rounded-full bg-gray-100 text-gray-500">{tag}</span>
+											{/each}
+										</div>
+									{/if}
+								</div>
+							</div>
+							<div class="shrink-0 flex flex-col items-end gap-1.5">
+								{#if isInstalled}
+									<span class="px-3 py-1.5 text-[10px] font-medium rounded-md bg-green-50 text-green-700 border border-green-200">
+										✓ Installed
+									</span>
+								{:else}
+									<span class="px-3 py-1.5 text-[10px] font-medium rounded-md bg-gray-100 text-gray-500">
+										Available
+									</span>
+								{/if}
+								{#if skill.repo}
+									<a href={skill.repo.startsWith('http') ? skill.repo : `https://github.com/${skill.repo}`}
+										class="text-[10px] text-gray-400 hover:text-gray-600 underline"
+										target="_blank" rel="noopener noreferrer">
+										View Source
+									</a>
+								{/if}
+							</div>
+						</div>
+					</div>
+				{/each}
+			</div>
+		{/if}
 
 	<!-- ===================== INSTALLED TAB ===================== -->
 	{:else if tab === 'installed'}

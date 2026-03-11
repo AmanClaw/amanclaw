@@ -161,6 +161,7 @@ pub fn run() {
             commands::registry_install_from_path,
             commands::registry_uninstall,
             commands::registry_search_installed,
+            commands::marketplace_browse,
             // Knowledge Bases
             commands::get_embedding_config,
             commands::save_embedding_config,

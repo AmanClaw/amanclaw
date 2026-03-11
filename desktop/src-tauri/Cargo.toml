@@ -27,6 +27,7 @@ amanclaw-traits = { path = "../../rust/crates/amanclaw-traits" }
 amanclaw-api = { path = "../../rust/crates/amanclaw-api" }
 amanclaw-security = { path = "../../rust/crates/amanclaw-security" }
 amanclaw-registry = { path = "../../rust/crates/amanclaw-registry" }
+amanclaw-skill-index = { path = "../../rust/crates/amanclaw-skill-index" }
 amanclaw-skill-doa = { path = "../../rust/plugins/skill-doa" }
 
 [build-dependencies]

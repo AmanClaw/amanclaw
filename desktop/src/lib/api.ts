@@ -104,6 +104,7 @@ export const api = {
 	registryInstallFromPath: (path: string) => invoke('registry_install_from_path', { path }),
 	registryUninstall: (name: string) => invoke('registry_uninstall', { name }) as Promise<boolean>,
 	registrySearchInstalled: (query: string) => invoke('registry_search_installed', { query }),
+	marketplaceBrowse: (query?: string) => invoke('marketplace_browse', { query }),
 
 	// Knowledge Bases
 	getEmbeddingConfig: () => invoke('get_embedding_config'),

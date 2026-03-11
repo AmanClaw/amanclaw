@@ -211,6 +211,7 @@ dependencies = [
  "amanclaw-registry",
  "amanclaw-security",
  "amanclaw-skill-doa",
+ "amanclaw-skill-index",
  "amanclaw-traits",
  "anyhow",
  "chrono",
@@ -367,6 +368,16 @@ dependencies = [
  "amanclaw-traits",
  "async-trait",
  "chrono",
+ "serde_json",
+]
+
+[[package]]
+name = "amanclaw-skill-index"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "reqwest 0.12.28",
+ "serde",
  "serde_json",
 ]
 
