@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Deploy AmanClaw to Raspberry Pi
 # Strategy: Cross-compile on Mac via docker buildx, transfer image to Pi
-RASPI_HOST="aman@192.168.1.116"
+RASPI_HOST="aman@100.116.237.89"
 RASPI_PASS="p@ssw0rd@m@n"
 DEPLOY_DIR="/home/aman/amanclaw-docker"
 IMAGE_TAR="/tmp/amanclaw-arm64.tar"
@@ -19,7 +19,7 @@ docker buildx build \
     -t amanclaw:latest \
     --output type=docker,dest="$IMAGE_TAR" \
     -f rust/Dockerfile \
-    rust/
+    .
 
 echo "==> Image built: $(du -h "$IMAGE_TAR" | cut -f1)"
 
@@ -29,13 +29,13 @@ eval $SCP "$IMAGE_TAR" "$RASPI_HOST:/tmp/amanclaw-arm64.tar"
 
 # --- Step 3: Load image and deploy ---
 echo "==> Loading image and deploying on Pi..."
-eval $SSH "
-docker load < /tmp/amanclaw-arm64.tar
-rm -f /tmp/amanclaw-arm64.tar
+eval $SSH "docker load < /tmp/amanclaw-arm64.tar && rm -f /tmp/amanclaw-arm64.tar"
 
-# Create docker-compose
-mkdir -p $DEPLOY_DIR
-cat > $DEPLOY_DIR/docker-compose.yml << 'COMPOSEFILE'
+echo "==> Setting up docker-compose on Pi..."
+eval $SSH "mkdir -p $DEPLOY_DIR"
+
+# Transfer compose file
+cat > /tmp/amanclaw-compose.yml << 'COMPOSEFILE'
 services:
   amanclaw:
     image: amanclaw:latest
@@ -55,11 +55,14 @@ services:
     tmpfs:
       - /tmp:noexec,nosuid,size=50M
     mem_limit: 512m
-    cpus: \"1.0\"
+    cpus: "1.0"
 COMPOSEFILE
 
-cd $DEPLOY_DIR && docker compose up -d
-"
+eval $SCP /tmp/amanclaw-compose.yml "$RASPI_HOST:$DEPLOY_DIR/docker-compose.yml"
+rm -f /tmp/amanclaw-compose.yml
+
+echo "==> Starting container..."
+eval $SSH "docker stop amanclaw 2>/dev/null; docker rm amanclaw 2>/dev/null; docker compose -f $DEPLOY_DIR/docker-compose.yml up -d"
 
 # --- Step 4: Verify ---
 echo "==> Checking status..."

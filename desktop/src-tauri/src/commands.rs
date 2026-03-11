@@ -72,6 +72,8 @@ pub async fn save_config(
         plugins: amanclaw_traits::config::PluginConfig {
             dir: plugins_dir.to_string_lossy().to_string(),
             hot_reload: false,
+            wasm_memory_limit_mb: 64,
+            wasm_fuel_limit: 1_000_000_000,
         },
         security: Default::default(),
         skills: Default::default(),
