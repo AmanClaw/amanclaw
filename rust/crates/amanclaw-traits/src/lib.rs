@@ -1,5 +1,6 @@
 pub mod agent;
 pub mod channel;
+pub mod channel_config;
 pub mod config;
 pub mod context;
 pub mod event;

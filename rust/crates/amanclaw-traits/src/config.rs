@@ -55,6 +55,9 @@ pub struct AppConfig {
 
     #[serde(default)]
     pub registry: RegistryConfig,
+
+    #[serde(default)]
+    pub channels: crate::channel_config::ChannelsConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
