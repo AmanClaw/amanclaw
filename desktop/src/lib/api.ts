@@ -133,4 +133,15 @@ export const api = {
 	searchDoa: (query: string) => invoke('search_doa', { query }),
 	getZakatRates: () => invoke('get_zakat_rates'),
 	getLatestKhutbah: () => invoke('get_latest_khutbah'),
+
+	// Channel Management
+	listChannels: () => invoke('list_channels'),
+	getChannelStatus: (id: string) => invoke('get_channel_status', { id }),
+	saveWhatsappWebConfig: (params: {
+		wahaUrl: string; wahaApiKey?: string; session?: string; webhookPort?: number;
+	}) => invoke('save_whatsapp_web_config', params),
+	startChannel: (id: string) => invoke('start_channel', { id }),
+	stopChannel: (id: string) => invoke('stop_channel', { id }),
+	getWhatsappQr: () => invoke('get_whatsapp_qr'),
+	getWhatsappSession: () => invoke('get_whatsapp_session'),
 };

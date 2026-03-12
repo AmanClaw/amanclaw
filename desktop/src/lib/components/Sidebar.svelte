@@ -4,6 +4,7 @@
 	const pages = [
 		{ id: 'dashboard', label: 'Dashboard', icon: '⊞' },
 		{ id: 'communities', label: 'Communities', icon: '⊡' },
+		{ id: 'channels', label: 'Channels', icon: '⇌' },
 		{ id: 'agents', label: 'Agents', icon: '◉' },
 		{ id: 'skills', label: 'Skills', icon: '⚡' },
 		{ id: 'marketplace', label: 'Marketplace', icon: '◈' },

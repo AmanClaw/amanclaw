@@ -16,6 +16,7 @@
 	import Logs from '$lib/pages/Logs.svelte';
 	import Content from '$lib/pages/Content.svelte';
 	import McpServers from '$lib/pages/McpServers.svelte';
+	import Channels from '$lib/pages/Channels.svelte';
 	import Wizard from '$lib/pages/Wizard.svelte';
 
 	let loaded = $state(false);
@@ -93,6 +94,8 @@
 	</div>
 {:else if $isFirstRun}
 	<Wizard />
+{:else if $currentPage === 'channels'}
+	<Channels />
 {:else if $currentPage === 'communities'}
 	<Communities />
 {:else if $currentPage === 'agents'}
