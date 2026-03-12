@@ -15,11 +15,13 @@ pub mod subagent;
 pub mod token_budget;
 pub mod webhooks;
 
+use crate::channel_manager::ChannelManager;
 use crate::context_engine::StandardContextEngine;
 use crate::handle::{EngineCommand, EngineHandle, EngineStatus};
 use crate::pipeline::Pipeline;
 use crate::registry::PluginRegistry;
 use crate::router::AgentRouter;
+use amanclaw_traits::channel_config::ChannelsConfig;
 use amanclaw_channel_discord::DiscordChannel;
 use amanclaw_channel_slack::SlackChannel;
 use amanclaw_channel_telegram::TelegramChannel;
@@ -58,6 +60,10 @@ pub struct EngineStartResult {
     pub pool: SqlitePool,
     /// Plugin registry with all loaded skills.
     pub registry: Arc<PluginRegistry>,
+    /// Channel manager for dynamic channel lifecycle.
+    pub channel_manager: Arc<ChannelManager>,
+    /// Shared channels config (from config.yaml + env vars).
+    pub channels_config: Arc<RwLock<ChannelsConfig>>,
 }
 
 pub struct Engine {
@@ -335,8 +341,14 @@ impl Engine {
             Some(knowledge_store),
         );
 
+        // Build channels config from config.yaml (will be merged with env in Task 5)
+        let channels_config = Arc::new(RwLock::new(config.channels.clone()));
+
         // Create message channel for adapters
         let (msg_tx, msg_rx) = mpsc::channel::<IncomingMessage>(256);
+
+        // Create ChannelManager for dynamic channel lifecycle
+        let channel_manager = Arc::new(ChannelManager::new(msg_tx.clone()));
 
         // Start channel adapters
         let mut channels: Vec<Arc<dyn Channel>> = Vec::new();
@@ -344,32 +356,42 @@ impl Engine {
         if let Ok(token) = std::env::var("TELEGRAM_BOT_TOKEN") {
             let mut telegram = TelegramChannel::new(token);
             telegram.start(msg_tx.clone()).await?;
-            channels.push(Arc::new(telegram));
+            let ch: Arc<dyn Channel> = Arc::new(telegram);
+            channel_manager.register_running("telegram", ch.clone()).await;
+            channels.push(ch);
             tracing::info!("Telegram channel started");
         }
 
         if let Ok(token) = std::env::var("DISCORD_BOT_TOKEN") {
             let mut discord = DiscordChannel::new(token);
             discord.start(msg_tx.clone()).await?;
-            channels.push(Arc::new(discord));
+            let ch: Arc<dyn Channel> = Arc::new(discord);
+            channel_manager.register_running("discord", ch.clone()).await;
+            channels.push(ch);
             tracing::info!("Discord channel started");
         }
 
         if let Some(mut whatsapp) = WhatsAppChannel::from_env() {
             whatsapp.start(msg_tx.clone()).await?;
-            channels.push(Arc::new(whatsapp));
+            let ch: Arc<dyn Channel> = Arc::new(whatsapp);
+            channel_manager.register_running("whatsapp-cloud", ch.clone()).await;
+            channels.push(ch);
             tracing::info!("WhatsApp channel started");
         }
 
         if let Some(mut whatsapp_web) = WhatsAppWebChannel::from_env() {
             whatsapp_web.start(msg_tx.clone()).await?;
-            channels.push(Arc::new(whatsapp_web));
+            let ch: Arc<dyn Channel> = Arc::new(whatsapp_web);
+            channel_manager.register_running("whatsapp-web", ch.clone()).await;
+            channels.push(ch);
             tracing::info!("WhatsApp Web (WAHA) channel started");
         }
 
         if let Some(mut slack) = SlackChannel::from_env() {
             slack.start(msg_tx.clone()).await?;
-            channels.push(Arc::new(slack));
+            let ch: Arc<dyn Channel> = Arc::new(slack);
+            channel_manager.register_running("slack", ch.clone()).await;
+            channels.push(ch);
             tracing::info!("Slack channel started");
         }
 
@@ -426,6 +448,8 @@ impl Engine {
             auth: auth_arc,
             pool,
             registry,
+            channel_manager,
+            channels_config,
         })
     }
 
