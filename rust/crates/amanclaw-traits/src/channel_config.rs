@@ -74,6 +74,58 @@ pub struct ChannelsConfig {
     pub whatsapp_web: Option<WhatsAppWebConfig>,
 }
 
+impl ChannelsConfig {
+    /// Build channels config from environment variables (backwards compatibility).
+    /// Only populates channels whose env vars are set.
+    pub fn from_env() -> Self {
+        let telegram = std::env::var("TELEGRAM_BOT_TOKEN").ok().map(|token| {
+            TelegramConfig { enabled: true, token }
+        });
+
+        let discord = std::env::var("DISCORD_BOT_TOKEN").ok().map(|token| {
+            DiscordConfig { enabled: true, token }
+        });
+
+        let slack = std::env::var("SLACK_BOT_TOKEN").ok().map(|bot_token| {
+            SlackConfig { enabled: true, bot_token, app_token: std::env::var("SLACK_APP_TOKEN").ok() }
+        });
+
+        let whatsapp_cloud = std::env::var("WHATSAPP_ACCESS_TOKEN").ok().map(|access_token| {
+            WhatsAppCloudConfig {
+                enabled: true,
+                access_token,
+                phone_number_id: std::env::var("WHATSAPP_PHONE_NUMBER_ID").unwrap_or_default(),
+                verify_token: std::env::var("WHATSAPP_VERIFY_TOKEN").unwrap_or_else(|_| "amanclaw_verify".into()),
+                webhook_port: std::env::var("WHATSAPP_WEBHOOK_PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(8080),
+            }
+        });
+
+        let whatsapp_web = std::env::var("WAHA_API_URL").ok().map(|waha_url| {
+            WhatsAppWebConfig {
+                enabled: true,
+                waha_url,
+                waha_api_key: std::env::var("WAHA_API_KEY").ok(),
+                session: std::env::var("WAHA_SESSION").unwrap_or_else(|_| "default".into()),
+                webhook_port: std::env::var("WAHA_WEBHOOK_PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(8081),
+            }
+        });
+
+        Self { telegram, discord, slack, whatsapp_cloud, whatsapp_web }
+    }
+
+    /// Merge: prefer yaml config, fill gaps from env vars.
+    pub fn merge_with_env(self) -> Self {
+        let env = Self::from_env();
+        Self {
+            telegram: self.telegram.or(env.telegram),
+            discord: self.discord.or(env.discord),
+            slack: self.slack.or(env.slack),
+            whatsapp_cloud: self.whatsapp_cloud.or(env.whatsapp_cloud),
+            whatsapp_web: self.whatsapp_web.or(env.whatsapp_web),
+        }
+    }
+}
+
 /// Status info returned by the API.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChannelStatusInfo {
@@ -143,5 +195,15 @@ whatsapp_web:
         };
         let json = serde_json::to_string(&status).unwrap();
         assert!(json.contains("telegram"));
+    }
+
+    #[test]
+    fn test_merge_with_env_prefers_yaml() {
+        let yaml_config = ChannelsConfig {
+            telegram: Some(TelegramConfig { enabled: true, token: "yaml_token".into() }),
+            ..Default::default()
+        };
+        let merged = yaml_config.merge_with_env();
+        assert_eq!(merged.telegram.unwrap().token, "yaml_token");
     }
 }
