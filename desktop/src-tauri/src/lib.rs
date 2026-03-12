@@ -56,6 +56,8 @@ pub fn run() {
                                     let auth = result.auth.clone();
                                     let pool = result.pool.clone();
                                     let registry = result.registry.clone();
+                                    let channel_manager = result.channel_manager.clone();
+                                    let channels_config = result.channels_config.clone();
 
                                     let state_clone = state.clone();
                                     let join_handle = tokio::spawn(async move {
@@ -85,6 +87,8 @@ pub fn run() {
                                         pool,
                                         registry,
                                         subagent_manager: None,
+                                        channel_manager: Some(channel_manager),
+                                        channels_config: Some(channels_config),
                                     });
                                     tracing::info!("Engine auto-started successfully");
                                 }
@@ -174,6 +178,14 @@ pub fn run() {
             commands::create_community,
             commands::update_community,
             commands::delete_community,
+            // Channels
+            commands::list_channels,
+            commands::get_channel_status,
+            commands::save_whatsapp_web_config,
+            commands::start_channel,
+            commands::stop_channel,
+            commands::get_whatsapp_qr,
+            commands::get_whatsapp_session,
             // Content
             commands::get_doa_collection,
             commands::search_doa,

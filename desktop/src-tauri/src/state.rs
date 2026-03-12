@@ -1,3 +1,4 @@
+use amanclaw_traits::channel_config::ChannelsConfig;
 use amanclaw_traits::config::AppConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
@@ -43,6 +44,10 @@ pub struct EngineHandle {
     pub registry: Arc<amanclaw_core::registry::PluginRegistry>,
     /// Sub-agent manager (None if sub-agents disabled).
     pub subagent_manager: Option<Arc<amanclaw_core::subagent::SubAgentManager>>,
+    /// Channel manager for dynamic channel lifecycle.
+    pub channel_manager: Option<Arc<amanclaw_core::channel_manager::ChannelManager>>,
+    /// Shared channels config.
+    pub channels_config: Option<Arc<tokio::sync::RwLock<ChannelsConfig>>>,
 }
 
 #[derive(Debug, Clone, Serialize)]

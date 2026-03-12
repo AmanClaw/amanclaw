@@ -89,6 +89,7 @@ pub async fn save_config(
         gateway: Default::default(),
         subagents: Default::default(),
         registry: Default::default(),
+        channels: Default::default(),
     };
 
     config::save_config(&app, &cfg)?;
@@ -171,6 +172,8 @@ pub async fn start_engine(
     let auth = result.auth.clone();
     let pool = result.pool.clone();
     let registry = result.registry.clone();
+    let channel_manager = result.channel_manager.clone();
+    let channels_config = result.channels_config.clone();
 
     // Spawn a wrapper task that monitors the engine actor
     let state_clone = state.inner().clone();
@@ -205,6 +208,8 @@ pub async fn start_engine(
             pool,
             registry,
             subagent_manager: None,
+            channel_manager: Some(channel_manager),
+            channels_config: Some(channels_config),
         });
     }
 
@@ -1408,4 +1413,179 @@ pub async fn get_latest_khutbah() -> Result<serde_json::Value, String> {
         "available": false,
         "note": "Khutbah data available via skill-khutbah Python plugin",
     }))
+}
+
+// --- Channel Management ---
+
+#[tauri::command]
+pub async fn list_channels(
+    state: State<'_, SharedState>,
+) -> Result<serde_json::Value, String> {
+    let st = state.read().await;
+    if let Some(handle) = &st.engine_handle {
+        if let (Some(mgr), Some(cfg_lock)) = (&handle.channel_manager, &handle.channels_config) {
+            let cfg = cfg_lock.read().await;
+            let statuses = mgr.get_all_status(&cfg).await;
+            return Ok(serde_json::json!({ "channels": statuses }));
+        }
+    }
+    Ok(serde_json::json!({ "channels": [] }))
+}
+
+#[tauri::command]
+pub async fn get_channel_status(
+    state: State<'_, SharedState>,
+    id: String,
+) -> Result<serde_json::Value, String> {
+    let st = state.read().await;
+    if let Some(handle) = &st.engine_handle {
+        if let (Some(mgr), Some(cfg_lock)) = (&handle.channel_manager, &handle.channels_config) {
+            let cfg = cfg_lock.read().await;
+            if let Some(status) = mgr.get_status(&id, &cfg).await {
+                return Ok(serde_json::to_value(status).map_err(|e| e.to_string())?);
+            }
+            return Err(format!("Channel '{}' not found", id));
+        }
+    }
+    Err("Engine not running".into())
+}
+
+#[tauri::command]
+pub async fn save_whatsapp_web_config(
+    app: AppHandle,
+    state: State<'_, SharedState>,
+    waha_url: String,
+    waha_api_key: Option<String>,
+    session: Option<String>,
+    webhook_port: Option<u16>,
+) -> Result<(), String> {
+    use amanclaw_traits::channel_config::WhatsAppWebConfig;
+
+    let wa_config = WhatsAppWebConfig {
+        enabled: true,
+        waha_url,
+        waha_api_key,
+        session: session.unwrap_or_else(|| "default".into()),
+        webhook_port: webhook_port.unwrap_or(8081),
+    };
+
+    // Update in-memory channels config if engine is running
+    {
+        let st = state.read().await;
+        if let Some(handle) = &st.engine_handle {
+            if let Some(cfg_lock) = &handle.channels_config {
+                let mut cfg = cfg_lock.write().await;
+                cfg.whatsapp_web = Some(wa_config.clone());
+            }
+        }
+    }
+
+    // Persist to secrets file for env-var based init
+    let mut secrets = config::load_secrets(&app);
+    secrets.insert("WAHA_API_URL".into(), wa_config.waha_url.clone());
+    if let Some(ref key) = wa_config.waha_api_key {
+        secrets.insert("WAHA_API_KEY".into(), key.clone());
+    }
+    secrets.insert("WAHA_SESSION".into(), wa_config.session.clone());
+    secrets.insert("WAHA_WEBHOOK_PORT".into(), wa_config.webhook_port.to_string());
+    config::save_secrets(&app, &secrets)?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn start_channel(
+    state: State<'_, SharedState>,
+    id: String,
+) -> Result<serde_json::Value, String> {
+    let st = state.read().await;
+    let handle = st.engine_handle.as_ref().ok_or("Engine not running")?;
+    let mgr = handle.channel_manager.as_ref().ok_or("Channel manager not available")?;
+    let cfg_lock = handle.channels_config.as_ref().ok_or("Channels config not available")?;
+    let cfg = cfg_lock.read().await;
+
+    match id.as_str() {
+        "whatsapp-web" => {
+            let wa_config = cfg.whatsapp_web.as_ref()
+                .ok_or("WhatsApp Web not configured")?;
+            match mgr.start_whatsapp_web(wa_config).await {
+                Ok(()) => Ok(serde_json::json!({"status": "started"})),
+                Err(e) => Ok(serde_json::json!({"status": "error", "error": e.to_string()})),
+            }
+        }
+        _ => Err(format!("Starting channel '{}' is not yet supported", id)),
+    }
+}
+
+#[tauri::command]
+pub async fn stop_channel(
+    state: State<'_, SharedState>,
+    id: String,
+) -> Result<serde_json::Value, String> {
+    let st = state.read().await;
+    let handle = st.engine_handle.as_ref().ok_or("Engine not running")?;
+    let mgr = handle.channel_manager.as_ref().ok_or("Channel manager not available")?;
+    mgr.stop_channel(&id).await.map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({"status": "stopped"}))
+}
+
+#[tauri::command]
+pub async fn get_whatsapp_qr(
+    state: State<'_, SharedState>,
+) -> Result<serde_json::Value, String> {
+    let st = state.read().await;
+    let handle = st.engine_handle.as_ref().ok_or("Engine not running")?;
+    let cfg_lock = handle.channels_config.as_ref().ok_or("Channels config not available")?;
+    let cfg = cfg_lock.read().await;
+    let wa_config = cfg.whatsapp_web.as_ref().ok_or("WhatsApp Web not configured")?;
+
+    let url = format!("{}/api/{}/auth/qr", wa_config.waha_url, wa_config.session);
+    let client = reqwest::Client::new();
+    let mut req = client.get(&url);
+    if let Some(ref key) = wa_config.waha_api_key {
+        req = req.header("X-Api-Key", key);
+    }
+
+    match req.send().await {
+        Ok(resp) if resp.status().is_success() => {
+            match resp.json::<serde_json::Value>().await {
+                Ok(body) => Ok(body),
+                Err(_) => Ok(serde_json::json!({"error": "Failed to parse WAHA QR response"})),
+            }
+        }
+        Ok(resp) => {
+            let status = resp.status().as_u16();
+            Ok(serde_json::json!({"error": format!("WAHA returned {}", status)}))
+        }
+        Err(e) => Ok(serde_json::json!({"error": format!("Cannot reach WAHA: {}", e)})),
+    }
+}
+
+#[tauri::command]
+pub async fn get_whatsapp_session(
+    state: State<'_, SharedState>,
+) -> Result<serde_json::Value, String> {
+    let st = state.read().await;
+    let handle = st.engine_handle.as_ref().ok_or("Engine not running")?;
+    let cfg_lock = handle.channels_config.as_ref().ok_or("Channels config not available")?;
+    let cfg = cfg_lock.read().await;
+    let wa_config = cfg.whatsapp_web.as_ref().ok_or("WhatsApp Web not configured")?;
+
+    let url = format!("{}/api/sessions/{}", wa_config.waha_url, wa_config.session);
+    let client = reqwest::Client::new();
+    let mut req = client.get(&url);
+    if let Some(ref key) = wa_config.waha_api_key {
+        req = req.header("X-Api-Key", key);
+    }
+
+    match req.send().await {
+        Ok(resp) if resp.status().is_success() => {
+            match resp.json::<serde_json::Value>().await {
+                Ok(body) => Ok(body),
+                Err(_) => Ok(serde_json::json!({"status": "unknown"})),
+            }
+        }
+        Ok(_) => Ok(serde_json::json!({"status": "disconnected"})),
+        Err(e) => Ok(serde_json::json!({"status": "error", "error": e.to_string()})),
+    }
 }
