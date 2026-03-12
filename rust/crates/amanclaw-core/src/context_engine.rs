@@ -2,12 +2,46 @@ use crate::registry::PluginRegistry;
 use crate::token_budget::TokenBudget;
 use amanclaw_llm::client::{LlmClient, LlmResponse};
 use amanclaw_llm::embeddings::EmbeddingClient;
+use amanclaw_memory::knowledge_store::CorrectionMatch;
 use amanclaw_traits::context::{ContextEngine, ContextRequest, ContextResult, ExchangeEvent};
 use amanclaw_traits::memory::MemoryBackend;
 use amanclaw_traits::vector::VectorStore;
 use anyhow::Result;
 use base64::Engine as Base64Engine;
 use std::sync::Arc;
+
+/// Format learned corrections for injection into the LLM system prompt.
+pub fn format_learned_corrections(matches: &[CorrectionMatch]) -> String {
+    if matches.is_empty() {
+        return String::new();
+    }
+
+    let mut section = String::from("\n\n## Learned knowledge (treat as ground truth unless user says otherwise)");
+
+    for m in matches {
+        let conf_pct = (m.rule.confidence * 100.0) as u32;
+        let layer_label = match m.rule.layer.as_str() {
+            "user" => "personal",
+            "community" => "community",
+            "global" => "general",
+            _ => "unknown",
+        };
+
+        if m.rule.confidence >= 0.85 {
+            section.push_str(&format!(
+                "\n- {} ({}%, {} knowledge)",
+                m.rule.correct_response, conf_pct, layer_label
+            ));
+        } else {
+            section.push_str(&format!(
+                "\n- Previously learned: {} ({}% confident, {} — verify with user if unsure)",
+                m.rule.correct_response, conf_pct, layer_label
+            ));
+        }
+    }
+
+    section
+}
 
 /// Default context engine that replicates current pipeline behavior:
 /// history + facts + summary + optional RAG + tool filtering.
@@ -251,10 +285,63 @@ pub async fn maybe_summarize(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use amanclaw_memory::knowledge_store::{CorrectionMatch, CorrectionRule};
     use amanclaw_traits::agent::AgentProfile;
     use amanclaw_traits::memory::HistoryMessage;
     use std::collections::HashMap;
     use std::sync::Mutex;
+
+    fn make_correction_match(correct_response: &str, confidence: f64, layer: &str) -> CorrectionMatch {
+        CorrectionMatch {
+            rule: CorrectionRule {
+                id: 1,
+                trigger_pattern: "test trigger".into(),
+                wrong_response: None,
+                correct_response: correct_response.into(),
+                topic: None,
+                user_id: None,
+                community_id: None,
+                layer: layer.into(),
+                confidence,
+                hit_count: 0,
+                status: "active".into(),
+            },
+            match_score: 1.0,
+        }
+    }
+
+    #[test]
+    fn test_format_learned_corrections() {
+        // Empty input returns empty string
+        assert_eq!(format_learned_corrections(&[]), String::new());
+
+        // High confidence (>= 0.85) path — user layer
+        let high = make_correction_match("Solat Jumaat is at 1pm", 0.90, "user");
+        let result = format_learned_corrections(&[high]);
+        assert!(result.contains("## Learned knowledge"));
+        assert!(result.contains("Solat Jumaat is at 1pm"));
+        assert!(result.contains("90%"));
+        assert!(result.contains("personal knowledge"));
+        assert!(!result.contains("Previously learned"));
+
+        // Medium confidence (< 0.85) path — community layer
+        let medium = make_correction_match("Zakat nisab is RM20,000", 0.70, "community");
+        let result2 = format_learned_corrections(&[medium]);
+        assert!(result2.contains("Previously learned"));
+        assert!(result2.contains("Zakat nisab is RM20,000"));
+        assert!(result2.contains("70%"));
+        assert!(result2.contains("community"));
+        assert!(result2.contains("verify with user if unsure"));
+
+        // Multiple corrections in single output
+        let c1 = make_correction_match("High confidence fact", 0.95, "global");
+        let c2 = make_correction_match("Lower confidence fact", 0.60, "user");
+        let combined = format_learned_corrections(&[c1, c2]);
+        assert!(combined.contains("High confidence fact"));
+        assert!(combined.contains("Lower confidence fact"));
+        assert!(combined.contains("general knowledge"));
+        assert!(combined.contains("personal"));
+    }
 
     /// In-memory mock for testing.
     struct MockMemory {
