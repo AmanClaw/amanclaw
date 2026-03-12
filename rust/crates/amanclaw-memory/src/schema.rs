@@ -119,3 +119,40 @@ pub const MIGRATE_NS_STMTS: &[&str] = &[
     "CREATE INDEX IF NOT EXISTS idx_messages_ns_user ON messages(namespace, user_id);",
     "CREATE INDEX IF NOT EXISTS idx_summaries_ns_user ON summaries(namespace, user_id);",
 ];
+
+/// SQL to create Reactive Learning Engine tables.
+pub const RLE_INIT_SQL: &str = r#"
+CREATE TABLE IF NOT EXISTS correction_rules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    trigger_pattern TEXT NOT NULL,
+    wrong_response TEXT,
+    correct_response TEXT NOT NULL,
+    topic TEXT,
+    user_id TEXT,
+    community_id TEXT,
+    layer TEXT NOT NULL DEFAULT 'global' CHECK (layer IN ('user', 'community', 'global')),
+    confidence REAL NOT NULL DEFAULT 0.7,
+    hit_count INTEGER NOT NULL DEFAULT 0,
+    last_used DATETIME,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'candidate', 'retracted')),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS correction_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    rule_id INTEGER REFERENCES correction_rules(id),
+    user_id TEXT NOT NULL,
+    platform TEXT,
+    signal_type TEXT NOT NULL,
+    signal_confidence REAL NOT NULL,
+    source_user_msg TEXT,
+    source_bot_msg TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_rules_lookup ON correction_rules(layer, status, topic);
+CREATE INDEX IF NOT EXISTS idx_rules_user ON correction_rules(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_rules_community ON correction_rules(community_id, status);
+CREATE INDEX IF NOT EXISTS idx_events_rule ON correction_events(rule_id);
+"#;
