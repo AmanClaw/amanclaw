@@ -1,3 +1,4 @@
+pub mod channel_manager;
 pub mod context_engine;
 pub mod diagnostics;
 pub mod error;
