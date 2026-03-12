@@ -1,7 +1,10 @@
+use amanclaw_core::channel_manager::ChannelManager;
 use amanclaw_core::registry::PluginRegistry;
 use amanclaw_core::webhooks::WebhookRouter;
 use amanclaw_security::auth::Auth;
+use amanclaw_traits::channel_config::ChannelsConfig;
 use sqlx::SqlitePool;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
@@ -19,6 +22,9 @@ pub struct ApiState {
     pub admin_password: Option<String>,
     pub jwt_secret: String,
     pub started_at: Instant,
+    pub channel_manager: Option<Arc<ChannelManager>>,
+    pub channels_config: Arc<RwLock<ChannelsConfig>>,
+    pub config_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]

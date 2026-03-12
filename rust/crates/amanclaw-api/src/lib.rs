@@ -54,6 +54,31 @@ pub fn api_router(state: ApiState) -> Router {
             post(routes::users::block_user),
         )
         .route("/api/webhooks", get(routes::webhooks::list_webhooks))
+        .route("/api/channels", get(routes::channels::list_channels))
+        .route(
+            "/api/channels/whatsapp-web/config",
+            put(routes::channels::update_whatsapp_web),
+        )
+        .route(
+            "/api/channels/whatsapp-web/qr",
+            get(routes::channels::get_whatsapp_qr),
+        )
+        .route(
+            "/api/channels/whatsapp-web/session",
+            get(routes::channels::get_whatsapp_session),
+        )
+        .route(
+            "/api/channels/{id}",
+            get(routes::channels::get_channel),
+        )
+        .route(
+            "/api/channels/{id}/start",
+            post(routes::channels::start_channel),
+        )
+        .route(
+            "/api/channels/{id}/stop",
+            post(routes::channels::stop_channel),
+        )
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth::require_auth,
