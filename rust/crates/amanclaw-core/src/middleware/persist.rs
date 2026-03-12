@@ -1,6 +1,7 @@
 use crate::context_engine::maybe_summarize;
 use crate::middleware::{MiddlewareChain, PipelineContext, PipelineMiddleware};
 use amanclaw_llm::client::LlmClient;
+use amanclaw_memory::knowledge_store::KnowledgeStore;
 use amanclaw_traits::context::{ContextEngine, ExchangeEvent};
 use amanclaw_traits::event::EventEmitter;
 use amanclaw_traits::memory::MemoryBackend;
@@ -16,6 +17,7 @@ pub struct PersistMiddleware {
     memory: Arc<dyn MemoryBackend>,
     llm: Arc<LlmClient>,
     emitter: Arc<dyn EventEmitter>,
+    knowledge_store: Option<Arc<KnowledgeStore>>,
 }
 
 impl PersistMiddleware {
@@ -30,7 +32,13 @@ impl PersistMiddleware {
             memory,
             llm,
             emitter,
+            knowledge_store: None,
         }
+    }
+
+    pub fn with_knowledge_store(mut self, store: Arc<KnowledgeStore>) -> Self {
+        self.knowledge_store = Some(store);
+        self
     }
 }
 
@@ -63,10 +71,36 @@ impl PipelineMiddleware for PersistMiddleware {
                     user_id: user_id.clone(),
                     platform: platform.clone(),
                     namespace: ns.clone(),
-                    user_message,
+                    user_message: user_message.clone(),
                     assistant_response: response_text.clone(),
                 })
                 .await?;
+
+            // Spawn background RLE correction detection
+            if let Some(ref store) = self.knowledge_store {
+                let store = store.clone();
+                let llm = self.llm.clone();
+                let memory = self.memory.clone();
+                let uid = user_id.clone();
+                let plat = platform.clone();
+                let namespace = ns.clone();
+                let user_msg = user_message;
+                let bot_msg = response_text.clone();
+
+                tokio::spawn(async move {
+                    crate::middleware::rle_detect::detect_and_store_corrections(
+                        &store,
+                        &llm,
+                        memory.as_ref(),
+                        &uid,
+                        &plat,
+                        &namespace,
+                        &user_msg,
+                        &bot_msg,
+                    )
+                    .await;
+                });
+            }
 
             // Auto-summarize if history is too long
             if let Err(e) = maybe_summarize(

@@ -6,9 +6,10 @@ use crate::middleware::persist::PersistMiddleware;
 use crate::middleware::rate_limit::RateLimitMiddleware;
 use crate::middleware::sanitize::SanitizeMiddleware;
 use crate::middleware::tool_calling::ToolCallingMiddleware;
-use crate::middleware::{MiddlewareChain, PipelineContext};
+use crate::middleware::{MiddlewareChain, PipelineContext, PipelineMiddleware};
 use crate::registry::PluginRegistry;
 use amanclaw_llm::client::LlmClient;
+use amanclaw_memory::knowledge_store::KnowledgeStore;
 use amanclaw_security::auth::Auth;
 use amanclaw_security::rate_limiter::RateLimiter;
 use amanclaw_traits::agent::AgentProfile;
@@ -44,22 +45,33 @@ impl Pipeline {
         memory: Arc<dyn MemoryBackend>,
         llm: Arc<LlmClient>,
         emitter: Arc<dyn EventEmitter>,
+        knowledge_store: Option<Arc<KnowledgeStore>>,
     ) -> Self {
-        let chain = MiddlewareChain::new(vec![
+        let mut middlewares: Vec<Box<dyn PipelineMiddleware>> = vec![
             Box::new(MetricsMiddleware),
             Box::new(AuthMiddleware::new(auth.clone())),
             Box::new(CommandMiddleware::new(auth, memory.clone())),
             Box::new(RateLimitMiddleware::new(rate_limiter, emitter.clone())),
             Box::new(SanitizeMiddleware::new(emitter.clone())),
-            Box::new(ContextMiddleware::new(context_engine.clone())),
-            Box::new(PersistMiddleware::new(
-                context_engine,
-                memory,
-                llm.clone(),
-                emitter,
-            )),
-            Box::new(ToolCallingMiddleware::new(llm)),
-        ]);
+        ];
+
+        // RLE retrieve before context
+        if let Some(ref store) = knowledge_store {
+            middlewares.push(Box::new(
+                crate::middleware::rle_retrieve::RleRetrieveMiddleware::new(store.clone()),
+            ));
+        }
+
+        middlewares.push(Box::new(ContextMiddleware::new(context_engine.clone())));
+
+        let mut persist = PersistMiddleware::new(context_engine, memory, llm.clone(), emitter);
+        if let Some(store) = knowledge_store {
+            persist = persist.with_knowledge_store(store);
+        }
+        middlewares.push(Box::new(persist));
+        middlewares.push(Box::new(ToolCallingMiddleware::new(llm)));
+
+        let chain = MiddlewareChain::new(middlewares);
         Self::Full { chain }
     }
 

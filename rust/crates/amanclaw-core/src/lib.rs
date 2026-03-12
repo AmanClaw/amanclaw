@@ -225,6 +225,13 @@ impl Engine {
             config.routing.default_agent.clone(),
         );
 
+        // Initialize Reactive Learning Engine knowledge store
+        let knowledge_store = Arc::new(amanclaw_memory::knowledge_store::KnowledgeStore::new(
+            memory.pool().clone(),
+        ));
+        knowledge_store.init().await?;
+        tracing::info!("Reactive Learning Engine initialized");
+
         let registry = Arc::new(registry);
         let auth_arc = Arc::new(RwLock::new(auth));
         let pool = memory.pool().clone();
@@ -324,6 +331,7 @@ impl Engine {
             memory_arc,
             llm_arc,
             emitter,
+            Some(knowledge_store),
         );
 
         // Create message channel for adapters
