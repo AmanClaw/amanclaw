@@ -1,4 +1,5 @@
 use crate::middleware::{MiddlewareChain, PipelineContext, PipelineMiddleware};
+use amanclaw_memory::knowledge_store::{DetectedCorrection, KnowledgeStore};
 use amanclaw_security::auth::{Auth, UserState};
 use amanclaw_traits::memory::MemoryBackend;
 use amanclaw_traits::message::OutgoingMessage;
@@ -11,11 +12,21 @@ use tokio::sync::RwLock;
 pub struct CommandMiddleware {
     auth: Arc<RwLock<Auth>>,
     memory: Arc<dyn MemoryBackend>,
+    knowledge_store: Option<Arc<KnowledgeStore>>,
 }
 
 impl CommandMiddleware {
     pub fn new(auth: Arc<RwLock<Auth>>, memory: Arc<dyn MemoryBackend>) -> Self {
-        Self { auth, memory }
+        Self {
+            auth,
+            memory,
+            knowledge_store: None,
+        }
+    }
+
+    pub fn with_knowledge_store(mut self, store: Arc<KnowledgeStore>) -> Self {
+        self.knowledge_store = Some(store);
+        self
     }
 }
 
@@ -47,6 +58,18 @@ impl PipelineMiddleware for CommandMiddleware {
                 topic_id: None,
                 interactive: None,
             }));
+        }
+
+        // Handle knowledge store commands (/learned, /forget, /teach)
+        if text == "/learned" || text.starts_with("/learned ")
+            || text == "/forget" || text.starts_with("/forget ")
+            || text.starts_with("/teach ")
+        {
+            if let Some(reply) =
+                handle_knowledge_command(&self.knowledge_store, &ctx).await?
+            {
+                return Ok(Some(reply));
+            }
         }
 
         // Handle other slash commands
@@ -162,4 +185,119 @@ async fn handle_command(
         topic_id: None,
         interactive: None,
     }))
+}
+
+fn make_reply(chat_id: String, text: String) -> OutgoingMessage {
+    OutgoingMessage {
+        chat_id,
+        text,
+        parse_mode: None,
+        reply_to: None,
+        platform: None,
+        topic_id: None,
+        interactive: None,
+    }
+}
+
+/// Handle knowledge-store commands: /learned, /forget all, /teach
+async fn handle_knowledge_command(
+    knowledge_store: &Option<Arc<KnowledgeStore>>,
+    ctx: &PipelineContext,
+) -> Result<Option<OutgoingMessage>> {
+    let store = match knowledge_store {
+        Some(s) => s,
+        None => {
+            return Ok(Some(make_reply(
+                ctx.msg.chat_id.clone(),
+                "Learning feature is not available.".into(),
+            )));
+        }
+    };
+
+    let text = ctx.msg.text.trim();
+    let chat_id = ctx.msg.chat_id.clone();
+    let user_id = &ctx.msg.user_id;
+
+    if text == "/learned" {
+        let rules = store.get_user_rules(user_id).await?;
+        if rules.is_empty() {
+            return Ok(Some(make_reply(
+                chat_id,
+                "I haven't learned anything specific about you yet.".into(),
+            )));
+        }
+        let mut lines = vec!["Things I've learned about you:".to_string()];
+        for r in &rules {
+            let pct = (r.confidence * 100.0) as u32;
+            lines.push(format!(
+                "- **{}**: {} ({}% confident, used {}x)",
+                r.trigger_pattern, r.correct_response, pct, r.hit_count
+            ));
+        }
+        return Ok(Some(make_reply(chat_id, lines.join("\n"))));
+    }
+
+    if text == "/learned community" {
+        let community_id = match &ctx.msg.channel_context {
+            Some(cid) if !cid.is_empty() => cid.clone(),
+            _ => {
+                return Ok(Some(make_reply(
+                    chat_id,
+                    "Community learning is available in group chats.".into(),
+                )));
+            }
+        };
+        let rules = store.get_community_rules(&community_id).await?;
+        if rules.is_empty() {
+            return Ok(Some(make_reply(
+                chat_id,
+                "No community-level learnings yet.".into(),
+            )));
+        }
+        let mut lines = vec!["Community learnings:".to_string()];
+        for r in &rules {
+            let pct = (r.confidence * 100.0) as u32;
+            lines.push(format!(
+                "- **{}**: {} ({}% confident, used {}x)",
+                r.trigger_pattern, r.correct_response, pct, r.hit_count
+            ));
+        }
+        return Ok(Some(make_reply(chat_id, lines.join("\n"))));
+    }
+
+    if text == "/forget all" {
+        let count = store.retract_all_user_rules(user_id).await?;
+        return Ok(Some(make_reply(
+            chat_id,
+            format!("Done. Forgot {count} learned items."),
+        )));
+    }
+
+    if let Some(fact) = text.strip_prefix("/teach ") {
+        let fact = fact.trim();
+        if fact.is_empty() {
+            return Ok(Some(make_reply(
+                chat_id,
+                "Usage: /teach <fact>".into(),
+            )));
+        }
+        let correction = DetectedCorrection {
+            trigger: fact.to_string(),
+            wrong_response: None,
+            correct_response: fact.to_string(),
+            topic: None,
+            confidence: 0.95,
+            signal_type: "explicit_teach".into(),
+        };
+        store
+            .upsert_rule(&correction, Some(user_id), None, "user")
+            .await?;
+        return Ok(Some(make_reply(
+            chat_id,
+            "Got it, I'll remember that.".into(),
+        )));
+    }
+
+    // Not a knowledge command we handle — fall through
+    Ok(None)
 }

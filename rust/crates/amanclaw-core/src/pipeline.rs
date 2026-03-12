@@ -47,10 +47,15 @@ impl Pipeline {
         emitter: Arc<dyn EventEmitter>,
         knowledge_store: Option<Arc<KnowledgeStore>>,
     ) -> Self {
+        let mut cmd_middleware = CommandMiddleware::new(auth.clone(), memory.clone());
+        if let Some(ref store) = knowledge_store {
+            cmd_middleware = cmd_middleware.with_knowledge_store(store.clone());
+        }
+
         let mut middlewares: Vec<Box<dyn PipelineMiddleware>> = vec![
             Box::new(MetricsMiddleware),
-            Box::new(AuthMiddleware::new(auth.clone())),
-            Box::new(CommandMiddleware::new(auth, memory.clone())),
+            Box::new(AuthMiddleware::new(auth)),
+            Box::new(cmd_middleware),
             Box::new(RateLimitMiddleware::new(rate_limiter, emitter.clone())),
             Box::new(SanitizeMiddleware::new(emitter.clone())),
         ];
