@@ -4,6 +4,7 @@ pub mod context;
 pub mod metrics;
 pub mod persist;
 pub mod rate_limit;
+pub mod rle_detect;
 pub mod rle_retrieve;
 pub mod sanitize;
 pub mod tool_calling;
