@@ -6,5 +6,6 @@ pub mod sqlite;
 
 pub mod cached;
 pub mod community;
+pub mod knowledge_store;
 pub mod schema;
 pub mod vector;
