@@ -41,8 +41,8 @@
 
 	async function loadChannels() {
 		try {
-			const result = await api.listChannels() as ChannelStatus[];
-			channels = result;
+			const result = await api.listChannels() as any;
+			channels = Array.isArray(result) ? result : (result?.channels ?? []);
 		} catch (e) {
 			console.error('Failed to load channels:', e);
 		} finally {
