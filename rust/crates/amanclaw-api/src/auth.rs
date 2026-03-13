@@ -6,7 +6,7 @@ use axum::{
     middleware::Next,
     response::{IntoResponse, Response},
 };
-use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey};
+use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
@@ -31,12 +31,16 @@ pub async fn login(
 
     let exp = (chrono::Utc::now() + chrono::Duration::hours(24)).timestamp() as usize;
 
-    let claims = Claims { role: "admin".into(), exp };
+    let claims = Claims {
+        role: "admin".into(),
+        exp,
+    };
     let token = encode(
         &Header::default(),
         &claims,
         &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
-    ).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    )
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let cookie = format!(
         "amanclaw_token={}; HttpOnly; SameSite=Strict; Path=/; Max-Age=86400",
@@ -74,7 +78,8 @@ pub async fn require_auth(
         .get("cookie")
         .and_then(|v| v.to_str().ok())
         .and_then(|cookies| {
-            cookies.split(';')
+            cookies
+                .split(';')
                 .find_map(|c| c.trim().strip_prefix("amanclaw_token="))
         })
         .map(|token| {
@@ -82,7 +87,8 @@ pub async fn require_auth(
                 token,
                 &DecodingKey::from_secret(state.jwt_secret.as_bytes()),
                 &Validation::default(),
-            ).is_ok()
+            )
+            .is_ok()
         })
         .unwrap_or(false);
 

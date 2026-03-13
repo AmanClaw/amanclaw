@@ -21,7 +21,6 @@ use crate::handle::{EngineCommand, EngineHandle, EngineStatus};
 use crate::pipeline::Pipeline;
 use crate::registry::PluginRegistry;
 use crate::router::AgentRouter;
-use amanclaw_traits::channel_config::ChannelsConfig;
 use amanclaw_channel_discord::DiscordChannel;
 use amanclaw_channel_slack::SlackChannel;
 use amanclaw_channel_telegram::TelegramChannel;
@@ -35,6 +34,7 @@ use amanclaw_memory::vector::SqliteVectorStore;
 use amanclaw_security::auth::Auth;
 use amanclaw_security::rate_limiter::RateLimiter;
 use amanclaw_traits::channel::Channel;
+use amanclaw_traits::channel_config::ChannelsConfig;
 use amanclaw_traits::config::AppConfig;
 use amanclaw_traits::context::ContextEngine;
 use amanclaw_traits::memory::MemoryBackend;
@@ -357,7 +357,9 @@ impl Engine {
             let mut telegram = TelegramChannel::new(token);
             telegram.start(msg_tx.clone()).await?;
             let ch: Arc<dyn Channel> = Arc::new(telegram);
-            channel_manager.register_running("telegram", ch.clone()).await;
+            channel_manager
+                .register_running("telegram", ch.clone())
+                .await;
             channels.push(ch);
             tracing::info!("Telegram channel started");
         }
@@ -366,7 +368,9 @@ impl Engine {
             let mut discord = DiscordChannel::new(token);
             discord.start(msg_tx.clone()).await?;
             let ch: Arc<dyn Channel> = Arc::new(discord);
-            channel_manager.register_running("discord", ch.clone()).await;
+            channel_manager
+                .register_running("discord", ch.clone())
+                .await;
             channels.push(ch);
             tracing::info!("Discord channel started");
         }
@@ -374,7 +378,9 @@ impl Engine {
         if let Some(mut whatsapp) = WhatsAppChannel::from_env() {
             whatsapp.start(msg_tx.clone()).await?;
             let ch: Arc<dyn Channel> = Arc::new(whatsapp);
-            channel_manager.register_running("whatsapp-cloud", ch.clone()).await;
+            channel_manager
+                .register_running("whatsapp-cloud", ch.clone())
+                .await;
             channels.push(ch);
             tracing::info!("WhatsApp channel started");
         }
@@ -382,7 +388,9 @@ impl Engine {
         if let Some(mut whatsapp_web) = WhatsAppWebChannel::from_env() {
             whatsapp_web.start(msg_tx.clone()).await?;
             let ch: Arc<dyn Channel> = Arc::new(whatsapp_web);
-            channel_manager.register_running("whatsapp-web", ch.clone()).await;
+            channel_manager
+                .register_running("whatsapp-web", ch.clone())
+                .await;
             channels.push(ch);
             tracing::info!("WhatsApp Web (WAHA) channel started");
         }

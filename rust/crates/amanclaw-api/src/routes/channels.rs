@@ -107,10 +107,7 @@ pub async fn get_whatsapp_qr(
         .as_ref()
         .ok_or(StatusCode::BAD_REQUEST)?;
 
-    let url = format!(
-        "{}/api/{}/auth/qr",
-        wa_config.waha_url, wa_config.session
-    );
+    let url = format!("{}/api/{}/auth/qr", wa_config.waha_url, wa_config.session);
     let client = reqwest::Client::new();
     let mut req = client.get(&url);
     if let Some(ref key) = wa_config.waha_api_key {
@@ -118,14 +115,12 @@ pub async fn get_whatsapp_qr(
     }
 
     match req.send().await {
-        Ok(resp) if resp.status().is_success() => {
-            match resp.json::<serde_json::Value>().await {
-                Ok(body) => Ok(Json(body)),
-                Err(_) => Ok(Json(
-                    serde_json::json!({"error": "Failed to parse WAHA QR response"}),
-                )),
-            }
-        }
+        Ok(resp) if resp.status().is_success() => match resp.json::<serde_json::Value>().await {
+            Ok(body) => Ok(Json(body)),
+            Err(_) => Ok(Json(
+                serde_json::json!({"error": "Failed to parse WAHA QR response"}),
+            )),
+        },
         Ok(resp) => {
             let status = resp.status().as_u16();
             Ok(Json(
@@ -148,10 +143,7 @@ pub async fn get_whatsapp_session(
         .as_ref()
         .ok_or(StatusCode::BAD_REQUEST)?;
 
-    let url = format!(
-        "{}/api/sessions/{}",
-        wa_config.waha_url, wa_config.session
-    );
+    let url = format!("{}/api/sessions/{}", wa_config.waha_url, wa_config.session);
     let client = reqwest::Client::new();
     let mut req = client.get(&url);
     if let Some(ref key) = wa_config.waha_api_key {
@@ -159,12 +151,10 @@ pub async fn get_whatsapp_session(
     }
 
     match req.send().await {
-        Ok(resp) if resp.status().is_success() => {
-            match resp.json::<serde_json::Value>().await {
-                Ok(body) => Ok(Json(body)),
-                Err(_) => Ok(Json(serde_json::json!({"status": "unknown"}))),
-            }
-        }
+        Ok(resp) if resp.status().is_success() => match resp.json::<serde_json::Value>().await {
+            Ok(body) => Ok(Json(body)),
+            Err(_) => Ok(Json(serde_json::json!({"status": "unknown"}))),
+        },
         Ok(_) => Ok(Json(serde_json::json!({"status": "disconnected"}))),
         Err(e) => Ok(Json(
             serde_json::json!({"status": "error", "error": e.to_string()}),
@@ -173,21 +163,15 @@ pub async fn get_whatsapp_session(
 }
 
 /// Persist the current channels config to config.yaml.
-async fn persist_channels_config(
-    state: &ApiState,
-    path: &std::path::Path,
-) -> anyhow::Result<()> {
+async fn persist_channels_config(state: &ApiState, path: &std::path::Path) -> anyhow::Result<()> {
     let config = state.channels_config.read().await;
     let content = tokio::fs::read_to_string(path).await.unwrap_or_default();
-    let mut yaml: serde_yaml::Value = serde_yaml::from_str(&content)
-        .unwrap_or(serde_yaml::Value::Mapping(Default::default()));
+    let mut yaml: serde_yaml::Value =
+        serde_yaml::from_str(&content).unwrap_or(serde_yaml::Value::Mapping(Default::default()));
 
     if let serde_yaml::Value::Mapping(ref mut map) = yaml {
         let channels_val = serde_yaml::to_value(&*config)?;
-        map.insert(
-            serde_yaml::Value::String("channels".into()),
-            channels_val,
-        );
+        map.insert(serde_yaml::Value::String("channels".into()), channels_val);
     }
 
     let new_content = serde_yaml::to_string(&yaml)?;

@@ -218,11 +218,7 @@ impl KnowledgeStore {
             let topic_bonus = if let (Some(ref rule_topic), Some(q_topic)) =
                 (row.get::<Option<String>, _>("topic"), &q.topic)
             {
-                if rule_topic == q_topic {
-                    0.1
-                } else {
-                    0.0
-                }
+                if rule_topic == q_topic { 0.1 } else { 0.0 }
             } else {
                 0.0
             };
@@ -425,8 +421,14 @@ mod tests {
             signal_type: "explicit".to_string(),
         };
 
-        store.upsert_rule(&global, None, None, "global").await.unwrap();
-        store.upsert_rule(&user, Some("u1"), None, "user").await.unwrap();
+        store
+            .upsert_rule(&global, None, None, "global")
+            .await
+            .unwrap();
+        store
+            .upsert_rule(&user, Some("u1"), None, "user")
+            .await
+            .unwrap();
         store.promote_candidates(0.5).await.unwrap();
 
         let q = CorrectionQuery {
@@ -483,7 +485,10 @@ mod tests {
 
         for i in 0..3 {
             let c = sample_correction(&format!("trigger {i}"), &format!("answer {i}"));
-            store.upsert_rule(&c, Some("u1"), None, "user").await.unwrap();
+            store
+                .upsert_rule(&c, Some("u1"), None, "user")
+                .await
+                .unwrap();
         }
         store.promote_candidates(0.5).await.unwrap();
 
@@ -531,7 +536,10 @@ mod tests {
             signal_type: "explicit".to_string(),
         };
 
-        let id1 = store.upsert_rule(&c1, Some("u1"), None, "user").await.unwrap();
+        let id1 = store
+            .upsert_rule(&c1, Some("u1"), None, "user")
+            .await
+            .unwrap();
 
         let c2 = DetectedCorrection {
             trigger: "solat time".to_string(),
@@ -542,7 +550,10 @@ mod tests {
             signal_type: "explicit".to_string(),
         };
 
-        let id2 = store.upsert_rule(&c2, Some("u1"), None, "user").await.unwrap();
+        let id2 = store
+            .upsert_rule(&c2, Some("u1"), None, "user")
+            .await
+            .unwrap();
 
         // Should be the same row
         assert_eq!(id1, id2);
@@ -576,8 +587,14 @@ mod tests {
             signal_type: "explicit".to_string(),
         };
 
-        store.upsert_rule(&low, Some("u1"), None, "user").await.unwrap();
-        store.upsert_rule(&high, Some("u1"), None, "user").await.unwrap();
+        store
+            .upsert_rule(&low, Some("u1"), None, "user")
+            .await
+            .unwrap();
+        store
+            .upsert_rule(&high, Some("u1"), None, "user")
+            .await
+            .unwrap();
 
         // Promote only >= 0.7
         let promoted = store.promote_candidates(0.7).await.unwrap();

@@ -8,12 +8,12 @@ use axum::{
         State,
         ws::{WebSocket, WebSocketUpgrade},
     },
-    http::{header, StatusCode as HttpStatus, Uri},
+    http::{StatusCode as HttpStatus, Uri, header},
     middleware,
     response::{Html, IntoResponse},
     routing::{delete, get, post, put},
 };
-use include_dir::{include_dir, Dir};
+use include_dir::{Dir, include_dir};
 use state::ApiState;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
@@ -67,10 +67,7 @@ pub fn api_router(state: ApiState) -> Router {
             "/api/channels/whatsapp-web/session",
             get(routes::channels::get_whatsapp_session),
         )
-        .route(
-            "/api/channels/{id}",
-            get(routes::channels::get_channel),
-        )
+        .route("/api/channels/{id}", get(routes::channels::get_channel))
         .route(
             "/api/channels/{id}/start",
             post(routes::channels::start_channel),

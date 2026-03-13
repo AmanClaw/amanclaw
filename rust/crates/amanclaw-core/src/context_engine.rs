@@ -16,7 +16,8 @@ pub fn format_learned_corrections(matches: &[CorrectionMatch]) -> String {
         return String::new();
     }
 
-    let mut section = String::from("\n\n## Learned knowledge (treat as ground truth unless user says otherwise)");
+    let mut section =
+        String::from("\n\n## Learned knowledge (treat as ground truth unless user says otherwise)");
 
     for m in matches {
         let conf_pct = (m.rule.confidence * 100.0) as u32;
@@ -291,7 +292,11 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::Mutex;
 
-    fn make_correction_match(correct_response: &str, confidence: f64, layer: &str) -> CorrectionMatch {
+    fn make_correction_match(
+        correct_response: &str,
+        confidence: f64,
+        layer: &str,
+    ) -> CorrectionMatch {
         CorrectionMatch {
             rule: CorrectionRule {
                 id: 1,

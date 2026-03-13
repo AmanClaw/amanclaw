@@ -28,13 +28,14 @@ pub async fn detect_and_store_corrections(
         .collect();
 
     // 3. Call detection
-    let corrections = match detect_corrections(llm, user_message, bot_response, &history_pairs).await {
-        Ok(c) => c,
-        Err(e) => {
-            tracing::debug!(error = %e, "Correction detection failed");
-            return;
-        }
-    };
+    let corrections =
+        match detect_corrections(llm, user_message, bot_response, &history_pairs).await {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::debug!(error = %e, "Correction detection failed");
+                return;
+            }
+        };
 
     // 4. Store each correction with confidence >= 0.4
     for correction in &corrections {
@@ -44,7 +45,10 @@ pub async fn detect_and_store_corrections(
 
         let layer = "user"; // user-level for now
 
-        match store.upsert_rule(correction, Some(user_id), None, layer).await {
+        match store
+            .upsert_rule(correction, Some(user_id), None, layer)
+            .await
+        {
             Ok(rule_id) => {
                 let event = CorrectionEvent {
                     rule_id: Some(rule_id),

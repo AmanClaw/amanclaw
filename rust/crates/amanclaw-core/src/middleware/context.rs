@@ -43,14 +43,21 @@ impl PipelineMiddleware for ContextMiddleware {
         ctx.extensions.insert(context_result);
 
         // Inject learned corrections into system prompt
-        if let Some(learned) = ctx.extensions.get::<crate::middleware::rle_retrieve::LearnedCorrections>() {
+        if let Some(learned) = ctx
+            .extensions
+            .get::<crate::middleware::rle_retrieve::LearnedCorrections>()
+        {
             if !learned.0.is_empty() {
                 let correction_text = crate::context_engine::format_learned_corrections(&learned.0);
-                if let Some(context_result) = ctx.extensions.get_mut::<amanclaw_traits::context::ContextResult>() {
+                if let Some(context_result) = ctx
+                    .extensions
+                    .get_mut::<amanclaw_traits::context::ContextResult>()
+                {
                     if let Some(system_msg) = context_result.messages.first_mut() {
                         if let Some(content) = system_msg.get("content").and_then(|c| c.as_str()) {
                             let new_content = format!("{}{}", content, correction_text);
-                            *system_msg = serde_json::json!({"role": "system", "content": new_content});
+                            *system_msg =
+                                serde_json::json!({"role": "system", "content": new_content});
                         }
                     }
                 }

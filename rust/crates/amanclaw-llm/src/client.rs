@@ -137,7 +137,10 @@ impl LlmClient {
         // Check for XML tool calls in content (Qwen and similar models)
         let content = message["content"].as_str().unwrap_or("");
         if let Some(calls) = parse_xml_tool_calls(content) {
-            tracing::info!(count = calls.len(), "Parsed XML-style tool calls from LLM text");
+            tracing::info!(
+                count = calls.len(),
+                "Parsed XML-style tool calls from LLM text"
+            );
             return Ok(LlmResponse::ToolCalls(calls));
         }
 
@@ -168,18 +171,24 @@ impl LlmClient {
         // Check for XML tool calls in content (Qwen and similar models)
         let content = message["content"].as_str().unwrap_or("");
         if let Some(calls) = parse_xml_tool_calls(content) {
-            tracing::info!(count = calls.len(), "Parsed XML-style tool calls from LLM text");
+            tracing::info!(
+                count = calls.len(),
+                "Parsed XML-style tool calls from LLM text"
+            );
             // Reconstruct the message as if it had proper tool_calls for conversation history
-            let tool_calls_json: Vec<Value> = calls.iter().map(|c| {
-                serde_json::json!({
-                    "id": c.id,
-                    "type": "function",
-                    "function": {
-                        "name": c.name,
-                        "arguments": c.arguments,
-                    }
+            let tool_calls_json: Vec<Value> = calls
+                .iter()
+                .map(|c| {
+                    serde_json::json!({
+                        "id": c.id,
+                        "type": "function",
+                        "function": {
+                            "name": c.name,
+                            "arguments": c.arguments,
+                        }
+                    })
                 })
-            }).collect();
+                .collect();
             let synthetic_message = serde_json::json!({
                 "role": "assistant",
                 "content": null,

@@ -1,18 +1,21 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 
 /// Available product templates.
 pub fn list_templates() -> Vec<(&'static str, &'static str)> {
-    vec![
-        ("communitybot", "Friendly AI assistant for community group chats"),
-    ]
+    vec![(
+        "communitybot",
+        "Friendly AI assistant for community group chats",
+    )]
 }
 
 /// Scaffold a product directory from a template.
 pub fn scaffold_product(template: &str, output_dir: Option<&str>) -> Result<PathBuf> {
     match template {
         "communitybot" => scaffold_communitybot(output_dir),
-        other => bail!("Unknown product template: {other}. Use 'amanclaw product list' to see available templates."),
+        other => bail!(
+            "Unknown product template: {other}. Use 'amanclaw product list' to see available templates."
+        ),
     }
 }
 
@@ -39,7 +42,10 @@ fn scaffold_communitybot(output_dir: Option<&str>) -> Result<PathBuf> {
     write_file(&product_dir.join("Dockerfile"), COMMUNITYBOT_DOCKERFILE)?;
 
     // docker-compose.yml
-    write_file(&product_dir.join("docker-compose.yml"), COMMUNITYBOT_COMPOSE)?;
+    write_file(
+        &product_dir.join("docker-compose.yml"),
+        COMMUNITYBOT_COMPOSE,
+    )?;
 
     // fly.toml
     write_file(&product_dir.join("fly.toml"), COMMUNITYBOT_FLY)?;

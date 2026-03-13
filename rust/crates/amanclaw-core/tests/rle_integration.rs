@@ -1,7 +1,7 @@
 use amanclaw_core::context_engine::format_learned_corrections;
 use amanclaw_memory::knowledge_store::*;
-use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::Row;
+use sqlx::sqlite::SqlitePoolOptions;
 
 async fn make_store() -> KnowledgeStore {
     let pool = SqlitePoolOptions::new()
@@ -71,7 +71,10 @@ async fn test_full_rle_flow() {
         topic: Some("solat".to_string()),
     };
     let matches = store.query(&query).await.unwrap();
-    assert!(!matches.is_empty(), "query should return at least one match");
+    assert!(
+        !matches.is_empty(),
+        "query should return at least one match"
+    );
     assert_eq!(matches[0].rule.correct_response, "Asr is at 4:15 PM");
     assert_eq!(matches[0].rule.layer, "user");
 
@@ -148,10 +151,7 @@ async fn test_community_knowledge_propagates() {
 
     // 3. Verify the match layer is "community"
     assert_eq!(matches[0].rule.layer, "community");
-    assert!(matches[0]
-        .rule
-        .correct_response
-        .contains("Shafi'i method"));
+    assert!(matches[0].rule.correct_response.contains("Shafi'i method"));
 }
 
 /// Candidate promotion flow: low confidence → excluded → bump confidence → promote → active.

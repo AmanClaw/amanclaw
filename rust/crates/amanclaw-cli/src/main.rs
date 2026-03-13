@@ -343,7 +343,10 @@ async fn cmd_skill(action: SkillAction) -> Result<()> {
                     "Pack '{pack}' not found. Use 'amanclaw skill packs' to see available packs."
                 )
             })?;
-            println!("Installing pack '{pack}' ({} skills)...\n", skill_names.len());
+            println!(
+                "Installing pack '{pack}' ({} skills)...\n",
+                skill_names.len()
+            );
             let dir = std::path::Path::new(&plugins_dir);
             for skill_name in skill_names {
                 println!("Installing {skill_name}...");
@@ -354,8 +357,7 @@ async fn cmd_skill(action: SkillAction) -> Result<()> {
                     let repo = skill_installer::resolve_repo(skill_name);
                     (repo, "rust".into())
                 };
-                if let Err(e) =
-                    skill_installer::install_skill(&repo, skill_name, &lang, dir).await
+                if let Err(e) = skill_installer::install_skill(&repo, skill_name, &lang, dir).await
                 {
                     eprintln!("  Warning: Failed to install {skill_name}: {e}");
                 }

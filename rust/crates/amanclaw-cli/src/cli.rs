@@ -310,7 +310,9 @@ mod tests {
     fn test_cli_product_new() {
         let cli = Cli::parse_from(["amanclaw", "product", "new", "communitybot"]);
         match cli.command {
-            Some(Command::Product { action: ProductAction::New { template, output } }) => {
+            Some(Command::Product {
+                action: ProductAction::New { template, output },
+            }) => {
                 assert_eq!(template, "communitybot");
                 assert!(output.is_none());
             }
@@ -320,9 +322,18 @@ mod tests {
 
     #[test]
     fn test_cli_product_new_with_output() {
-        let cli = Cli::parse_from(["amanclaw", "product", "new", "communitybot", "--output", "/tmp/bots"]);
+        let cli = Cli::parse_from([
+            "amanclaw",
+            "product",
+            "new",
+            "communitybot",
+            "--output",
+            "/tmp/bots",
+        ]);
         match cli.command {
-            Some(Command::Product { action: ProductAction::New { template, output } }) => {
+            Some(Command::Product {
+                action: ProductAction::New { template, output },
+            }) => {
                 assert_eq!(template, "communitybot");
                 assert_eq!(output.as_deref(), Some("/tmp/bots"));
             }
@@ -333,6 +344,11 @@ mod tests {
     #[test]
     fn test_cli_product_list() {
         let cli = Cli::parse_from(["amanclaw", "product", "list"]);
-        assert!(matches!(cli.command, Some(Command::Product { action: ProductAction::List })));
+        assert!(matches!(
+            cli.command,
+            Some(Command::Product {
+                action: ProductAction::List
+            })
+        ));
     }
 }

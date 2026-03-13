@@ -46,20 +46,12 @@ impl ChannelManager {
         let all_ids = vec![
             (
                 "telegram",
-                config
-                    .telegram
-                    .as_ref()
-                    .map(|c| c.enabled)
-                    .unwrap_or(false),
+                config.telegram.as_ref().map(|c| c.enabled).unwrap_or(false),
                 config.telegram.is_some(),
             ),
             (
                 "discord",
-                config
-                    .discord
-                    .as_ref()
-                    .map(|c| c.enabled)
-                    .unwrap_or(false),
+                config.discord.as_ref().map(|c| c.enabled).unwrap_or(false),
                 config.discord.is_some(),
             ),
             (
@@ -104,11 +96,7 @@ impl ChannelManager {
     }
 
     /// Get status of a single channel.
-    pub async fn get_status(
-        &self,
-        id: &str,
-        config: &ChannelsConfig,
-    ) -> Option<ChannelStatusInfo> {
+    pub async fn get_status(&self, id: &str, config: &ChannelsConfig) -> Option<ChannelStatusInfo> {
         self.get_all_status(config)
             .await
             .into_iter()
@@ -165,14 +153,12 @@ impl ChannelManager {
                 channels.insert(
                     "whatsapp-web".to_string(),
                     ChannelEntry {
-                        channel: Arc::new(
-                            amanclaw_channel_whatsapp_web::WhatsAppWebChannel::new(
-                                config.waha_url.clone(),
-                                config.waha_api_key.clone(),
-                                config.session.clone(),
-                                config.webhook_port,
-                            ),
-                        ),
+                        channel: Arc::new(amanclaw_channel_whatsapp_web::WhatsAppWebChannel::new(
+                            config.waha_url.clone(),
+                            config.waha_api_key.clone(),
+                            config.session.clone(),
+                            config.webhook_port,
+                        )),
                         running: false,
                         error: Some(e.to_string()),
                     },

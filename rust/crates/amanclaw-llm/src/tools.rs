@@ -11,15 +11,12 @@ static THINK_UNCLOSED: LazyLock<Regex> =
 
 /// Regex to match XML-style tool calls emitted by some LLMs (e.g. Qwen).
 /// Matches: <tool_call> ... </tool_call>
-static XML_TOOL_CALL: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?si)<tool_call>\s*(.*?)\s*</tool_call>").unwrap()
-});
-static XML_FUNCTION: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?si)<function=([^>]+)>(.*?)</function>").unwrap()
-});
-static XML_PARAM: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?si)<parameter=([^>]+)>(.*?)</parameter>").unwrap()
-});
+static XML_TOOL_CALL: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?si)<tool_call>\s*(.*?)\s*</tool_call>").unwrap());
+static XML_FUNCTION: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?si)<function=([^>]+)>(.*?)</function>").unwrap());
+static XML_PARAM: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?si)<parameter=([^>]+)>(.*?)</parameter>").unwrap());
 
 pub fn strip_thinking(text: &str) -> String {
     let text = THINK_TAGGED.replace_all(text, "");

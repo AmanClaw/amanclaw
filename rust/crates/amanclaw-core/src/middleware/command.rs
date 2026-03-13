@@ -61,13 +61,13 @@ impl PipelineMiddleware for CommandMiddleware {
         }
 
         // Handle knowledge store commands (/learned, /forget, /teach)
-        if text == "/learned" || text.starts_with("/learned ")
-            || text == "/forget" || text.starts_with("/forget ")
+        if text == "/learned"
+            || text.starts_with("/learned ")
+            || text == "/forget"
+            || text.starts_with("/forget ")
             || text.starts_with("/teach ")
         {
-            if let Some(reply) =
-                handle_knowledge_command(&self.knowledge_store, &ctx).await?
-            {
+            if let Some(reply) = handle_knowledge_command(&self.knowledge_store, &ctx).await? {
                 return Ok(Some(reply));
             }
         }
@@ -276,10 +276,7 @@ async fn handle_knowledge_command(
     if let Some(fact) = text.strip_prefix("/teach ") {
         let fact = fact.trim();
         if fact.is_empty() {
-            return Ok(Some(make_reply(
-                chat_id,
-                "Usage: /teach <fact>".into(),
-            )));
+            return Ok(Some(make_reply(chat_id, "Usage: /teach <fact>".into())));
         }
         let correction = DetectedCorrection {
             trigger: fact.to_string(),
