@@ -5,11 +5,17 @@
   import StatusBadge from '../components/StatusBadge.svelte'
 
   let status: any = null
+  let userStats: any = null
   let loading = true
 
   onMount(async () => {
     try {
-      status = await apiFetch('/status')
+      const [s, u] = await Promise.all([
+        apiFetch('/status'),
+        apiFetch('/stats').catch(() => null),
+      ])
+      status = s
+      userStats = u
     } catch (e) {
       console.error(e)
     } finally {
@@ -41,6 +47,25 @@
       <StatCard label="Communities" value={status.communities_count} icon="🏘️" />
       <StatCard label="Skills" value={status.skills_count} icon="⚡" />
     </div>
+
+    {#if userStats}
+      <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">User Breakdown</h3>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <StatCard label="Total Users" value={userStats.total} icon="👤" />
+        <StatCard label="Pending" value={userStats.pending} icon="⏳" />
+        <StatCard label="Approved" value={userStats.approved} icon="✅" />
+        <StatCard label="Blocked" value={userStats.blocked} icon="🚫" />
+      </div>
+
+      {#if userStats.by_platform && Object.keys(userStats.by_platform).length > 0}
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">By Platform</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {#each Object.entries(userStats.by_platform) as [platform, count]}
+            <StatCard label={platform} value={count} icon="📱" />
+          {/each}
+        </div>
+      {/if}
+    {/if}
   {:else}
     <p class="text-red-500">Failed to load status</p>
   {/if}
