@@ -41,6 +41,8 @@ export const api = {
 		invoke('block_user', { userId, platform }),
 	unblockUser: (userId: string, platform: string) =>
 		invoke('unblock_user', { userId, platform }),
+	addUser: (params: { userId: string; platform: string; username?: string; firstName?: string; status?: string }) =>
+		invoke('add_user', params),
 	getUserDetail: (userId: string, platform: string) =>
 		invoke('get_user_detail', { userId, platform }),
 	getUserHistory: (userId: string, platform: string, limit?: number, offset?: number) =>

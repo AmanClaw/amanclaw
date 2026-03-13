@@ -13,6 +13,16 @@
 	let historyTotal = $state(0);
 	let historyLoading = $state(false);
 
+	// Add user modal
+	let showAddModal = $state(false);
+	let newUserId = $state('');
+	let newPlatform = $state('telegram');
+	let newUsername = $state('');
+	let newFirstName = $state('');
+	let newStatus = $state('approved');
+	let addSaving = $state(false);
+	let addError = $state('');
+
 	const platforms = ['telegram', 'discord', 'whatsapp', 'whatsapp-web', 'slack'];
 	const statuses = ['pending', 'approved', 'blocked'];
 	const platformIcons: Record<string, string> = {
@@ -89,6 +99,32 @@
 		} catch (_) {}
 	}
 
+	async function addNewUser() {
+		if (!newUserId.trim()) { addError = 'User ID is required'; return; }
+		addSaving = true;
+		addError = '';
+		try {
+			await api.addUser({
+				userId: newUserId.trim(),
+				platform: newPlatform,
+				username: newUsername.trim() || undefined,
+				firstName: newFirstName.trim() || undefined,
+				status: newStatus,
+			});
+			showAddModal = false;
+			newUserId = '';
+			newUsername = '';
+			newFirstName = '';
+			newStatus = 'approved';
+			await loadUsers();
+			await loadStats();
+		} catch (e: any) {
+			addError = e?.toString() || 'Failed to add user';
+		} finally {
+			addSaving = false;
+		}
+	}
+
 	function closeDetail() {
 		selectedUser = null;
 		userHistory = [];
@@ -114,9 +150,15 @@
 </script>
 
 <div class="p-8 max-w-5xl">
-	<div class="mb-6">
-		<h2 class="text-xl font-semibold text-gray-900 tracking-tight">Users</h2>
-		<p class="text-sm text-gray-500 mt-1">Manage bot users and permissions</p>
+	<div class="flex items-start justify-between mb-6">
+		<div>
+			<h2 class="text-xl font-semibold text-gray-900 tracking-tight">Users</h2>
+			<p class="text-sm text-gray-500 mt-1">Manage bot users and permissions</p>
+		</div>
+		<button onclick={() => showAddModal = true}
+			class="px-3 py-1.5 text-xs font-medium rounded-md bg-gray-900 text-white hover:bg-gray-800 transition-colors">
+			+ Add User
+		</button>
 	</div>
 
 	<!-- Stats -->
@@ -350,6 +392,75 @@
 							Block
 						</button>
 					{/if}
+				</div>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Add User Modal -->
+{#if showAddModal}
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<div class="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-16 px-4" onclick={() => showAddModal = false}>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<div class="bg-white rounded-xl shadow-xl w-full max-w-md" onclick={(e) => e.stopPropagation()}>
+			<div class="p-6">
+				<div class="flex justify-between items-center mb-5">
+					<h3 class="text-lg font-semibold text-gray-900">Add User</h3>
+					<button onclick={() => showAddModal = false} class="text-gray-400 hover:text-gray-600 text-lg leading-none">&times;</button>
+				</div>
+
+				<div class="space-y-3">
+					<div>
+						<label class="block text-[11px] font-medium text-gray-600 mb-1">Platform</label>
+						<select bind:value={newPlatform}
+							class="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white text-gray-700">
+							{#each platforms as p}
+								<option value={p}>{p}</option>
+							{/each}
+						</select>
+					</div>
+					<div>
+						<label class="block text-[11px] font-medium text-gray-600 mb-1">User ID <span class="text-red-500">*</span></label>
+						<input type="text" bind:value={newUserId} placeholder="e.g. 123456789"
+							class="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white text-gray-900 outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400" />
+						<p class="text-[10px] text-gray-400 mt-0.5">Telegram: numeric ID | Discord: snowflake | WhatsApp: phone number</p>
+					</div>
+					<div class="grid grid-cols-2 gap-3">
+						<div>
+							<label class="block text-[11px] font-medium text-gray-600 mb-1">Username</label>
+							<input type="text" bind:value={newUsername} placeholder="Optional"
+								class="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white text-gray-900 outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400" />
+						</div>
+						<div>
+							<label class="block text-[11px] font-medium text-gray-600 mb-1">First Name</label>
+							<input type="text" bind:value={newFirstName} placeholder="Optional"
+								class="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white text-gray-900 outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400" />
+						</div>
+					</div>
+					<div>
+						<label class="block text-[11px] font-medium text-gray-600 mb-1">Initial Status</label>
+						<select bind:value={newStatus}
+							class="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white text-gray-700">
+							<option value="approved">Approved</option>
+							<option value="pending">Pending</option>
+						</select>
+					</div>
+				</div>
+
+				{#if addError}
+					<div class="mt-3 p-2 bg-red-50 rounded-lg text-xs text-red-700">{addError}</div>
+				{/if}
+
+				<div class="flex gap-2 mt-5 pt-4 border-t border-gray-100">
+					<button onclick={addNewUser} disabled={addSaving}
+						class="px-4 py-2 text-xs font-medium rounded-md bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 transition-colors">
+						{addSaving ? 'Adding...' : 'Add User'}
+					</button>
+					<button onclick={() => showAddModal = false}
+						class="px-4 py-2 text-xs font-medium rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors">
+						Cancel
+					</button>
 				</div>
 			</div>
 		</div>

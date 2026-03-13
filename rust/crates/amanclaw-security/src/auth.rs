@@ -156,6 +156,30 @@ impl Auth {
             .collect()
     }
 
+    /// Return the admin_users map (platform -> Vec<user_id>).
+    pub fn admin_users(&self) -> &HashMap<String, Vec<String>> {
+        &self.admin_users
+    }
+
+    /// Promote a user to admin (adds to in-memory admin list).
+    pub fn make_admin(&mut self, user_id: &str, platform: &str) {
+        let users = self.admin_users.entry(platform.to_string()).or_default();
+        if !users.iter().any(|id| id == user_id) {
+            users.push(user_id.to_string());
+        }
+    }
+
+    /// Demote a user from admin (removes from in-memory admin list).
+    pub fn remove_admin(&mut self, user_id: &str, platform: &str) {
+        if let Some(users) = self.admin_users.get_mut(platform) {
+            users.retain(|id| id != user_id);
+        }
+        // Set them to Approved so they still have access
+        let key = (user_id.to_string(), platform.to_string());
+        self.registered.insert(key, UserState::Approved);
+        self.persist_state(user_id, platform, "approved");
+    }
+
     fn persist_state(&self, user_id: &str, platform: &str, state: &str) {
         if let Some(pool) = &self.pool {
             let pool = pool.clone();

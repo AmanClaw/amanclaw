@@ -548,6 +548,70 @@ pub async fn unblock_user(
 }
 
 #[tauri::command]
+pub async fn add_user(
+    state: State<'_, SharedState>,
+    user_id: String,
+    platform: String,
+    username: Option<String>,
+    first_name: Option<String>,
+    status: Option<String>,
+) -> Result<(), String> {
+    let initial_state = status.as_deref().unwrap_or("approved");
+    let st = state.read().await;
+    match &st.mode {
+        AppMode::Remote { url, token } => {
+            // Remote mode: POST to API (if supported), otherwise error
+            let client = reqwest::Client::new();
+            client.post(format!("{}/api/users", url))
+                .bearer_auth(token)
+                .json(&serde_json::json!({
+                    "user_id": user_id,
+                    "platform": platform,
+                    "username": username,
+                    "first_name": first_name,
+                    "state": initial_state,
+                }))
+                .send().await.map_err(|e| e.to_string())?;
+            Ok(())
+        }
+        AppMode::Local => {
+            if let Some(handle) = &st.engine_handle {
+                let pool = &handle.pool;
+                sqlx::query(
+                    "INSERT INTO users (user_id, platform, state, username, first_name)
+                     VALUES (?, ?, ?, ?, ?)
+                     ON CONFLICT(user_id, platform) DO UPDATE SET
+                       username = COALESCE(excluded.username, users.username),
+                       first_name = COALESCE(excluded.first_name, users.first_name),
+                       state = excluded.state,
+                       last_seen = CURRENT_TIMESTAMP",
+                )
+                .bind(&user_id)
+                .bind(&platform)
+                .bind(initial_state)
+                .bind(&username)
+                .bind(&first_name)
+                .execute(pool)
+                .await
+                .map_err(|e| e.to_string())?;
+
+                // Also update the in-memory Auth cache
+                let mut auth = handle.auth.write().await;
+                auth.register_user(&user_id, &platform, username.as_deref(), first_name.as_deref());
+                match initial_state {
+                    "approved" => auth.approve_user(&user_id, &platform),
+                    "blocked" => auth.block_user(&user_id, &platform),
+                    _ => {}
+                }
+                Ok(())
+            } else {
+                Err("Engine not running".into())
+            }
+        }
+    }
+}
+
+#[tauri::command]
 pub async fn get_user_detail(
     state: State<'_, SharedState>,
     user_id: String,
