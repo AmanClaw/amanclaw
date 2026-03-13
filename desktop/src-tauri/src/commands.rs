@@ -395,26 +395,64 @@ pub async fn get_skills(
 #[tauri::command]
 pub async fn get_users(
     state: State<'_, SharedState>,
+    platform: Option<String>,
+    status: Option<String>,
+    search: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let st = state.read().await;
     match &st.mode {
         AppMode::Remote { url, token } => {
             let client = reqwest::Client::new();
-            let resp = client.get(format!("{}/api/users", url))
+            let mut req_url = format!("{}/api/users", url);
+            let mut params = Vec::new();
+            if let Some(p) = &platform { params.push(format!("platform={p}")); }
+            if let Some(s) = &status { params.push(format!("status={s}")); }
+            if let Some(q) = &search { params.push(format!("search={q}")); }
+            if !params.is_empty() { req_url.push_str(&format!("?{}", params.join("&"))); }
+            let resp = client.get(&req_url)
                 .bearer_auth(token)
                 .send().await.map_err(|e| e.to_string())?;
             resp.json().await.map_err(|e| e.to_string())
         }
         AppMode::Local => {
             if let Some(handle) = &st.engine_handle {
-                let auth = handle.auth.read().await;
-                let users = auth.list_users();
-                let user_list: Vec<serde_json::Value> = users.iter()
-                    .map(|(id, platform, status)| {
+                let pool = &handle.pool;
+                let mut sql = "SELECT user_id, platform, state, username, first_name, first_seen, last_seen FROM users WHERE 1=1".to_string();
+                let mut binds: Vec<String> = Vec::new();
+
+                if let Some(p) = &platform {
+                    sql.push_str(" AND platform = ?");
+                    binds.push(p.clone());
+                }
+                if let Some(s) = &status {
+                    sql.push_str(" AND state = ?");
+                    binds.push(s.clone());
+                }
+                if let Some(q) = &search {
+                    sql.push_str(" AND (user_id LIKE ? OR username LIKE ? OR first_name LIKE ?)");
+                    let pattern = format!("%{q}%");
+                    binds.push(pattern.clone());
+                    binds.push(pattern.clone());
+                    binds.push(pattern);
+                }
+                sql.push_str(" ORDER BY last_seen DESC");
+
+                let mut query = sqlx::query(&sql);
+                for b in &binds {
+                    query = query.bind(b);
+                }
+                let rows = query.fetch_all(pool).await.map_err(|e| e.to_string())?;
+
+                let user_list: Vec<serde_json::Value> = rows.iter()
+                    .map(|r| {
                         serde_json::json!({
-                            "user_id": id,
-                            "platform": platform,
-                            "status": format!("{:?}", status),
+                            "user_id": r.get::<String, _>("user_id"),
+                            "platform": r.get::<String, _>("platform"),
+                            "state": r.get::<String, _>("state"),
+                            "username": r.get::<Option<String>, _>("username"),
+                            "first_name": r.get::<Option<String>, _>("first_name"),
+                            "first_seen": r.get::<Option<String>, _>("first_seen"),
+                            "last_seen": r.get::<Option<String>, _>("last_seen"),
                         })
                     })
                     .collect();
@@ -480,6 +518,210 @@ pub async fn block_user(
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn unblock_user(
+    state: State<'_, SharedState>,
+    user_id: String,
+    platform: String,
+) -> Result<(), String> {
+    let st = state.read().await;
+    match &st.mode {
+        AppMode::Remote { url, token } => {
+            let client = reqwest::Client::new();
+            client.put(format!("{}/api/users/{}/{}/unblock", url, platform, user_id))
+                .bearer_auth(token)
+                .send().await.map_err(|e| e.to_string())?;
+            Ok(())
+        }
+        AppMode::Local => {
+            if let Some(handle) = &st.engine_handle {
+                let mut auth = handle.auth.write().await;
+                auth.unblock_user(&user_id, &platform);
+                Ok(())
+            } else {
+                Err("Engine not running".into())
+            }
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn get_user_detail(
+    state: State<'_, SharedState>,
+    user_id: String,
+    platform: String,
+) -> Result<serde_json::Value, String> {
+    let st = state.read().await;
+    match &st.mode {
+        AppMode::Remote { url, token } => {
+            let client = reqwest::Client::new();
+            let resp = client.get(format!("{}/api/users/{}/{}", url, platform, user_id))
+                .bearer_auth(token)
+                .send().await.map_err(|e| e.to_string())?;
+            resp.json().await.map_err(|e| e.to_string())
+        }
+        AppMode::Local => {
+            if let Some(handle) = &st.engine_handle {
+                let pool = &handle.pool;
+
+                // Get user row
+                let row = sqlx::query(
+                    "SELECT user_id, platform, state, username, first_name, first_seen, last_seen FROM users WHERE user_id = ? AND platform = ?",
+                )
+                .bind(&user_id)
+                .bind(&platform)
+                .fetch_optional(pool)
+                .await
+                .map_err(|e| e.to_string())?;
+
+                let Some(row) = row else {
+                    return Err("User not found".into());
+                };
+
+                // Get facts
+                let fact_rows = sqlx::query("SELECT key, value FROM facts WHERE user_id = ?")
+                    .bind(&user_id)
+                    .fetch_all(pool)
+                    .await
+                    .unwrap_or_default();
+                let facts: serde_json::Map<String, serde_json::Value> = fact_rows.iter()
+                    .map(|r| (r.get::<String, _>("key"), serde_json::Value::String(r.get::<String, _>("value"))))
+                    .collect();
+
+                // Get message count
+                let msg_count: i64 = sqlx::query("SELECT COUNT(*) as c FROM messages WHERE user_id = ?")
+                    .bind(&user_id)
+                    .fetch_one(pool)
+                    .await
+                    .map(|r| r.get("c"))
+                    .unwrap_or(0);
+
+                Ok(serde_json::json!({
+                    "user_id": row.get::<String, _>("user_id"),
+                    "platform": row.get::<String, _>("platform"),
+                    "state": row.get::<String, _>("state"),
+                    "username": row.get::<Option<String>, _>("username"),
+                    "first_name": row.get::<Option<String>, _>("first_name"),
+                    "first_seen": row.get::<Option<String>, _>("first_seen"),
+                    "last_seen": row.get::<Option<String>, _>("last_seen"),
+                    "facts": facts,
+                    "message_count": msg_count,
+                }))
+            } else {
+                Err("Engine not running".into())
+            }
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn get_user_history(
+    state: State<'_, SharedState>,
+    user_id: String,
+    platform: String,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<serde_json::Value, String> {
+    let limit = limit.unwrap_or(20);
+    let offset = offset.unwrap_or(0);
+    let st = state.read().await;
+    match &st.mode {
+        AppMode::Remote { url, token } => {
+            let client = reqwest::Client::new();
+            let resp = client.get(format!(
+                "{}/api/users/{}/{}/history?limit={}&offset={}",
+                url, platform, user_id, limit, offset
+            ))
+                .bearer_auth(token)
+                .send().await.map_err(|e| e.to_string())?;
+            resp.json().await.map_err(|e| e.to_string())
+        }
+        AppMode::Local => {
+            if let Some(handle) = &st.engine_handle {
+                let pool = &handle.pool;
+
+                let total: i64 = sqlx::query("SELECT COUNT(*) as c FROM messages WHERE user_id = ?")
+                    .bind(&user_id)
+                    .fetch_one(pool)
+                    .await
+                    .map(|r| r.get("c"))
+                    .unwrap_or(0);
+
+                let rows = sqlx::query(
+                    "SELECT role, content FROM messages WHERE user_id = ? ORDER BY id DESC LIMIT ? OFFSET ?",
+                )
+                .bind(&user_id)
+                .bind(limit)
+                .bind(offset)
+                .fetch_all(pool)
+                .await
+                .map_err(|e| e.to_string())?;
+
+                let mut messages: Vec<serde_json::Value> = rows.iter()
+                    .map(|r| serde_json::json!({
+                        "role": r.get::<String, _>("role"),
+                        "content": r.get::<String, _>("content"),
+                    }))
+                    .collect();
+                messages.reverse();
+
+                Ok(serde_json::json!({
+                    "messages": messages,
+                    "total": total,
+                }))
+            } else {
+                Ok(serde_json::json!({ "messages": [], "total": 0 }))
+            }
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn get_user_stats(
+    state: State<'_, SharedState>,
+) -> Result<serde_json::Value, String> {
+    let st = state.read().await;
+    match &st.mode {
+        AppMode::Remote { url, token } => {
+            let client = reqwest::Client::new();
+            let resp = client.get(format!("{}/api/stats", url))
+                .bearer_auth(token)
+                .send().await.map_err(|e| e.to_string())?;
+            resp.json().await.map_err(|e| e.to_string())
+        }
+        AppMode::Local => {
+            if let Some(handle) = &st.engine_handle {
+                let pool = &handle.pool;
+
+                let total: i64 = sqlx::query("SELECT COUNT(*) as c FROM users")
+                    .fetch_one(pool).await.map(|r| r.get("c")).unwrap_or(0);
+                let pending: i64 = sqlx::query("SELECT COUNT(*) as c FROM users WHERE state = 'pending'")
+                    .fetch_one(pool).await.map(|r| r.get("c")).unwrap_or(0);
+                let approved: i64 = sqlx::query("SELECT COUNT(*) as c FROM users WHERE state = 'approved'")
+                    .fetch_one(pool).await.map(|r| r.get("c")).unwrap_or(0);
+                let blocked: i64 = sqlx::query("SELECT COUNT(*) as c FROM users WHERE state = 'blocked'")
+                    .fetch_one(pool).await.map(|r| r.get("c")).unwrap_or(0);
+
+                let platform_rows = sqlx::query("SELECT platform, COUNT(*) as c FROM users GROUP BY platform")
+                    .fetch_all(pool).await.unwrap_or_default();
+                let by_platform: serde_json::Map<String, serde_json::Value> = platform_rows.iter()
+                    .map(|r| (r.get::<String, _>("platform"), serde_json::json!(r.get::<i64, _>("c"))))
+                    .collect();
+
+                Ok(serde_json::json!({
+                    "total": total,
+                    "pending": pending,
+                    "approved": approved,
+                    "blocked": blocked,
+                    "by_platform": by_platform,
+                }))
+            } else {
+                Ok(serde_json::json!({ "total": 0, "pending": 0, "approved": 0, "blocked": 0, "by_platform": {} }))
+            }
+        }
+    }
 }
 
 // --- Data dir ---

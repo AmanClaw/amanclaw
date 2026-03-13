@@ -28,7 +28,8 @@ export const api = {
 	getStatus: () => invoke('get_status'),
 	getCommunities: () => invoke('get_communities'),
 	getSkills: () => invoke('get_skills'),
-	getUsers: () => invoke('get_users'),
+	getUsers: (params?: { platform?: string; status?: string; search?: string }) =>
+		invoke('get_users', params || {}),
 	getMode: () => invoke('get_mode'),
 	setMode: (mode: string, url?: string, token?: string) =>
 		invoke('set_mode', { mode, url, token }),
@@ -38,6 +39,13 @@ export const api = {
 		invoke('approve_user', { userId, platform }),
 	blockUser: (userId: string, platform: string) =>
 		invoke('block_user', { userId, platform }),
+	unblockUser: (userId: string, platform: string) =>
+		invoke('unblock_user', { userId, platform }),
+	getUserDetail: (userId: string, platform: string) =>
+		invoke('get_user_detail', { userId, platform }),
+	getUserHistory: (userId: string, platform: string, limit?: number, offset?: number) =>
+		invoke('get_user_history', { userId, platform, limit, offset }),
+	getUserStats: () => invoke('get_user_stats'),
 
 	// Skills management
 	disableSkill: (name: string) => invoke('disable_skill', { name }),
