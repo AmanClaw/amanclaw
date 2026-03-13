@@ -36,10 +36,10 @@ impl Auth {
 
     pub fn get_user_state(&self, user_id: &str, platform: &str) -> UserState {
         // Check admin list first
-        if let Some(admins) = self.admin_users.get(platform) {
-            if admins.iter().any(|id| id == user_id) {
-                return UserState::Admin;
-            }
+        if let Some(admins) = self.admin_users.get(platform)
+            && admins.iter().any(|id| id == user_id)
+        {
+            return UserState::Admin;
         }
 
         // Check registered users
