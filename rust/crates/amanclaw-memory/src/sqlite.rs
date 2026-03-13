@@ -5,6 +5,26 @@ use std::collections::HashMap;
 
 use crate::schema::INIT_SQL;
 
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct UserRow {
+    pub user_id: String,
+    pub platform: String,
+    pub state: String,
+    pub username: Option<String>,
+    pub first_name: Option<String>,
+    pub first_seen: Option<String>,
+    pub last_seen: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct UserStats {
+    pub total: i64,
+    pub pending: i64,
+    pub approved: i64,
+    pub blocked: i64,
+    pub by_platform: HashMap<String, i64>,
+}
+
 pub struct SqliteMemory {
     pool: SqlitePool,
 }
@@ -230,6 +250,201 @@ impl SqliteMemory {
             .await?;
         Ok(result.rows_affected() > 0)
     }
+
+    /// Create a SqliteMemory from an existing pool (no schema init).
+    pub fn from_pool(pool: SqlitePool) -> Self {
+        Self { pool }
+    }
+
+    // --- User management ---
+
+    pub async fn upsert_user(
+        &self,
+        user_id: &str,
+        platform: &str,
+        state: &str,
+        username: Option<&str>,
+        first_name: Option<&str>,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO users (user_id, platform, state, username, first_name)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT(user_id, platform) DO UPDATE SET
+               username = COALESCE(excluded.username, users.username),
+               first_name = COALESCE(excluded.first_name, users.first_name),
+               last_seen = CURRENT_TIMESTAMP",
+        )
+        .bind(user_id)
+        .bind(platform)
+        .bind(state)
+        .bind(username)
+        .bind(first_name)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn get_user(&self, user_id: &str, platform: &str) -> Result<Option<UserRow>> {
+        let row = sqlx::query(
+            "SELECT user_id, platform, state, username, first_name, first_seen, last_seen
+             FROM users WHERE user_id = ? AND platform = ?",
+        )
+        .bind(user_id)
+        .bind(platform)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|r| UserRow {
+            user_id: r.get("user_id"),
+            platform: r.get("platform"),
+            state: r.get("state"),
+            username: r.get("username"),
+            first_name: r.get("first_name"),
+            first_seen: r.get("first_seen"),
+            last_seen: r.get("last_seen"),
+        }))
+    }
+
+    pub async fn update_user_state(
+        &self,
+        user_id: &str,
+        platform: &str,
+        state: &str,
+    ) -> Result<bool> {
+        let result = sqlx::query(
+            "UPDATE users SET state = ?, last_seen = CURRENT_TIMESTAMP WHERE user_id = ? AND platform = ?",
+        )
+        .bind(state)
+        .bind(user_id)
+        .bind(platform)
+        .execute(&self.pool)
+        .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    pub async fn list_users(
+        &self,
+        platform: Option<&str>,
+        state: Option<&str>,
+        search: Option<&str>,
+    ) -> Result<Vec<UserRow>> {
+        let mut sql = "SELECT user_id, platform, state, username, first_name, first_seen, last_seen FROM users WHERE 1=1".to_string();
+        let mut binds: Vec<String> = Vec::new();
+
+        if let Some(p) = platform {
+            sql.push_str(" AND platform = ?");
+            binds.push(p.to_string());
+        }
+        if let Some(s) = state {
+            sql.push_str(" AND state = ?");
+            binds.push(s.to_string());
+        }
+        if let Some(q) = search {
+            sql.push_str(" AND (user_id LIKE ? OR username LIKE ? OR first_name LIKE ?)");
+            let pattern = format!("%{q}%");
+            binds.push(pattern.clone());
+            binds.push(pattern.clone());
+            binds.push(pattern);
+        }
+        sql.push_str(" ORDER BY last_seen DESC");
+
+        let mut query = sqlx::query(&sql);
+        for b in &binds {
+            query = query.bind(b);
+        }
+
+        let rows = query.fetch_all(&self.pool).await?;
+        Ok(rows
+            .iter()
+            .map(|r| UserRow {
+                user_id: r.get("user_id"),
+                platform: r.get("platform"),
+                state: r.get("state"),
+                username: r.get("username"),
+                first_name: r.get("first_name"),
+                first_seen: r.get("first_seen"),
+                last_seen: r.get("last_seen"),
+            })
+            .collect())
+    }
+
+    pub async fn touch_user_last_seen(&self, user_id: &str, platform: &str) -> Result<()> {
+        sqlx::query(
+            "UPDATE users SET last_seen = CURRENT_TIMESTAMP WHERE user_id = ? AND platform = ?",
+        )
+        .bind(user_id)
+        .bind(platform)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn get_user_stats(&self) -> Result<UserStats> {
+        let total: i64 = sqlx::query("SELECT COUNT(*) as c FROM users")
+            .fetch_one(&self.pool)
+            .await?
+            .get("c");
+        let pending: i64 =
+            sqlx::query("SELECT COUNT(*) as c FROM users WHERE state = 'pending'")
+                .fetch_one(&self.pool)
+                .await?
+                .get("c");
+        let approved: i64 =
+            sqlx::query("SELECT COUNT(*) as c FROM users WHERE state = 'approved'")
+                .fetch_one(&self.pool)
+                .await?
+                .get("c");
+        let blocked: i64 =
+            sqlx::query("SELECT COUNT(*) as c FROM users WHERE state = 'blocked'")
+                .fetch_one(&self.pool)
+                .await?
+                .get("c");
+
+        let platform_rows =
+            sqlx::query("SELECT platform, COUNT(*) as c FROM users GROUP BY platform")
+                .fetch_all(&self.pool)
+                .await?;
+        let by_platform: HashMap<String, i64> = platform_rows
+            .iter()
+            .map(|r| (r.get::<String, _>("platform"), r.get::<i64, _>("c")))
+            .collect();
+
+        Ok(UserStats {
+            total,
+            pending,
+            approved,
+            blocked,
+            by_platform,
+        })
+    }
+
+    pub async fn get_history_paginated(
+        &self,
+        ns: &str,
+        user_id: &str,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<HistoryMessage>> {
+        let rows = sqlx::query(
+            "SELECT role, content FROM messages WHERE namespace = ? AND user_id = ? ORDER BY id DESC LIMIT ? OFFSET ?",
+        )
+        .bind(ns)
+        .bind(user_id)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut messages: Vec<HistoryMessage> = rows
+            .iter()
+            .map(|row| HistoryMessage {
+                role: row.get("role"),
+                content: row.get("content"),
+            })
+            .collect();
+        messages.reverse();
+        Ok(messages)
+    }
 }
 
 #[async_trait::async_trait]
@@ -454,6 +669,96 @@ mod tests {
         // ns_b should still have all 20 messages (10 exchanges)
         let count_b = mem.get_message_count_ns("ns_b", "u1").await.unwrap();
         assert_eq!(count_b, 20);
+    }
+
+    // --- User management tests ---
+
+    #[tokio::test]
+    async fn test_upsert_user() {
+        let mem = make_memory().await;
+        mem.upsert_user("123", "telegram", "pending", Some("aman"), Some("Aman"))
+            .await
+            .unwrap();
+        let user = mem.get_user("123", "telegram").await.unwrap().unwrap();
+        assert_eq!(user.state, "pending");
+        assert_eq!(user.username.as_deref(), Some("aman"));
+    }
+
+    #[tokio::test]
+    async fn test_update_user_state() {
+        let mem = make_memory().await;
+        mem.upsert_user("123", "telegram", "pending", None, None)
+            .await
+            .unwrap();
+        mem.update_user_state("123", "telegram", "approved")
+            .await
+            .unwrap();
+        let user = mem.get_user("123", "telegram").await.unwrap().unwrap();
+        assert_eq!(user.state, "approved");
+    }
+
+    #[tokio::test]
+    async fn test_list_users_with_filters() {
+        let mem = make_memory().await;
+        mem.upsert_user("1", "telegram", "pending", None, None)
+            .await
+            .unwrap();
+        mem.upsert_user("2", "discord", "approved", None, None)
+            .await
+            .unwrap();
+        mem.upsert_user("3", "telegram", "approved", None, None)
+            .await
+            .unwrap();
+
+        let all = mem.list_users(None, None, None).await.unwrap();
+        assert_eq!(all.len(), 3);
+
+        let telegram = mem
+            .list_users(Some("telegram"), None, None)
+            .await
+            .unwrap();
+        assert_eq!(telegram.len(), 2);
+
+        let approved = mem
+            .list_users(None, Some("approved"), None)
+            .await
+            .unwrap();
+        assert_eq!(approved.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_touch_user_last_seen() {
+        let mem = make_memory().await;
+        mem.upsert_user("123", "telegram", "approved", None, None)
+            .await
+            .unwrap();
+        mem.touch_user_last_seen("123", "telegram").await.unwrap();
+        let user = mem.get_user("123", "telegram").await.unwrap().unwrap();
+        assert!(user.last_seen.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_user_stats() {
+        let mem = make_memory().await;
+        mem.upsert_user("1", "telegram", "pending", None, None)
+            .await
+            .unwrap();
+        mem.upsert_user("2", "telegram", "approved", None, None)
+            .await
+            .unwrap();
+        mem.upsert_user("3", "discord", "approved", None, None)
+            .await
+            .unwrap();
+        mem.upsert_user("4", "slack", "blocked", None, None)
+            .await
+            .unwrap();
+
+        let stats = mem.get_user_stats().await.unwrap();
+        assert_eq!(stats.total, 4);
+        assert_eq!(stats.pending, 1);
+        assert_eq!(stats.approved, 2);
+        assert_eq!(stats.blocked, 1);
+        assert_eq!(stats.by_platform.get("telegram"), Some(&2));
     }
 
     #[tokio::test]
