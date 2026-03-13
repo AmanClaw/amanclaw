@@ -1,12 +1,62 @@
-<p align="center"><img src="desktop/src-tauri/icons/app-icon.png" width="150" alt="AmanClaw mascot" /><br><strong style="font-size:2em">AmanClaw</strong></p>
+<p align="center">
+  <img src="desktop/src-tauri/icons/app-icon.png" width="120" alt="AmanClaw" />
+  <br>
+  <strong style="font-size:2em">AmanClaw</strong>
+  <br>
+  <em>AI assistant for Malaysian Muslim communities</em>
+</p>
 
-A high-performance, modular AI assistant built with Rust for Malaysian Muslim communities. Connect it to Telegram, Discord, Slack, or WhatsApp — powered by any OpenAI-compatible LLM backend. Comes with 11 Islamic skills (solat, Quran, halal, zakat, and more) out of the box.
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License" /></a>
+  <img src="https://img.shields.io/badge/rust-1.85+-orange.svg" alt="Rust 1.85+" />
+  <img src="https://img.shields.io/badge/docker-ready-blue.svg" alt="Docker" />
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux%20%7C%20Pi-lightgrey.svg" alt="Platform" />
+</p>
 
-Built in Malaysia. Open source. No bloat. Bilingual BM + English.
+<p align="center">
+  One binary. One SQLite database. One config file. ~2MB RAM on a Raspberry Pi.
+  <br>
+  Built in Malaysia. Open source. No bloat. Bilingual BM + English.
+</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Rust](https://img.shields.io/badge/rust-1.85+-orange.svg)](https://www.rust-lang.org/)
-[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](rust/docker-compose.yml)
+---
+
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/images/desktop-dashboard.png" alt="Desktop Dashboard" width="100%" />
+      <br><sub><b>Dashboard</b> — Bot status, stats, quick actions</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/images/desktop-channels.png" alt="Channel Setup Hub" width="100%" />
+      <br><sub><b>Channel Setup Hub</b> — Configure & manage all channels</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/images/desktop-whatsapp-qr.png" alt="WhatsApp QR Code" width="100%" />
+      <br><sub><b>WhatsApp QR</b> — Scan to connect WhatsApp Web</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/images/desktop-communities.png" alt="Communities Management" width="100%" />
+      <br><sub><b>Communities</b> — Multi-community management</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/images/desktop-skills.png" alt="Skills Management" width="100%" />
+      <br><sub><b>Skills</b> — Enable/disable skills per community</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/images/desktop-logs.png" alt="Live Logs" width="100%" />
+      <br><sub><b>Live Logs</b> — Real-time log streaming with filters</sub>
+    </td>
+  </tr>
+</table>
+
+<!-- To add screenshots: run `cd desktop && cargo tauri dev`, take screenshots, save to docs/images/ -->
 
 ---
 
@@ -29,20 +79,65 @@ You (Telegram / Discord / WhatsApp / Slack)
 Reply  ◄──────────────────────────────────────────────────────────────────────────┘
 ```
 
-One binary. One SQLite database. One config file. ~2MB RAM on a Raspberry Pi.
-
 ---
 
-## Features
+## Highlights
+
+<table>
+  <tr>
+    <td width="50%">
+
+### 11 Islamic Skills
+Prayer times (JAKIM + 6 global methods), Quran, Halal check, Zakat calculator, Qiblat, Hijri calendar, Doa & Zikir, Hadith, Masjid finder, Khutbah, JAKIM services
+
+</td>
+    <td width="50%">
+
+### 5 Chat Channels
+Telegram, Discord, WhatsApp (official Cloud API + unofficial WAHA), Slack — all from one instance
+
+</td>
+  </tr>
+  <tr>
+    <td width="50%">
+
+### Any LLM Backend
+Ollama, vLLM, LM Studio, OpenAI, Groq, DeepSeek, Qwen, Together AI, OpenRouter — anything OpenAI-compatible
+
+</td>
+    <td width="50%">
+
+### Desktop Admin App
+Cross-platform Tauri 2 app with dashboard, channel setup, community management, live logs, and system tray
+
+</td>
+  </tr>
+  <tr>
+    <td width="50%">
+
+### Plugin System
+WASM (Rust/AssemblyScript) + Python/JS scripts + built-in Rust skills. Hot reload, marketplace, quality tiers
+
+</td>
+    <td width="50%">
+
+### Channel Setup Hub
+Configure, start, stop, and monitor all channels from the UI. WhatsApp Web gets in-app QR code scanning
+
+</td>
+  </tr>
+</table>
+
+## All Features
+
+<details>
+<summary><b>Click to expand full feature list</b></summary>
 
 - **Pre-built products** — CommunityBot: deploy a ready-made community assistant to Fly.io, Railway, or Render in 3 commands
 - **Blazing fast** — Rust async runtime, ~2MB memory footprint, instant startup
-- **Islamic community skills** — Prayer times (JAKIM + 6 global methods), Quran, Halal check, Zakat calculator, Qiblat, Hijri calendar, Doa & Zikir, Hadith, Masjid finder, Khutbah, JAKIM services
 - **Global prayer times** — Pure-Rust calculation engine supporting MWL, ISNA, Egyptian, Karachi, Umm al-Qura, and JAKIM methods — works offline, no API needed
 - **Multi-community** — One instance serves many groups with per-community config (zone, language, skills)
-- **Plugin system** — WASM plugins (Rust/AssemblyScript) + script plugins (Python/JS) + built-in Rust skills
-- **Multi-channel** — Telegram, Discord, WhatsApp (official + unofficial), Slack
-- **Any LLM backend** — vLLM, Ollama, LM Studio, LocalAI, OpenAI, Anthropic, etc.
+- **Channel Setup Hub** — Configure, start, stop, and monitor all 5 channels from the dashboard or desktop app. WhatsApp Web gets in-app QR code display for seamless phone scanning. Config persists to config.yaml with env var fallback
 - **Bilingual** — Bahasa Melayu + English with natural rojak-style responses
 - **Tool calling** — LLM function calling with multi-round tool execution loop (max 5 rounds)
 - **Vision support** — Send images to multimodal LLMs via base64 encoding
@@ -70,6 +165,8 @@ One binary. One SQLite database. One config file. ~2MB RAM on a Raspberry Pi.
 - **REST management API** — Axum-based REST API for bot status, communities, skills, users, webhooks management
 - **Production-ready** — Docker with hardened containers, systemd service, structured logging
 - **Cross-platform** — Runs on x86_64, ARM64 (Raspberry Pi), and anywhere Rust compiles
+
+</details>
 
 ---
 
@@ -662,6 +759,13 @@ API_PORT=8090 API_TOKEN=my-secret-token ./amanclaw
 | Group | Endpoint | Method | Description |
 | ----- | -------- | ------ | ----------- |
 | Bot | `/api/status` | GET | Bot status, uptime, stats |
+| Channels | `/api/channels` | GET | List all channels with status |
+| Channels | `/api/channels/{id}` | GET | Get channel config + status |
+| Channels | `/api/channels/{id}` | PUT | Update channel config (persists to config.yaml) |
+| Channels | `/api/channels/{id}/start` | POST | Start a channel |
+| Channels | `/api/channels/{id}/stop` | POST | Stop a channel |
+| Channels | `/api/channels/whatsapp-web/qr` | GET | Proxy WAHA QR code (base64 PNG) |
+| Channels | `/api/channels/whatsapp-web/session` | GET | Proxy WAHA session status |
 | Communities | `/api/communities` | GET | List all communities |
 | Communities | `/api/communities` | POST | Create community |
 | Communities | `/api/communities/{id}` | GET | Get community |
@@ -683,9 +787,15 @@ Authenticated endpoints require `Authorization: Bearer <token>`. Webhook receive
 
 Cross-platform desktop app for managing AmanClaw bot instances. Built with Tauri 2 (Rust) + Svelte 5 + Tailwind CSS 4.
 
+<p align="center">
+  <img src="docs/images/desktop-full.png" alt="AmanClaw Desktop App" width="800" />
+  <br><sub>AmanClaw Desktop — manage your bot from a native app on macOS, Windows, or Linux</sub>
+</p>
+
 ### Features
 
 - **Dashboard** — Stats overview, bot status, quick actions
+- **Channel Setup Hub** — Configure, start, stop, and monitor all 5 channels from one page. WhatsApp Web gets in-app QR code display for seamless phone scanning
 - **Communities** — List, add, edit communities with zone/language/skills config
 - **Skills** — Global skill toggle with status
 - **Users** — User list with approve/block actions and status badges
@@ -1270,9 +1380,9 @@ RUST_LOG=amanclaw=debug cargo run -p amanclaw-cli
 ### Test coverage
 
 ```text
-210+ tests across 27 crates
-├── amanclaw-traits        17 tests (config, messages, skills, channels, agents, events)
-├── amanclaw-core          31 tests (pipeline, router, registry, scheduler, webhooks, soul, subagent, integration)
+220+ tests across 27 crates
+├── amanclaw-traits        21 tests (config, messages, skills, channels, agents, events, channel_config)
+├── amanclaw-core          69 tests (pipeline, router, registry, scheduler, webhooks, soul, subagent, channel_manager, RLE, integration)
 ├── amanclaw-security      11 tests (auth, rate limiter, sanitizer)
 ├── amanclaw-memory        17 tests (history, facts, summaries, pruning, FTS5, hybrid RRF)
 ├── amanclaw-llm            5 tests (LLM client, tool call parsing, thinking tags, embeddings)
@@ -1398,7 +1508,7 @@ The easiest way to contribute is by writing a new skill plugin. See the [WASM Pl
 
 ### Phase 1.5: Desktop Admin App (Done)
 
-- [x] REST management API (amanclaw-api crate, Axum, 10 endpoints)
+- [x] REST management API (amanclaw-api crate, Axum, 17 endpoints)
 - [x] Tauri 2 desktop app with Svelte 5 + Tailwind CSS 4
 - [x] Dashboard, Communities, Skills, Users, Content, Logs, Settings pages
 - [x] System tray with native notifications (solat, users, skill errors)
@@ -1416,6 +1526,15 @@ The easiest way to contribute is by writing a new skill plugin. See the [WASM Pl
 - [x] Skill marketplace — `amanclaw-skill.toml` manifest, local SQLite registry, remote index with checksum verification
 - [x] Event system — `EventEmitter` trait for broadcasting pipeline events to WebSocket subscribers
 - [x] Schema migrations — `cron_history` and `webhook_history` tables for execution tracking
+
+### Phase 1.8: Channel Setup Hub (Done)
+
+- [x] Channel management API (7 endpoints: list, get, update, start, stop, QR proxy, session proxy)
+- [x] ChannelManager with hot-reload lifecycle (start/stop channels without engine restart)
+- [x] ChannelsConfig types with config.yaml persistence and env var fallback
+- [x] Dashboard Channel Setup Hub (interactive channel cards with 5 visual states)
+- [x] Desktop Channel Setup Hub (native Tauri commands, inline config + QR display)
+- [x] WhatsApp Web QR code display (auto-polling, session detection, in-app scanning)
 
 ### Phase 2: Community Onboarding
 
