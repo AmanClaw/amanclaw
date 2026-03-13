@@ -59,6 +59,20 @@ CREATE TABLE IF NOT EXISTS community_admins (
     PRIMARY KEY (community_id, user_id)
 );
 
+CREATE TABLE IF NOT EXISTS users (
+    user_id TEXT NOT NULL,
+    platform TEXT NOT NULL,
+    state TEXT NOT NULL DEFAULT 'pending',
+    username TEXT,
+    first_name TEXT,
+    first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, platform)
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_state ON users(state);
+CREATE INDEX IF NOT EXISTS idx_users_platform ON users(platform);
+
 CREATE TABLE IF NOT EXISTS vector_documents (
     id TEXT NOT NULL,
     collection TEXT NOT NULL,
