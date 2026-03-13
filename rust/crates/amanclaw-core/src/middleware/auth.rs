@@ -35,7 +35,12 @@ impl PipelineMiddleware for AuthMiddleware {
         match state {
             UserState::Blocked => return Ok(None),
             UserState::New => {
-                self.auth.write().await.register_user(user_id, platform);
+                self.auth.write().await.register_user(
+                    user_id,
+                    platform,
+                    ctx.msg.username.as_deref(),
+                    ctx.msg.first_name.as_deref(),
+                );
                 return Ok(Some(OutgoingMessage {
                     chat_id: ctx.msg.chat_id,
                     text: "Welcome! You've been registered. An admin needs to approve your access."
@@ -60,6 +65,9 @@ impl PipelineMiddleware for AuthMiddleware {
             }
             UserState::Admin | UserState::Approved => {}
         }
+
+        // Update last_seen for active users
+        self.auth.read().await.touch_last_seen(user_id, platform);
 
         // Store the user state in extensions for downstream middleware (e.g., CommandMiddleware)
         ctx.extensions.insert(state);

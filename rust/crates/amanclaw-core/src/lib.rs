@@ -82,7 +82,7 @@ impl Engine {
         // Initialize subsystems
         let db_path = std::env::var("MEMORY_DB_PATH").unwrap_or_else(|_| "memory.db".into());
         let memory = SqliteMemory::new(&db_path).await?;
-        let auth = Auth::new(config.admin_users.clone());
+        let auth = Auth::with_pool(config.admin_users.clone(), memory.pool().clone()).await;
         let rate_limiter = RateLimiter::new(config.rate_limit_per_minute);
         let llm = LlmClient::new(config.llm.clone());
 

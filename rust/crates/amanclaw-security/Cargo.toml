@@ -10,6 +10,8 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 regex = "1"
 dashmap = "6"
+sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
+tokio = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true }

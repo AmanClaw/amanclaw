@@ -46,13 +46,26 @@ pub fn api_router(state: ApiState) -> Router {
         .route("/api/skills", get(routes::skills::list_skills))
         .route("/api/users", get(routes::users::list_users))
         .route(
+            "/api/users/{platform}/{user_id}",
+            get(routes::users::get_user),
+        )
+        .route(
+            "/api/users/{platform}/{user_id}/history",
+            get(routes::users::get_user_history),
+        )
+        .route(
             "/api/users/{platform}/{user_id}/approve",
-            post(routes::users::approve_user),
+            put(routes::users::approve_user),
         )
         .route(
             "/api/users/{platform}/{user_id}/block",
-            post(routes::users::block_user),
+            put(routes::users::block_user),
         )
+        .route(
+            "/api/users/{platform}/{user_id}/unblock",
+            put(routes::users::unblock_user),
+        )
+        .route("/api/stats", get(routes::stats::get_stats))
         .route("/api/webhooks", get(routes::webhooks::list_webhooks))
         .route("/api/channels", get(routes::channels::list_channels))
         .route(
