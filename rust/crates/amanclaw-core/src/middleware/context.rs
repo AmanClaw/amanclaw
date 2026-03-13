@@ -55,7 +55,7 @@ impl PipelineMiddleware for ContextMiddleware {
                 {
                     if let Some(system_msg) = context_result.messages.first_mut() {
                         if let Some(content) = system_msg.get("content").and_then(|c| c.as_str()) {
-                            let new_content = format!("{}{}", content, correction_text);
+                            let new_content = format!("{content}{correction_text}");
                             *system_msg =
                                 serde_json::json!({"role": "system", "content": new_content});
                         }

@@ -370,12 +370,12 @@ mod tests {
     #[test]
     fn test_group_mention_filtering() {
         let bot_id = "60111000590@c.us";
-        let mentioned_ids = vec!["60111000590@c.us".to_string()];
+        let mentioned_ids = ["60111000590@c.us".to_string()];
         let bot_mentioned = mentioned_ids.iter().any(|id| id == bot_id);
         assert!(bot_mentioned);
 
         // Not mentioned
-        let other_ids = vec!["601234567890@c.us".to_string()];
+        let other_ids = ["601234567890@c.us".to_string()];
         let not_mentioned = other_ids.iter().any(|id| id == bot_id);
         assert!(!not_mentioned);
 

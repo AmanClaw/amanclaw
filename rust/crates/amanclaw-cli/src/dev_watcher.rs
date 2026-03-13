@@ -168,8 +168,7 @@ mod tests {
         let event = event.unwrap().unwrap();
         assert!(
             matches!(event, DevEvent::Plugin(ref p) if p.contains("test_plugin.py")),
-            "expected Plugin, got {:?}",
-            event
+            "expected Plugin, got {event:?}",
         );
 
         drop(watcher);
@@ -212,8 +211,7 @@ mod tests {
         let event = event.unwrap().unwrap();
         assert!(
             matches!(event, DevEvent::Soul(ref p) if p.contains("default.md")),
-            "expected Soul, got {:?}",
-            event
+            "expected Soul, got {event:?}",
         );
 
         drop(watcher);

@@ -43,7 +43,7 @@ impl ChannelManager {
     pub async fn get_all_status(&self, config: &ChannelsConfig) -> Vec<ChannelStatusInfo> {
         let channels = self.channels.read().await;
 
-        let all_ids = vec![
+        let all_ids = [
             (
                 "telegram",
                 config.telegram.as_ref().map(|c| c.enabled).unwrap_or(false),

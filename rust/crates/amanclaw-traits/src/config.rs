@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
     pub llm: LlmConfig,
 
@@ -115,7 +115,9 @@ pub struct ScriptPluginConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmConfig {
+    #[serde(default)]
     pub base_url: String,
+    #[serde(default)]
     pub model: String,
 
     #[serde(default = "default_max_tokens")]
@@ -129,6 +131,19 @@ pub struct LlmConfig {
 
     #[serde(default)]
     pub native_tool_calling: Option<bool>,
+}
+
+impl Default for LlmConfig {
+    fn default() -> Self {
+        Self {
+            base_url: String::new(),
+            model: String::new(),
+            max_tokens: default_max_tokens(),
+            temperature: default_temperature(),
+            api_key: None,
+            native_tool_calling: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

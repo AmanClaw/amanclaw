@@ -42,10 +42,8 @@ pub async fn login(
     )
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let cookie = format!(
-        "amanclaw_token={}; HttpOnly; SameSite=Strict; Path=/; Max-Age=86400",
-        token
-    );
+    let cookie =
+        format!("amanclaw_token={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=86400");
 
     Ok((
         StatusCode::OK,

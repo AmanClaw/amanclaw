@@ -5,6 +5,7 @@ use amanclaw_traits::memory::MemoryBackend;
 
 /// Run correction detection as a background task.
 /// Called from PersistMiddleware after the exchange is complete.
+#[allow(clippy::too_many_arguments)]
 pub async fn detect_and_store_corrections(
     store: &KnowledgeStore,
     llm: &LlmClient,
