@@ -23,43 +23,130 @@ impl std::fmt::Display for UserState {
 
 pub struct Auth {
     admin_users: HashMap<String, Vec<String>>,
-    registered: HashMap<(String, String), UserState>, // (user_id, platform) -> state
+    registered: HashMap<(String, String), UserState>,
+    pool: Option<sqlx::SqlitePool>,
 }
 
 impl Auth {
+    /// Create Auth without SQLite (for tests or in-memory use).
     pub fn new(admin_users: HashMap<String, Vec<String>>) -> Self {
         Self {
             admin_users,
             registered: HashMap::new(),
+            pool: None,
+        }
+    }
+
+    /// Create Auth backed by SQLite. Loads existing users on startup.
+    pub async fn with_pool(
+        admin_users: HashMap<String, Vec<String>>,
+        pool: sqlx::SqlitePool,
+    ) -> Self {
+        let mut registered = HashMap::new();
+
+        if let Ok(rows) = sqlx::query("SELECT user_id, platform, state FROM users")
+            .fetch_all(&pool)
+            .await
+        {
+            for row in rows {
+                let uid: String = sqlx::Row::get(&row, "user_id");
+                let plat: String = sqlx::Row::get(&row, "platform");
+                let state_str: String = sqlx::Row::get(&row, "state");
+                let state = match state_str.as_str() {
+                    "approved" => UserState::Approved,
+                    "blocked" => UserState::Blocked,
+                    _ => UserState::Pending,
+                };
+                registered.insert((uid, plat), state);
+            }
+            tracing::info!(count = registered.len(), "Loaded users from SQLite");
+        }
+
+        Self {
+            admin_users,
+            registered,
+            pool: Some(pool),
         }
     }
 
     pub fn get_user_state(&self, user_id: &str, platform: &str) -> UserState {
-        // Check admin list first
         if let Some(admins) = self.admin_users.get(platform)
             && admins.iter().any(|id| id == user_id)
         {
             return UserState::Admin;
         }
-
-        // Check registered users
         let key = (user_id.to_string(), platform.to_string());
         self.registered.get(&key).cloned().unwrap_or(UserState::New)
     }
 
-    pub fn register_user(&mut self, user_id: &str, platform: &str) {
+    pub fn register_user(
+        &mut self,
+        user_id: &str,
+        platform: &str,
+        username: Option<&str>,
+        first_name: Option<&str>,
+    ) {
         let key = (user_id.to_string(), platform.to_string());
         self.registered.entry(key).or_insert(UserState::Pending);
+
+        if let Some(pool) = &self.pool {
+            let pool = pool.clone();
+            let uid = user_id.to_string();
+            let plat = platform.to_string();
+            let uname = username.map(|s| s.to_string());
+            let fname = first_name.map(|s| s.to_string());
+            tokio::spawn(async move {
+                let _ = sqlx::query(
+                    "INSERT INTO users (user_id, platform, state, username, first_name)
+                     VALUES (?, ?, 'pending', ?, ?)
+                     ON CONFLICT(user_id, platform) DO UPDATE SET
+                       username = COALESCE(excluded.username, users.username),
+                       first_name = COALESCE(excluded.first_name, users.first_name),
+                       last_seen = CURRENT_TIMESTAMP",
+                )
+                .bind(&uid)
+                .bind(&plat)
+                .bind(&uname)
+                .bind(&fname)
+                .execute(&pool)
+                .await;
+            });
+        }
     }
 
     pub fn approve_user(&mut self, user_id: &str, platform: &str) {
         let key = (user_id.to_string(), platform.to_string());
         self.registered.insert(key, UserState::Approved);
+        self.persist_state(user_id, platform, "approved");
     }
 
     pub fn block_user(&mut self, user_id: &str, platform: &str) {
         let key = (user_id.to_string(), platform.to_string());
         self.registered.insert(key, UserState::Blocked);
+        self.persist_state(user_id, platform, "blocked");
+    }
+
+    pub fn unblock_user(&mut self, user_id: &str, platform: &str) {
+        let key = (user_id.to_string(), platform.to_string());
+        self.registered.insert(key, UserState::Pending);
+        self.persist_state(user_id, platform, "pending");
+    }
+
+    pub fn touch_last_seen(&self, user_id: &str, platform: &str) {
+        if let Some(pool) = &self.pool {
+            let pool = pool.clone();
+            let uid = user_id.to_string();
+            let plat = platform.to_string();
+            tokio::spawn(async move {
+                let _ = sqlx::query(
+                    "UPDATE users SET last_seen = CURRENT_TIMESTAMP WHERE user_id = ? AND platform = ?",
+                )
+                .bind(&uid)
+                .bind(&plat)
+                .execute(&pool)
+                .await;
+            });
+        }
     }
 
     pub fn list_users(&self) -> Vec<(String, String, UserState)> {
@@ -67,6 +154,25 @@ impl Auth {
             .iter()
             .map(|((uid, plat), state)| (uid.clone(), plat.clone(), state.clone()))
             .collect()
+    }
+
+    fn persist_state(&self, user_id: &str, platform: &str, state: &str) {
+        if let Some(pool) = &self.pool {
+            let pool = pool.clone();
+            let uid = user_id.to_string();
+            let plat = platform.to_string();
+            let st = state.to_string();
+            tokio::spawn(async move {
+                let _ = sqlx::query(
+                    "UPDATE users SET state = ? WHERE user_id = ? AND platform = ?",
+                )
+                .bind(&st)
+                .bind(&uid)
+                .bind(&plat)
+                .execute(&pool)
+                .await;
+            });
+        }
     }
 }
 
@@ -93,11 +199,9 @@ mod tests {
     }
 
     #[test]
-    fn test_approve_user() {
+    fn test_register_and_approve() {
         let mut auth = make_auth();
-        assert_eq!(auth.get_user_state("55555", "telegram"), UserState::New);
-
-        auth.register_user("55555", "telegram");
+        auth.register_user("55555", "telegram", None, None);
         assert_eq!(auth.get_user_state("55555", "telegram"), UserState::Pending);
 
         auth.approve_user("55555", "telegram");
@@ -110,8 +214,29 @@ mod tests {
     #[test]
     fn test_block_user() {
         let mut auth = make_auth();
-        auth.register_user("66666", "telegram");
+        auth.register_user("66666", "telegram", None, None);
         auth.block_user("66666", "telegram");
         assert_eq!(auth.get_user_state("66666", "telegram"), UserState::Blocked);
+    }
+
+    #[test]
+    fn test_list_users() {
+        let mut auth = make_auth();
+        auth.register_user("111", "telegram", Some("user1"), Some("User"));
+        auth.register_user("222", "discord", None, None);
+        let users = auth.list_users();
+        assert_eq!(users.len(), 2);
+    }
+
+    #[test]
+    fn test_unblock_resets_to_pending() {
+        let mut auth = make_auth();
+        auth.register_user("77777", "telegram", None, None);
+        auth.block_user("77777", "telegram");
+        auth.unblock_user("77777", "telegram");
+        assert_eq!(
+            auth.get_user_state("77777", "telegram"),
+            UserState::Pending
+        );
     }
 }
