@@ -104,73 +104,74 @@ impl ContextEngine for StandardContextEngine {
         }
 
         // 3. Append known facts (budget-checked per line)
-        if let Ok(facts) = self.memory.get_facts(user_id).await {
-            if !facts.is_empty() {
-                let header = "\n\n## Known facts about this user";
-                if budget.reserve(header) {
-                    system.push_str(header);
-                    for (k, v) in &facts {
-                        let line = format!("\n- {k}: {v}");
-                        if !budget.reserve(&line) {
-                            break;
-                        }
-                        system.push_str(&line);
+        if let Ok(facts) = self.memory.get_facts(user_id).await
+            && !facts.is_empty()
+        {
+            let header = "\n\n## Known facts about this user";
+            if budget.reserve(header) {
+                system.push_str(header);
+                for (k, v) in &facts {
+                    let line = format!("\n- {k}: {v}");
+                    if !budget.reserve(&line) {
+                        break;
                     }
+                    system.push_str(&line);
                 }
             }
         }
 
         // 4. RAG retrieval if enabled (budget-checked per result)
-        if profile.context.rag_enabled && !profile.context.rag_collections.is_empty() {
-            if let Some(ref vs) = self.vector_store {
-                let mut all_results = Vec::new();
+        if profile.context.rag_enabled
+            && !profile.context.rag_collections.is_empty()
+            && let Some(ref vs) = self.vector_store
+        {
+            let mut all_results = Vec::new();
 
-                if let Some(ref ec) = self.embedding_client {
-                    // Embedding-based search
-                    if let Ok(embedding) = ec.embed_one(&request.user_message).await {
-                        for collection in &profile.context.rag_collections {
-                            if let Ok(results) = vs
-                                .search_by_embedding(
-                                    collection,
-                                    &embedding,
-                                    &request.user_message,
-                                    profile.context.rag_top_k,
-                                )
-                                .await
-                            {
-                                all_results.extend(results);
-                            }
-                        }
-                    }
-                } else {
-                    // Fallback: text search without embeddings
+            if let Some(ref ec) = self.embedding_client {
+                // Embedding-based search
+                if let Ok(embedding) = ec.embed_one(&request.user_message).await {
                     for collection in &profile.context.rag_collections {
                         if let Ok(results) = vs
-                            .search(collection, &request.user_message, profile.context.rag_top_k)
+                            .search_by_embedding(
+                                collection,
+                                &embedding,
+                                &request.user_message,
+                                profile.context.rag_top_k,
+                            )
                             .await
                         {
                             all_results.extend(results);
                         }
                     }
                 }
+            } else {
+                // Fallback: text search without embeddings
+                for collection in &profile.context.rag_collections {
+                    if let Ok(results) = vs
+                        .search(collection, &request.user_message, profile.context.rag_top_k)
+                        .await
+                    {
+                        all_results.extend(results);
+                    }
+                }
+            }
 
-                if !all_results.is_empty() {
-                    all_results.sort_by(|a, b| {
-                        b.score
-                            .partial_cmp(&a.score)
-                            .unwrap_or(std::cmp::Ordering::Equal)
-                    });
-                    all_results.truncate(profile.context.rag_top_k);
-                    let header = "\n\n## Relevant knowledge";
-                    if budget.reserve(header) {
-                        system.push_str(header);
-                        for doc in &all_results {
-                            let line = format!("\n- {}", doc.content);
-                            if !budget.reserve(&line) {
-                                break;
-                            }
-                            system.push_str(&line);
+            if !all_results.is_empty() {
+                all_results.sort_by(|a, b| {
+                    b.score
+                        .partial_cmp(&a.score)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                });
+                all_results.truncate(profile.context.rag_top_k);
+                let header = "\n\n## Relevant knowledge";
+                if budget.reserve(header) {
+                    system.push_str(header);
+                    for doc in &all_results {
+                        let line = format!("\n- {}", doc.content);
+                        if !budget.reserve(&line) {
+                            break;
                         }
+                        system.push_str(&line);
                     }
                 }
             }

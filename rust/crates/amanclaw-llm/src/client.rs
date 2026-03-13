@@ -47,11 +47,11 @@ impl LlmClient {
             "temperature": self.config.temperature,
         });
 
-        if let Some(tools) = tools {
-            if !tools.is_empty() {
-                payload["tools"] = Value::Array(tools.to_vec());
-                payload["tool_choice"] = Value::String("auto".into());
-            }
+        if let Some(tools) = tools
+            && !tools.is_empty()
+        {
+            payload["tools"] = Value::Array(tools.to_vec());
+            payload["tool_choice"] = Value::String("auto".into());
         }
 
         let api_key = self.config.api_key.as_deref().unwrap_or("no-key");

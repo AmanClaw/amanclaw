@@ -146,10 +146,10 @@ fn glob_match(pattern: &str, value: &str) -> bool {
         }
     }
     // If pattern ends with a literal (last part is non-empty), value must end there.
-    if let Some(last) = parts.last() {
-        if !last.is_empty() {
-            return value.ends_with(last) && pos == value.len();
-        }
+    if let Some(last) = parts.last()
+        && !last.is_empty()
+    {
+        return value.ends_with(last) && pos == value.len();
     }
     true
 }

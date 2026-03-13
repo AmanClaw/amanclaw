@@ -180,14 +180,13 @@ async fn handle_ws(mut socket: WebSocket, state: ApiState) {
                         Err(_) => continue,
                     };
                 let response = gateway.handler.dispatch(&request, &session_id).await;
-                if let Ok(json) = serde_json::to_string(&response) {
-                    if socket
+                if let Ok(json) = serde_json::to_string(&response)
+                    && socket
                         .send(axum::extract::ws::Message::Text(json.into()))
                         .await
                         .is_err()
-                    {
-                        break;
-                    }
+                {
+                    break;
                 }
             }
             axum::extract::ws::Message::Close(_) => break,

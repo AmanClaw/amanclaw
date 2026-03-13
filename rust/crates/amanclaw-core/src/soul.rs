@@ -55,13 +55,13 @@ impl SoulLoader {
     }
 
     fn parse_frontmatter(raw: &str) -> Result<(SoulFrontmatter, String)> {
-        if let Some(rest) = raw.strip_prefix("---") {
-            if let Some(end) = rest.find("---") {
-                let fm_str = &rest[..end];
-                let body = rest[end + 3..].trim().to_string();
-                let fm: SoulFrontmatter = serde_yaml::from_str(fm_str.trim()).unwrap_or_default();
-                return Ok((fm, body));
-            }
+        if let Some(rest) = raw.strip_prefix("---")
+            && let Some(end) = rest.find("---")
+        {
+            let fm_str = &rest[..end];
+            let body = rest[end + 3..].trim().to_string();
+            let fm: SoulFrontmatter = serde_yaml::from_str(fm_str.trim()).unwrap_or_default();
+            return Ok((fm, body));
         }
         Ok((SoulFrontmatter::default(), raw.to_string()))
     }

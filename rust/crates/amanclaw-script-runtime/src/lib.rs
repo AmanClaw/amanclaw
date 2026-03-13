@@ -209,10 +209,10 @@ impl Skill for ScriptSkill {
 impl Drop for ScriptSkill {
     fn drop(&mut self) {
         // Send shutdown and kill process
-        if let Ok(mut guard) = self.process.try_lock() {
-            if let Some(ref mut proc) = *guard {
-                let _ = proc.child.start_kill();
-            }
+        if let Ok(mut guard) = self.process.try_lock()
+            && let Some(ref mut proc) = *guard
+        {
+            let _ = proc.child.start_kill();
         }
     }
 }

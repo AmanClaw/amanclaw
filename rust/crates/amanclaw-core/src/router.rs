@@ -26,10 +26,10 @@ impl AgentRouter {
     /// Resolve which agent profile should handle this message.
     pub fn resolve(&self, msg: &IncomingMessage) -> AgentProfile {
         for rule in &self.rules {
-            if self.matches(&rule.match_criteria, msg) {
-                if let Some(profile) = self.profiles.get(&rule.agent) {
-                    return profile.clone();
-                }
+            if self.matches(&rule.match_criteria, msg)
+                && let Some(profile) = self.profiles.get(&rule.agent)
+            {
+                return profile.clone();
             }
         }
 
@@ -40,25 +40,25 @@ impl AgentRouter {
     }
 
     fn matches(&self, criteria: &RoutingMatch, msg: &IncomingMessage) -> bool {
-        if let Some(ref platform) = criteria.platform {
-            if platform != &msg.platform {
-                return false;
-            }
+        if let Some(ref platform) = criteria.platform
+            && platform != &msg.platform
+        {
+            return false;
         }
-        if let Some(ref topic_id) = criteria.topic_id {
-            if msg.topic_id.as_deref() != Some(topic_id) {
-                return false;
-            }
+        if let Some(ref topic_id) = criteria.topic_id
+            && msg.topic_id.as_deref() != Some(topic_id)
+        {
+            return false;
         }
-        if let Some(ref channel_id) = criteria.channel_id {
-            if msg.channel_context.as_deref() != Some(channel_id) {
-                return false;
-            }
+        if let Some(ref channel_id) = criteria.channel_id
+            && msg.channel_context.as_deref() != Some(channel_id)
+        {
+            return false;
         }
-        if let Some(ref group_id) = criteria.group_id {
-            if &msg.chat_id != group_id {
-                return false;
-            }
+        if let Some(ref group_id) = criteria.group_id
+            && &msg.chat_id != group_id
+        {
+            return false;
         }
         true
     }

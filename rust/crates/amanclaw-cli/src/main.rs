@@ -52,53 +52,53 @@ async fn cmd_run(config_path: &str) -> Result<()> {
 
     let result = amanclaw_core::Engine::start(config).await?;
 
-    if let Ok(port_str) = std::env::var("API_PORT") {
-        if let Ok(port) = port_str.parse::<u16>() {
-            let api_token = std::env::var("API_TOKEN").unwrap_or_else(|_| {
-                let token = format!(
-                    "amanclaw-{:x}-{}",
-                    std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_millis(),
-                    std::process::id()
-                );
-                tracing::info!(token = %token, "Generated API token (set API_TOKEN to override)");
-                token
-            });
-            let api_state = amanclaw_api::state::ApiState {
-                registry: result.registry.clone(),
-                pool: result.pool.clone(),
-                api_token,
-                bot_status: Arc::new(tokio::sync::RwLock::new(
-                    amanclaw_api::state::BotStatus::new(),
-                )),
-                auth: result.auth.clone(),
-                channel_manager: Some(result.channel_manager.clone()),
-                channels_config: result.channels_config.clone(),
-                config_path: Some(config_path.clone()),
-                webhook_router: None,
-                gateway: None,
-                metrics_handle: metrics_handle.clone(),
-                admin_password: std::env::var("ADMIN_PASSWORD").ok(),
-                jwt_secret: std::env::var("JWT_SECRET").unwrap_or_else(|_| {
-                    use rand::Rng;
-                    let secret: String = rand::rng()
-                        .sample_iter(&rand::distr::Alphanumeric)
-                        .take(64)
-                        .map(char::from)
-                        .collect();
-                    secret
-                }),
-                started_at: std::time::Instant::now(),
-            };
-            tokio::spawn(async move {
-                if let Err(e) = amanclaw_api::run_api_server(api_state, port).await {
-                    tracing::error!("Management API error: {}", e);
-                }
-            });
-            tracing::info!(port, "Management API started");
-        }
+    if let Ok(port_str) = std::env::var("API_PORT")
+        && let Ok(port) = port_str.parse::<u16>()
+    {
+        let api_token = std::env::var("API_TOKEN").unwrap_or_else(|_| {
+            let token = format!(
+                "amanclaw-{:x}-{}",
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis(),
+                std::process::id()
+            );
+            tracing::info!(token = %token, "Generated API token (set API_TOKEN to override)");
+            token
+        });
+        let api_state = amanclaw_api::state::ApiState {
+            registry: result.registry.clone(),
+            pool: result.pool.clone(),
+            api_token,
+            bot_status: Arc::new(tokio::sync::RwLock::new(
+                amanclaw_api::state::BotStatus::new(),
+            )),
+            auth: result.auth.clone(),
+            channel_manager: Some(result.channel_manager.clone()),
+            channels_config: result.channels_config.clone(),
+            config_path: Some(config_path.clone()),
+            webhook_router: None,
+            gateway: None,
+            metrics_handle: metrics_handle.clone(),
+            admin_password: std::env::var("ADMIN_PASSWORD").ok(),
+            jwt_secret: std::env::var("JWT_SECRET").unwrap_or_else(|_| {
+                use rand::Rng;
+                let secret: String = rand::rng()
+                    .sample_iter(&rand::distr::Alphanumeric)
+                    .take(64)
+                    .map(char::from)
+                    .collect();
+                secret
+            }),
+            started_at: std::time::Instant::now(),
+        };
+        tokio::spawn(async move {
+            if let Err(e) = amanclaw_api::run_api_server(api_state, port).await {
+                tracing::error!("Management API error: {}", e);
+            }
+        });
+        tracing::info!(port, "Management API started");
     }
 
     tokio::select! {

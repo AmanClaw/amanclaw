@@ -171,41 +171,39 @@ impl Engine {
                 config.registry.skills_dir.clone(),
             )
             .await
+                && let Ok(installed) = skill_registry.list_installed().await
             {
-                if let Ok(installed) = skill_registry.list_installed().await {
-                    for skill_info in &installed {
-                        let skill_dir = std::path::Path::new(&skill_info.install_dir);
-                        match skill_info.skill_type.as_str() {
-                            "wasm" => {
-                                if let Some(entry) = &skill_info.entry {
-                                    let wasm_path = skill_dir.join(entry);
-                                    let wasm_skills =
-                                        amanclaw_wasm_runtime::runtime::load_all_plugins(
-                                            &wasm_path,
-                                            wasm_sandbox.clone(),
-                                        );
-                                    for skill in wasm_skills {
-                                        registry.register(skill);
-                                    }
+                for skill_info in &installed {
+                    let skill_dir = std::path::Path::new(&skill_info.install_dir);
+                    match skill_info.skill_type.as_str() {
+                        "wasm" => {
+                            if let Some(entry) = &skill_info.entry {
+                                let wasm_path = skill_dir.join(entry);
+                                let wasm_skills = amanclaw_wasm_runtime::runtime::load_all_plugins(
+                                    &wasm_path,
+                                    wasm_sandbox.clone(),
+                                );
+                                for skill in wasm_skills {
+                                    registry.register(skill);
                                 }
                             }
-                            "script" => {
-                                tracing::info!(
-                                    name = %skill_info.name,
-                                    "Registry skill (script) found — requires script runtime config"
-                                );
-                            }
-                            other => {
-                                tracing::warn!(
-                                    name = %skill_info.name,
-                                    skill_type = other,
-                                    "Unknown registry skill type"
-                                );
-                            }
+                        }
+                        "script" => {
+                            tracing::info!(
+                                name = %skill_info.name,
+                                "Registry skill (script) found — requires script runtime config"
+                            );
+                        }
+                        other => {
+                            tracing::warn!(
+                                name = %skill_info.name,
+                                skill_type = other,
+                                "Unknown registry skill type"
+                            );
                         }
                     }
-                    tracing::info!(count = installed.len(), "Registry skills loaded");
                 }
+                tracing::info!(count = installed.len(), "Registry skills loaded");
             }
         }
 
@@ -407,21 +405,21 @@ impl Engine {
         drop(msg_tx);
 
         // Start MCP server if configured
-        if let Ok(port_str) = std::env::var("MCP_HTTP_PORT") {
-            if let Ok(port) = port_str.parse::<u16>() {
-                let mut mcp_handler = McpHandler::new("amanclaw", env!("CARGO_PKG_VERSION"));
-                // Register all skills with MCP
-                for (_name, skill) in registry.iter_skills() {
-                    mcp_handler.register_skill(skill.clone());
-                }
-                let mcp_handler = Arc::new(mcp_handler);
-                tokio::spawn(async move {
-                    if let Err(e) = amanclaw_mcp::http::run_http(mcp_handler, port).await {
-                        tracing::error!(error = %e, "MCP HTTP server error");
-                    }
-                });
-                tracing::info!(port, "MCP HTTP server started");
+        if let Ok(port_str) = std::env::var("MCP_HTTP_PORT")
+            && let Ok(port) = port_str.parse::<u16>()
+        {
+            let mut mcp_handler = McpHandler::new("amanclaw", env!("CARGO_PKG_VERSION"));
+            // Register all skills with MCP
+            for (_name, skill) in registry.iter_skills() {
+                mcp_handler.register_skill(skill.clone());
             }
+            let mcp_handler = Arc::new(mcp_handler);
+            tokio::spawn(async move {
+                if let Err(e) = amanclaw_mcp::http::run_http(mcp_handler, port).await {
+                    tracing::error!(error = %e, "MCP HTTP server error");
+                }
+            });
+            tracing::info!(port, "MCP HTTP server started");
         }
 
         // Initialize scheduler

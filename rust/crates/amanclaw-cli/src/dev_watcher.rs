@@ -77,12 +77,11 @@ fn classify_path(path: &Path, config_path: Option<&Path>) -> Option<DevEvent> {
     let path_str = path.to_string_lossy();
 
     // Check if it's the config file
-    if let Some(cfg) = config_path {
-        if let Ok(canonical) = path.canonicalize() {
-            if canonical == cfg {
-                return Some(DevEvent::Config);
-            }
-        }
+    if let Some(cfg) = config_path
+        && let Ok(canonical) = path.canonicalize()
+        && canonical == cfg
+    {
+        return Some(DevEvent::Config);
     }
     // Fallback: check by filename
     let file_name = path.file_name()?.to_string_lossy();

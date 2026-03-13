@@ -37,25 +37,25 @@ pub fn parse_xml_tool_calls(text: &str) -> Option<Vec<ToolCall>> {
         let inner = tc_cap[1].trim();
 
         // Try parsing as JSON first (common format from many LLMs)
-        if let Ok(json) = serde_json::from_str::<serde_json::Value>(inner) {
-            if let Some(name) = json["name"].as_str() {
-                let args = json
-                    .get("arguments")
-                    .or_else(|| json.get("parameters"))
-                    .cloned()
-                    .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
-                call_id += 1;
-                calls.push(ToolCall {
-                    id: format!("xml_call_{call_id}"),
-                    name: name.to_string(),
-                    arguments: if args.is_string() {
-                        args.as_str().unwrap().to_string()
-                    } else {
-                        serde_json::to_string(&args).unwrap_or_default()
-                    },
-                });
-                continue;
-            }
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(inner)
+            && let Some(name) = json["name"].as_str()
+        {
+            let args = json
+                .get("arguments")
+                .or_else(|| json.get("parameters"))
+                .cloned()
+                .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+            call_id += 1;
+            calls.push(ToolCall {
+                id: format!("xml_call_{call_id}"),
+                name: name.to_string(),
+                arguments: if args.is_string() {
+                    args.as_str().unwrap().to_string()
+                } else {
+                    serde_json::to_string(&args).unwrap_or_default()
+                },
+            });
+            continue;
         }
 
         // Fall back to <function=name>...<parameter=key>value</parameter>...</function> format

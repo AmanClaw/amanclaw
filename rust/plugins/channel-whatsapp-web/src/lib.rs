@@ -113,12 +113,12 @@ impl WhatsAppWebChannel {
         let sessions: Vec<serde_json::Value> = resp.json().await?;
         // Look for our session's "me" or "name" field
         for s in &sessions {
-            if let Some(name) = s.get("name").and_then(|n| n.as_str()) {
-                if name == self.session {
-                    // Try to get the connected phone number from the session
-                    if let Some(me) = s.get("me").and_then(|m| m.as_str()) {
-                        return Ok(me.to_string());
-                    }
+            if let Some(name) = s.get("name").and_then(|n| n.as_str())
+                && name == self.session
+            {
+                // Try to get the connected phone number from the session
+                if let Some(me) = s.get("me").and_then(|m| m.as_str()) {
+                    return Ok(me.to_string());
                 }
             }
         }

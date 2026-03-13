@@ -42,10 +42,10 @@ pub async fn update_whatsapp_web(
         channels.whatsapp_web = Some(config.clone());
     }
 
-    if let Some(ref path) = state.config_path {
-        if let Err(e) = persist_channels_config(&state, path).await {
-            tracing::error!(error = %e, "Failed to persist channel config");
-        }
+    if let Some(ref path) = state.config_path
+        && let Err(e) = persist_channels_config(&state, path).await
+    {
+        tracing::error!(error = %e, "Failed to persist channel config");
     }
 
     Ok(Json(serde_json::json!({"status": "saved"})))

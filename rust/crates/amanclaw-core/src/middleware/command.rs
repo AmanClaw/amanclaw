@@ -61,15 +61,14 @@ impl PipelineMiddleware for CommandMiddleware {
         }
 
         // Handle knowledge store commands (/learned, /forget, /teach)
-        if text == "/learned"
+        if (text == "/learned"
             || text.starts_with("/learned ")
             || text == "/forget"
             || text.starts_with("/forget ")
-            || text.starts_with("/teach ")
+            || text.starts_with("/teach "))
+            && let Some(reply) = handle_knowledge_command(&self.knowledge_store, &ctx).await?
         {
-            if let Some(reply) = handle_knowledge_command(&self.knowledge_store, &ctx).await? {
-                return Ok(Some(reply));
-            }
+            return Ok(Some(reply));
         }
 
         // Handle other slash commands

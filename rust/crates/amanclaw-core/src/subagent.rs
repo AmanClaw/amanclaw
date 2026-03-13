@@ -97,33 +97,33 @@ impl SubAgentManager {
 
     pub async fn complete(&self, id: &str, result: String) -> bool {
         let mut agents = self.agents.lock().await;
-        if let Some(agent) = agents.get_mut(id) {
-            if matches!(agent.status, SubAgentStatus::Running) {
-                agent.status = SubAgentStatus::Completed { result };
-                return true;
-            }
+        if let Some(agent) = agents.get_mut(id)
+            && matches!(agent.status, SubAgentStatus::Running)
+        {
+            agent.status = SubAgentStatus::Completed { result };
+            return true;
         }
         false
     }
 
     pub async fn fail(&self, id: &str, error: String) -> bool {
         let mut agents = self.agents.lock().await;
-        if let Some(agent) = agents.get_mut(id) {
-            if matches!(agent.status, SubAgentStatus::Running) {
-                agent.status = SubAgentStatus::Failed { error };
-                return true;
-            }
+        if let Some(agent) = agents.get_mut(id)
+            && matches!(agent.status, SubAgentStatus::Running)
+        {
+            agent.status = SubAgentStatus::Failed { error };
+            return true;
         }
         false
     }
 
     pub async fn cancel(&self, id: &str) -> bool {
         let mut agents = self.agents.lock().await;
-        if let Some(agent) = agents.get_mut(id) {
-            if matches!(agent.status, SubAgentStatus::Running) {
-                agent.status = SubAgentStatus::Cancelled;
-                return true;
-            }
+        if let Some(agent) = agents.get_mut(id)
+            && matches!(agent.status, SubAgentStatus::Running)
+        {
+            agent.status = SubAgentStatus::Cancelled;
+            return true;
         }
         false
     }
