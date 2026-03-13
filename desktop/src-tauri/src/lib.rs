@@ -127,6 +127,8 @@ pub fn run() {
             commands::block_user,
             commands::unblock_user,
             commands::add_user,
+            commands::make_admin,
+            commands::remove_admin,
             commands::get_user_detail,
             commands::get_user_history,
             commands::get_user_stats,

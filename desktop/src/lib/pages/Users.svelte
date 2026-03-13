@@ -24,7 +24,7 @@
 	let addError = $state('');
 
 	const platforms = ['telegram', 'discord', 'whatsapp', 'whatsapp-web', 'slack'];
-	const statuses = ['pending', 'approved', 'blocked'];
+	const statuses = ['admin', 'pending', 'approved', 'blocked'];
 	const platformIcons: Record<string, string> = {
 		telegram: 'TG',
 		discord: 'DC',
@@ -99,6 +99,24 @@
 		} catch (_) {}
 	}
 
+	async function makeAdmin(userId: string, platform: string) {
+		try {
+			await api.makeAdmin(userId, platform);
+			await loadUsers();
+			await loadStats();
+			if (selectedUser?.user_id === userId) selectedUser.state = 'admin';
+		} catch (_) {}
+	}
+
+	async function removeAdmin(userId: string, platform: string) {
+		try {
+			await api.removeAdmin(userId, platform);
+			await loadUsers();
+			await loadStats();
+			if (selectedUser?.user_id === userId) selectedUser.state = 'approved';
+		} catch (_) {}
+	}
+
 	async function addNewUser() {
 		if (!newUserId.trim()) { addError = 'User ID is required'; return; }
 		addSaving = true;
@@ -163,10 +181,14 @@
 
 	<!-- Stats -->
 	{#if stats}
-		<div class="grid grid-cols-4 gap-3 mb-6">
+		<div class="grid grid-cols-5 gap-3 mb-6">
 			<div class="bg-gray-50 rounded-xl border border-gray-200 p-4">
 				<p class="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Total</p>
 				<p class="text-2xl font-semibold text-gray-900 mt-1">{stats.total}</p>
+			</div>
+			<div class="bg-purple-50 rounded-xl border border-purple-200 p-4">
+				<p class="text-[11px] font-medium text-purple-600 uppercase tracking-wider">Admin</p>
+				<p class="text-2xl font-semibold text-purple-700 mt-1">{stats.admin ?? 0}</p>
 			</div>
 			<div class="bg-yellow-50 rounded-xl border border-yellow-200 p-4">
 				<p class="text-[11px] font-medium text-yellow-600 uppercase tracking-wider">Pending</p>
@@ -261,7 +283,8 @@
 							</td>
 							<td class="px-4 py-3">
 								<span class="inline-flex px-2 py-0.5 text-[11px] font-medium rounded-full
-									{user.state === 'approved' ? 'bg-green-100 text-green-700' :
+									{user.state === 'admin' ? 'bg-purple-100 text-purple-700' :
+									 user.state === 'approved' ? 'bg-green-100 text-green-700' :
 									 user.state === 'pending' ? 'bg-yellow-100 text-yellow-700' :
 									 user.state === 'blocked' ? 'bg-red-100 text-red-700' :
 									 'bg-gray-100 text-gray-700'}">
@@ -271,17 +294,26 @@
 							<td class="px-4 py-3 text-xs text-gray-400">{formatDate(user.last_seen)}</td>
 							<!-- svelte-ignore a11y_click_events_have_key_events -->
 							<td class="px-4 py-3 text-right" onclick={(e) => e.stopPropagation()}>
-								{#if user.state === 'pending'}
-									<button onclick={() => approve(user.user_id, user.platform)}
-										class="text-xs text-green-600 hover:text-green-800 font-medium mr-2">Approve</button>
-								{/if}
-								{#if user.state === 'blocked'}
-									<button onclick={() => unblock(user.user_id, user.platform)}
-										class="text-xs text-yellow-600 hover:text-yellow-800 font-medium mr-2">Unblock</button>
-								{/if}
-								{#if user.state !== 'blocked'}
-									<button onclick={() => block(user.user_id, user.platform)}
-										class="text-xs text-red-600 hover:text-red-800 font-medium">Block</button>
+								{#if user.state === 'admin'}
+									<button onclick={() => removeAdmin(user.user_id, user.platform)}
+										class="text-xs text-purple-600 hover:text-purple-800 font-medium mr-2">Remove Admin</button>
+								{:else}
+									{#if user.state === 'pending'}
+										<button onclick={() => approve(user.user_id, user.platform)}
+											class="text-xs text-green-600 hover:text-green-800 font-medium mr-2">Approve</button>
+									{/if}
+									{#if user.state === 'blocked'}
+										<button onclick={() => unblock(user.user_id, user.platform)}
+											class="text-xs text-yellow-600 hover:text-yellow-800 font-medium mr-2">Unblock</button>
+									{/if}
+									{#if user.state === 'approved'}
+										<button onclick={() => makeAdmin(user.user_id, user.platform)}
+											class="text-xs text-purple-600 hover:text-purple-800 font-medium mr-2">Make Admin</button>
+									{/if}
+									{#if user.state !== 'blocked'}
+										<button onclick={() => block(user.user_id, user.platform)}
+											class="text-xs text-red-600 hover:text-red-800 font-medium">Block</button>
+									{/if}
 								{/if}
 							</td>
 						</tr>
@@ -375,22 +407,35 @@
 
 				<!-- Actions -->
 				<div class="flex gap-2 mt-5 pt-4 border-t border-gray-100">
-					{#if selectedUser.state !== 'approved'}
-						<button onclick={() => approve(selectedUser.user_id, selectedUser.platform)}
-							class="px-3 py-1.5 text-xs font-medium rounded-md bg-green-600 hover:bg-green-700 text-white transition-colors">
-							Approve
+					{#if selectedUser.state === 'admin'}
+						<button onclick={() => removeAdmin(selectedUser.user_id, selectedUser.platform)}
+							class="px-3 py-1.5 text-xs font-medium rounded-md bg-purple-600 hover:bg-purple-700 text-white transition-colors">
+							Remove Admin
 						</button>
-					{/if}
-					{#if selectedUser.state === 'blocked'}
-						<button onclick={() => unblock(selectedUser.user_id, selectedUser.platform)}
-							class="px-3 py-1.5 text-xs font-medium rounded-md bg-yellow-600 hover:bg-yellow-700 text-white transition-colors">
-							Unblock
-						</button>
-					{:else if selectedUser.state !== 'blocked'}
-						<button onclick={() => block(selectedUser.user_id, selectedUser.platform)}
-							class="px-3 py-1.5 text-xs font-medium rounded-md bg-red-600 hover:bg-red-700 text-white transition-colors">
-							Block
-						</button>
+					{:else}
+						{#if selectedUser.state !== 'approved' && selectedUser.state !== 'admin'}
+							<button onclick={() => approve(selectedUser.user_id, selectedUser.platform)}
+								class="px-3 py-1.5 text-xs font-medium rounded-md bg-green-600 hover:bg-green-700 text-white transition-colors">
+								Approve
+							</button>
+						{/if}
+						{#if selectedUser.state === 'approved'}
+							<button onclick={() => makeAdmin(selectedUser.user_id, selectedUser.platform)}
+								class="px-3 py-1.5 text-xs font-medium rounded-md bg-purple-600 hover:bg-purple-700 text-white transition-colors">
+								Make Admin
+							</button>
+						{/if}
+						{#if selectedUser.state === 'blocked'}
+							<button onclick={() => unblock(selectedUser.user_id, selectedUser.platform)}
+								class="px-3 py-1.5 text-xs font-medium rounded-md bg-yellow-600 hover:bg-yellow-700 text-white transition-colors">
+								Unblock
+							</button>
+						{:else if selectedUser.state !== 'blocked'}
+							<button onclick={() => block(selectedUser.user_id, selectedUser.platform)}
+								class="px-3 py-1.5 text-xs font-medium rounded-md bg-red-600 hover:bg-red-700 text-white transition-colors">
+								Block
+							</button>
+						{/if}
 					{/if}
 				</div>
 			</div>

@@ -443,12 +443,27 @@ pub async fn get_users(
                 }
                 let rows = query.fetch_all(pool).await.map_err(|e| e.to_string())?;
 
-                let user_list: Vec<serde_json::Value> = rows.iter()
+                // Build set of admin user IDs for quick lookup
+                let auth = handle.auth.read().await;
+                let admin_map = auth.admin_users();
+                let mut admin_set: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
+                for (plat, ids) in admin_map {
+                    for id in ids {
+                        admin_set.insert((id.clone(), plat.clone()));
+                    }
+                }
+
+                let mut user_list: Vec<serde_json::Value> = rows.iter()
                     .map(|r| {
+                        let uid: String = r.get("user_id");
+                        let plat: String = r.get("platform");
+                        let db_state: String = r.get("state");
+                        let is_admin = admin_set.contains(&(uid.clone(), plat.clone()));
+                        let effective_state = if is_admin { "admin".to_string() } else { db_state };
                         serde_json::json!({
-                            "user_id": r.get::<String, _>("user_id"),
-                            "platform": r.get::<String, _>("platform"),
-                            "state": r.get::<String, _>("state"),
+                            "user_id": uid,
+                            "platform": plat,
+                            "state": effective_state,
                             "username": r.get::<Option<String>, _>("username"),
                             "first_name": r.get::<Option<String>, _>("first_name"),
                             "first_seen": r.get::<Option<String>, _>("first_seen"),
@@ -456,6 +471,39 @@ pub async fn get_users(
                         })
                     })
                     .collect();
+
+                // Add admin users that aren't in the DB yet
+                let db_keys: std::collections::HashSet<(String, String)> = rows.iter()
+                    .map(|r| (r.get::<String, _>("user_id"), r.get::<String, _>("platform")))
+                    .collect();
+                let skip_admin = status.as_deref().is_some_and(|s| s != "admin");
+                if !skip_admin {
+                    for (plat, ids) in admin_map {
+                        if platform.as_ref().is_some_and(|p| p != plat) { continue; }
+                        for uid in ids {
+                            if db_keys.contains(&(uid.clone(), plat.clone())) { continue; }
+                            if let Some(q) = &search {
+                                let q = q.to_lowercase();
+                                if !uid.to_lowercase().contains(&q) { continue; }
+                            }
+                            user_list.push(serde_json::json!({
+                                "user_id": uid,
+                                "platform": plat,
+                                "state": "admin",
+                                "username": null,
+                                "first_name": null,
+                                "first_seen": null,
+                                "last_seen": null,
+                            }));
+                        }
+                    }
+                }
+
+                // If filtering by admin status, keep only admins
+                if status.as_deref() == Some("admin") {
+                    user_list.retain(|u| u["state"] == "admin");
+                }
+
                 let count = user_list.len();
                 Ok(serde_json::json!({ "users": user_list, "count": count }))
             } else {
@@ -612,6 +660,53 @@ pub async fn add_user(
 }
 
 #[tauri::command]
+pub async fn make_admin(
+    app: AppHandle,
+    state: State<'_, SharedState>,
+    user_id: String,
+    platform: String,
+) -> Result<(), String> {
+    let st = state.read().await;
+    if let Some(handle) = &st.engine_handle {
+        let mut auth = handle.auth.write().await;
+        auth.make_admin(&user_id, &platform);
+    }
+
+    // Persist to config.yaml
+    if let Ok(mut cfg) = config::load_config(&app) {
+        let users = cfg.admin_users.entry(platform).or_default();
+        if !users.contains(&user_id) {
+            users.push(user_id);
+        }
+        let _ = config::save_config(&app, &cfg);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn remove_admin(
+    app: AppHandle,
+    state: State<'_, SharedState>,
+    user_id: String,
+    platform: String,
+) -> Result<(), String> {
+    let st = state.read().await;
+    if let Some(handle) = &st.engine_handle {
+        let mut auth = handle.auth.write().await;
+        auth.remove_admin(&user_id, &platform);
+    }
+
+    // Remove from config.yaml
+    if let Ok(mut cfg) = config::load_config(&app) {
+        if let Some(users) = cfg.admin_users.get_mut(&platform) {
+            users.retain(|id| id != &user_id);
+        }
+        let _ = config::save_config(&app, &cfg);
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn get_user_detail(
     state: State<'_, SharedState>,
     user_id: String,
@@ -640,7 +735,28 @@ pub async fn get_user_detail(
                 .await
                 .map_err(|e| e.to_string())?;
 
+                // Check admin status
+                let auth = handle.auth.read().await;
+                let is_admin = auth.admin_users()
+                    .get(&platform)
+                    .map(|ids| ids.iter().any(|id| id == &user_id))
+                    .unwrap_or(false);
+
+                // Admin-only user (not in DB) — return minimal info
                 let Some(row) = row else {
+                    if is_admin {
+                        return Ok(serde_json::json!({
+                            "user_id": user_id,
+                            "platform": platform,
+                            "state": "admin",
+                            "username": null,
+                            "first_name": null,
+                            "first_seen": null,
+                            "last_seen": null,
+                            "facts": {},
+                            "message_count": 0,
+                        }));
+                    }
                     return Err("User not found".into());
                 };
 
@@ -662,10 +778,12 @@ pub async fn get_user_detail(
                     .map(|r| r.get("c"))
                     .unwrap_or(0);
 
+                let effective_state = if is_admin { "admin" } else { &row.get::<String, _>("state") };
+
                 Ok(serde_json::json!({
                     "user_id": row.get::<String, _>("user_id"),
                     "platform": row.get::<String, _>("platform"),
-                    "state": row.get::<String, _>("state"),
+                    "state": effective_state,
                     "username": row.get::<Option<String>, _>("username"),
                     "first_name": row.get::<Option<String>, _>("first_name"),
                     "first_seen": row.get::<Option<String>, _>("first_seen"),
@@ -768,6 +886,11 @@ pub async fn get_user_stats(
                 let blocked: i64 = sqlx::query("SELECT COUNT(*) as c FROM users WHERE state = 'blocked'")
                     .fetch_one(pool).await.map(|r| r.get("c")).unwrap_or(0);
 
+                // Count admin users from config
+                let auth = handle.auth.read().await;
+                let admin_count: i64 = auth.admin_users().values()
+                    .map(|ids| ids.len() as i64).sum();
+
                 let platform_rows = sqlx::query("SELECT platform, COUNT(*) as c FROM users GROUP BY platform")
                     .fetch_all(pool).await.unwrap_or_default();
                 let by_platform: serde_json::Map<String, serde_json::Value> = platform_rows.iter()
@@ -775,14 +898,15 @@ pub async fn get_user_stats(
                     .collect();
 
                 Ok(serde_json::json!({
-                    "total": total,
+                    "total": total + admin_count,
+                    "admin": admin_count,
                     "pending": pending,
                     "approved": approved,
                     "blocked": blocked,
                     "by_platform": by_platform,
                 }))
             } else {
-                Ok(serde_json::json!({ "total": 0, "pending": 0, "approved": 0, "blocked": 0, "by_platform": {} }))
+                Ok(serde_json::json!({ "total": 0, "admin": 0, "pending": 0, "approved": 0, "blocked": 0, "by_platform": {} }))
             }
         }
     }
