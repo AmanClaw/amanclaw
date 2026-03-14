@@ -1,8 +1,27 @@
 mod api;
 
+use std::sync::Arc;
+
+use amanclaw_islamic_db::IslamicDb;
 use amanclaw_traits::skill::{Skill, SkillInput, SkillMetadata, SkillResult};
 
-pub struct QuranSkill;
+pub struct QuranSkill {
+    db: Option<Arc<IslamicDb>>,
+}
+
+impl QuranSkill {
+    /// Create a QuranSkill backed by the local IslamicDb.
+    pub fn new(db: Arc<IslamicDb>) -> Self {
+        Self { db: Some(db) }
+    }
+}
+
+impl Default for QuranSkill {
+    /// Create a QuranSkill without a local DB (API-only fallback).
+    fn default() -> Self {
+        Self { db: None }
+    }
+}
 
 /// All 114 surahs: (number, Arabic name, transliteration, verse count).
 const SURAHS: [(u32, &str, &str, u32); 114] = [
@@ -566,9 +585,9 @@ impl Skill for QuranSkill {
     fn metadata(&self) -> SkillMetadata {
         SkillMetadata {
             name: "quran".into(),
-            description: "Quran verse lookup and search using Quran.com API. Supports verse lookup by surah:ayat, keyword search, and surah listing.".into(),
+            description: "Quran verse lookup, search, and tafsir using local IslamicDb with API fallback. Supports verse lookup, keyword/thematic search, tafsir, and surah listing.".into(),
             timeout_ms: 15000,
-            version: "0.1.0".into(),
+            version: "0.2.0".into(),
         }
     }
 
@@ -578,12 +597,12 @@ impl Skill for QuranSkill {
             "properties": {
                 "action": {
                     "type": "string",
-                    "enum": ["verse", "search", "surah_list"],
-                    "description": "Action to perform. verse = lookup by surah:ayat, search = keyword search, surah_list = list all 114 surahs. Default: verse"
+                    "enum": ["verse", "search", "surah_list", "tafsir", "thematic"],
+                    "description": "Action to perform. verse = lookup by surah:ayat, search = keyword search, surah_list = list all 114 surahs, tafsir = get tafsir for a verse (local DB only), thematic = semantic/thematic search (local DB only). Default: verse"
                 },
                 "surah": {
                     "type": "integer",
-                    "description": "Surah number (1-114) for verse lookup"
+                    "description": "Surah number (1-114) for verse lookup or tafsir"
                 },
                 "ayat": {
                     "type": "integer",
@@ -591,12 +610,17 @@ impl Skill for QuranSkill {
                 },
                 "query": {
                     "type": "string",
-                    "description": "Search keyword for action=search"
+                    "description": "Search keyword for action=search or action=thematic"
                 },
                 "language": {
                     "type": "string",
-                    "enum": ["ms", "en"],
-                    "description": "Language for search results. ms = Malay, en = English. Default: ms"
+                    "enum": ["ms", "en", "ar"],
+                    "description": "Language for results. ms = Malay, en = English, ar = Arabic. Default: ms"
+                },
+                "tafsir": {
+                    "type": "string",
+                    "enum": ["ibn_kathir", "jalalayn"],
+                    "description": "Tafsir source for action=tafsir. Default: ibn_kathir"
                 }
             },
             "required": []
@@ -637,135 +661,421 @@ impl Skill for QuranSkill {
                     error: None,
                 }
             }
-            "search" => {
-                let query = match args.get("query").and_then(|v| v.as_str()) {
-                    Some(q) if !q.is_empty() => q,
-                    _ => {
-                        return SkillResult {
-                            success: false,
-                            output: String::new(),
-                            error: Some(
-                                "Search query is required. Provide 'query' parameter.".into(),
-                            ),
-                        };
-                    }
-                };
-                let language = args
-                    .get("language")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("ms");
+            "search" => self.handle_search(&args).await,
+            "tafsir" => self.handle_tafsir(&args).await,
+            "thematic" => self.handle_thematic(&args).await,
+            _ => self.handle_verse(&args).await,
+        }
+    }
+}
 
-                match api::search(query, language).await {
-                    Ok(result) => {
-                        if result.results.is_empty() {
-                            return SkillResult {
-                                success: true,
-                                output: format!("Tiada hasil ditemui untuk '{query}'."),
-                                error: None,
-                            };
-                        }
-                        let mut output = format!(
-                            "Hasil carian '{}' ({} hasil):\n",
-                            result.query, result.total_results
-                        );
-                        for hit in &result.results {
-                            let surah_num: u32 = hit
-                                .verse_key
-                                .split(':')
-                                .next()
-                                .and_then(|s| s.parse().ok())
-                                .unwrap_or(0);
-                            let name = surah_name(surah_num).map(|(_, t)| t).unwrap_or("Unknown");
-                            output.push_str(&format!(
-                                "\n[{} - {}]\n{}\n",
-                                hit.verse_key, name, hit.text
-                            ));
-                            for tr in &hit.translations {
-                                output.push_str(&format!(
-                                    "({}) {}\n",
-                                    tr.resource_name,
-                                    strip_html(&tr.text)
-                                ));
-                            }
-                        }
-                        SkillResult {
-                            success: true,
-                            output,
-                            error: None,
-                        }
-                    }
-                    Err(e) => SkillResult {
-                        success: false,
-                        output: String::new(),
-                        error: Some(format!("Search error: {e}")),
-                    },
-                }
+impl QuranSkill {
+    /// Handle verse lookup: try local DB first, fall back to API.
+    async fn handle_verse(&self, args: &serde_json::Value) -> SkillResult {
+        let surah = match args.get("surah").and_then(|v| v.as_u64()) {
+            Some(s) if (1..=114).contains(&s) => s as u32,
+            Some(s) => {
+                return SkillResult {
+                    success: false,
+                    output: String::new(),
+                    error: Some(format!("Invalid surah number: {s}. Must be 1-114.")),
+                };
             }
-            _ => {
-                // verse lookup
-                let surah = match args.get("surah").and_then(|v| v.as_u64()) {
-                    Some(s) if (1..=114).contains(&s) => s as u32,
-                    Some(s) => return SkillResult {
-                        success: false,
-                        output: String::new(),
-                        error: Some(format!("Invalid surah number: {s}. Must be 1-114.")),
-                    },
-                    None => return SkillResult {
-                        success: false,
-                        output: String::new(),
-                        error: Some("Surah number required for verse lookup. Provide 'surah' (1-114) and 'ayat' parameters.".into()),
-                    },
+            None => {
+                return SkillResult {
+                    success: false,
+                    output: String::new(),
+                    error: Some(
+                        "Surah number required for verse lookup. Provide 'surah' (1-114) and 'ayat' parameters."
+                            .into(),
+                    ),
                 };
+            }
+        };
 
-                let ayat = match args.get("ayat").and_then(|v| v.as_u64()) {
-                    Some(a) if a >= 1 => a as u32,
-                    Some(_) => {
-                        return SkillResult {
-                            success: false,
-                            output: String::new(),
-                            error: Some("Ayat number must be at least 1.".into()),
-                        };
-                    }
-                    None => {
-                        return SkillResult {
-                            success: false,
-                            output: String::new(),
-                            error: Some("Ayat number required. Provide 'ayat' parameter.".into()),
-                        };
-                    }
+        let ayat = match args.get("ayat").and_then(|v| v.as_u64()) {
+            Some(a) if a >= 1 => a as u32,
+            Some(_) => {
+                return SkillResult {
+                    success: false,
+                    output: String::new(),
+                    error: Some("Ayat number must be at least 1.".into()),
                 };
+            }
+            None => {
+                return SkillResult {
+                    success: false,
+                    output: String::new(),
+                    error: Some("Ayat number required. Provide 'ayat' parameter.".into()),
+                };
+            }
+        };
 
-                let (arabic_name, translit) = surah_name(surah).unwrap_or(("", "Unknown"));
+        let language = args
+            .get("language")
+            .and_then(|v| v.as_str())
+            .unwrap_or("ms");
+        let (arabic_name, translit) = surah_name(surah).unwrap_or(("", "Unknown"));
 
-                match api::get_verse(surah, ayat).await {
-                    Ok(verse) => {
-                        let mut output = format!(
-                            "Surah {} ({}) - Ayat {}\n\n{}\n{}\n",
-                            translit, arabic_name, ayat, verse.verse_key, verse.text_uthmani
-                        );
-                        if let Some(translations) = &verse.translations {
-                            for tr in translations {
-                                output.push_str(&format!(
-                                    "\n[{}]\n{}\n",
-                                    tr.resource_name,
-                                    strip_html(&tr.text)
-                                ));
-                            }
-                        }
-                        SkillResult {
-                            success: true,
-                            output,
-                            error: None,
-                        }
-                    }
-                    Err(e) => SkillResult {
-                        success: false,
-                        output: String::new(),
-                        error: Some(format!("Failed to fetch verse: {e}")),
-                    },
+        // Try local DB first
+        if let Some(db) = &self.db {
+            match amanclaw_islamic_db::quran::get_verse(db.pool(), surah as i64, ayat as i64).await
+            {
+                Ok(Some(v)) => {
+                    let translation = match language {
+                        "en" => &v.translation_en,
+                        "ar" => &v.text_uthmani,
+                        _ => &v.translation_ms,
+                    };
+                    let output = format!(
+                        "Surah {} ({}) - Ayat {}\n\n{}:{}\n{}\n\n[{}]\n{}\n",
+                        translit,
+                        arabic_name,
+                        ayat,
+                        v.surah,
+                        v.ayat,
+                        v.text_uthmani,
+                        lang_label(language),
+                        translation
+                    );
+                    tracing::debug!("Verse {}:{} served from local DB", surah, ayat);
+                    return SkillResult {
+                        success: true,
+                        output,
+                        error: None,
+                    };
+                }
+                Ok(None) => {
+                    tracing::debug!(
+                        "Verse {}:{} not in local DB, falling back to API",
+                        surah,
+                        ayat
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!("Local DB error for verse {}:{}: {}", surah, ayat, e);
                 }
             }
         }
+
+        // Fall back to Quran.com API
+        match api::get_verse(surah, ayat).await {
+            Ok(verse) => {
+                let mut output = format!(
+                    "Surah {} ({}) - Ayat {}\n\n{}\n{}\n",
+                    translit, arabic_name, ayat, verse.verse_key, verse.text_uthmani
+                );
+                if let Some(translations) = &verse.translations {
+                    for tr in translations {
+                        output.push_str(&format!(
+                            "\n[{}]\n{}\n",
+                            tr.resource_name,
+                            strip_html(&tr.text)
+                        ));
+                    }
+                }
+                SkillResult {
+                    success: true,
+                    output,
+                    error: None,
+                }
+            }
+            Err(e) => SkillResult {
+                success: false,
+                output: String::new(),
+                error: Some(format!("Failed to fetch verse: {e}")),
+            },
+        }
+    }
+
+    /// Handle search: try local DB first, fall back to API.
+    async fn handle_search(&self, args: &serde_json::Value) -> SkillResult {
+        let query = match args.get("query").and_then(|v| v.as_str()) {
+            Some(q) if !q.is_empty() => q,
+            _ => {
+                return SkillResult {
+                    success: false,
+                    output: String::new(),
+                    error: Some("Search query is required. Provide 'query' parameter.".into()),
+                };
+            }
+        };
+        let language = args
+            .get("language")
+            .and_then(|v| v.as_str())
+            .unwrap_or("ms");
+
+        // Try local DB first
+        if let Some(db) = &self.db {
+            match amanclaw_islamic_db::quran::search(db.pool(), query, 10).await {
+                Ok(results) if !results.is_empty() => {
+                    let mut output =
+                        format!("Hasil carian '{}' ({} hasil):\n", query, results.len());
+                    for v in &results {
+                        let name = surah_name(v.surah as u32)
+                            .map(|(_, t)| t)
+                            .unwrap_or("Unknown");
+                        let translation = match language {
+                            "en" => &v.translation_en,
+                            "ar" => &v.text_uthmani,
+                            _ => &v.translation_ms,
+                        };
+                        output.push_str(&format!(
+                            "\n[{}:{} - {}]\n{}\n({}) {}\n",
+                            v.surah,
+                            v.ayat,
+                            name,
+                            v.text_uthmani,
+                            lang_label(language),
+                            translation
+                        ));
+                    }
+                    tracing::debug!("Search '{}' served from local DB", query);
+                    return SkillResult {
+                        success: true,
+                        output,
+                        error: None,
+                    };
+                }
+                Ok(_) => {
+                    tracing::debug!(
+                        "Search '{}' returned no results from local DB, falling back to API",
+                        query
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!("Local DB search error for '{}': {}", query, e);
+                }
+            }
+        }
+
+        // Fall back to Quran.com API
+        match api::search(query, language).await {
+            Ok(result) => {
+                if result.results.is_empty() {
+                    return SkillResult {
+                        success: true,
+                        output: format!("Tiada hasil ditemui untuk '{query}'."),
+                        error: None,
+                    };
+                }
+                let mut output = format!(
+                    "Hasil carian '{}' ({} hasil):\n",
+                    result.query, result.total_results
+                );
+                for hit in &result.results {
+                    let surah_num: u32 = hit
+                        .verse_key
+                        .split(':')
+                        .next()
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(0);
+                    let name = surah_name(surah_num).map(|(_, t)| t).unwrap_or("Unknown");
+                    output.push_str(&format!(
+                        "\n[{} - {}]\n{}\n",
+                        hit.verse_key, name, hit.text
+                    ));
+                    for tr in &hit.translations {
+                        output.push_str(&format!(
+                            "({}) {}\n",
+                            tr.resource_name,
+                            strip_html(&tr.text)
+                        ));
+                    }
+                }
+                SkillResult {
+                    success: true,
+                    output,
+                    error: None,
+                }
+            }
+            Err(e) => SkillResult {
+                success: false,
+                output: String::new(),
+                error: Some(format!("Search error: {e}")),
+            },
+        }
+    }
+
+    /// Handle tafsir lookup (local DB only).
+    async fn handle_tafsir(&self, args: &serde_json::Value) -> SkillResult {
+        let db = match &self.db {
+            Some(db) => db,
+            None => {
+                return SkillResult {
+                    success: false,
+                    output: String::new(),
+                    error: Some(
+                        "Tafsir requires local IslamicDb. No database configured.".into(),
+                    ),
+                };
+            }
+        };
+
+        let surah = match args.get("surah").and_then(|v| v.as_u64()) {
+            Some(s) if (1..=114).contains(&s) => s as i64,
+            Some(s) => {
+                return SkillResult {
+                    success: false,
+                    output: String::new(),
+                    error: Some(format!("Invalid surah number: {s}. Must be 1-114.")),
+                };
+            }
+            None => {
+                return SkillResult {
+                    success: false,
+                    output: String::new(),
+                    error: Some(
+                        "Surah number required for tafsir. Provide 'surah' (1-114) and 'ayat' parameters."
+                            .into(),
+                    ),
+                };
+            }
+        };
+
+        let ayat = match args.get("ayat").and_then(|v| v.as_u64()) {
+            Some(a) if a >= 1 => a as i64,
+            Some(_) => {
+                return SkillResult {
+                    success: false,
+                    output: String::new(),
+                    error: Some("Ayat number must be at least 1.".into()),
+                };
+            }
+            None => {
+                return SkillResult {
+                    success: false,
+                    output: String::new(),
+                    error: Some("Ayat number required. Provide 'ayat' parameter.".into()),
+                };
+            }
+        };
+
+        let tafsir_name = args
+            .get("tafsir")
+            .and_then(|v| v.as_str())
+            .unwrap_or("ibn_kathir");
+
+        let (arabic_name, translit) =
+            surah_name(surah as u32).unwrap_or(("", "Unknown"));
+
+        match amanclaw_islamic_db::quran::get_tafsir(db.pool(), surah, ayat, tafsir_name).await {
+            Ok(entries) if !entries.is_empty() => {
+                let mut output = format!(
+                    "Tafsir {} - Surah {} ({}) Ayat {}\n\n",
+                    tafsir_name, translit, arabic_name, ayat
+                );
+                for entry in &entries {
+                    output.push_str(&format!("[{} - {}]\n{}\n\n", entry.tafsir_name, entry.language, entry.text));
+                }
+                SkillResult {
+                    success: true,
+                    output,
+                    error: None,
+                }
+            }
+            Ok(_) => SkillResult {
+                success: true,
+                output: format!(
+                    "Tiada tafsir '{}' ditemui untuk Surah {} Ayat {}.",
+                    tafsir_name, translit, ayat
+                ),
+                error: None,
+            },
+            Err(e) => SkillResult {
+                success: false,
+                output: String::new(),
+                error: Some(format!("Tafsir lookup error: {e}")),
+            },
+        }
+    }
+
+    /// Handle thematic/semantic search (local DB only, uses FTS).
+    async fn handle_thematic(&self, args: &serde_json::Value) -> SkillResult {
+        let db = match &self.db {
+            Some(db) => db,
+            None => {
+                return SkillResult {
+                    success: false,
+                    output: String::new(),
+                    error: Some(
+                        "Thematic search requires local IslamicDb. No database configured.".into(),
+                    ),
+                };
+            }
+        };
+
+        let query = match args.get("query").and_then(|v| v.as_str()) {
+            Some(q) if !q.is_empty() => q,
+            _ => {
+                return SkillResult {
+                    success: false,
+                    output: String::new(),
+                    error: Some(
+                        "Search query is required for thematic search. Provide 'query' parameter."
+                            .into(),
+                    ),
+                };
+            }
+        };
+
+        let language = args
+            .get("language")
+            .and_then(|v| v.as_str())
+            .unwrap_or("ms");
+
+        match amanclaw_islamic_db::quran::search(db.pool(), query, 15).await {
+            Ok(results) if !results.is_empty() => {
+                let mut output = format!(
+                    "Carian tematik '{}' ({} hasil):\n",
+                    query,
+                    results.len()
+                );
+                for v in &results {
+                    let name = surah_name(v.surah as u32)
+                        .map(|(_, t)| t)
+                        .unwrap_or("Unknown");
+                    let translation = match language {
+                        "en" => &v.translation_en,
+                        "ar" => &v.text_uthmani,
+                        _ => &v.translation_ms,
+                    };
+                    output.push_str(&format!(
+                        "\n[{}:{} - {}]\n{}\n({}) {}\n",
+                        v.surah,
+                        v.ayat,
+                        name,
+                        v.text_uthmani,
+                        lang_label(language),
+                        translation
+                    ));
+                }
+                SkillResult {
+                    success: true,
+                    output,
+                    error: None,
+                }
+            }
+            Ok(_) => SkillResult {
+                success: true,
+                output: format!("Tiada hasil ditemui untuk carian tematik '{query}'."),
+                error: None,
+            },
+            Err(e) => SkillResult {
+                success: false,
+                output: String::new(),
+                error: Some(format!("Thematic search error: {e}")),
+            },
+        }
+    }
+}
+
+/// Map language code to a display label.
+fn lang_label(lang: &str) -> &'static str {
+    match lang {
+        "en" => "English",
+        "ar" => "Arabic",
+        _ => "Bahasa Melayu",
     }
 }
 
@@ -789,21 +1099,76 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_metadata() {
-        let skill = QuranSkill;
-        let meta = skill.metadata();
-        assert_eq!(meta.name, "quran");
-        assert_eq!(meta.version, "0.1.0");
+    fn test_default_creates_without_db() {
+        let skill = QuranSkill::default();
+        assert!(skill.db.is_none());
     }
 
     #[test]
-    fn test_parameters_schema() {
-        let skill = QuranSkill;
+    fn test_metadata() {
+        let skill = QuranSkill::default();
+        let meta = skill.metadata();
+        assert_eq!(meta.name, "quran");
+        assert_eq!(meta.version, "0.2.0");
+    }
+
+    #[test]
+    fn test_parameters_schema_includes_new_actions() {
+        let skill = QuranSkill::default();
         let schema = skill.parameters_schema();
-        assert!(schema["properties"]["action"].is_object());
-        assert!(schema["properties"]["surah"].is_object());
-        assert!(schema["properties"]["ayat"].is_object());
-        assert!(schema["properties"]["query"].is_object());
+        let actions = &schema["properties"]["action"]["enum"];
+        let action_list: Vec<&str> = actions
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect();
+        assert!(action_list.contains(&"verse"));
+        assert!(action_list.contains(&"search"));
+        assert!(action_list.contains(&"surah_list"));
+        assert!(action_list.contains(&"tafsir"));
+        assert!(action_list.contains(&"thematic"));
+    }
+
+    #[test]
+    fn test_parameters_schema_has_tafsir_param() {
+        let skill = QuranSkill::default();
+        let schema = skill.parameters_schema();
+        assert!(schema["properties"]["tafsir"].is_object());
+        let tafsir_enum = &schema["properties"]["tafsir"]["enum"];
+        let values: Vec<&str> = tafsir_enum
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect();
+        assert!(values.contains(&"ibn_kathir"));
+        assert!(values.contains(&"jalalayn"));
+    }
+
+    #[test]
+    fn test_parameters_schema_has_language_ar() {
+        let skill = QuranSkill::default();
+        let schema = skill.parameters_schema();
+        let lang_enum = &schema["properties"]["language"]["enum"];
+        let values: Vec<&str> = lang_enum
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect();
+        assert!(values.contains(&"ms"));
+        assert!(values.contains(&"en"));
+        assert!(values.contains(&"ar"));
+    }
+
+    #[tokio::test]
+    async fn test_new_accepts_islamic_db() {
+        let db = IslamicDb::new(":memory:").await.unwrap();
+        let skill = QuranSkill::new(Arc::new(db));
+        assert!(skill.db.is_some());
+        let meta = skill.metadata();
+        assert_eq!(meta.name, "quran");
     }
 
     #[test]
@@ -836,9 +1201,17 @@ mod tests {
         assert_eq!(strip_html(""), "");
     }
 
+    #[test]
+    fn test_lang_label() {
+        assert_eq!(lang_label("en"), "English");
+        assert_eq!(lang_label("ar"), "Arabic");
+        assert_eq!(lang_label("ms"), "Bahasa Melayu");
+        assert_eq!(lang_label("other"), "Bahasa Melayu");
+    }
+
     #[tokio::test]
     async fn test_missing_surah() {
-        let skill = QuranSkill;
+        let skill = QuranSkill::default();
         let input = SkillInput {
             name: "quran".into(),
             args: r#"{"action": "verse"}"#.into(),
@@ -852,7 +1225,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_missing_ayat() {
-        let skill = QuranSkill;
+        let skill = QuranSkill::default();
         let input = SkillInput {
             name: "quran".into(),
             args: r#"{"action": "verse", "surah": 1}"#.into(),
@@ -866,7 +1239,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_invalid_surah_number() {
-        let skill = QuranSkill;
+        let skill = QuranSkill::default();
         let input = SkillInput {
             name: "quran".into(),
             args: r#"{"action": "verse", "surah": 200, "ayat": 1}"#.into(),
@@ -880,7 +1253,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_search_missing_query() {
-        let skill = QuranSkill;
+        let skill = QuranSkill::default();
         let input = SkillInput {
             name: "quran".into(),
             args: r#"{"action": "search"}"#.into(),
@@ -894,7 +1267,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_surah_list_action() {
-        let skill = QuranSkill;
+        let skill = QuranSkill::default();
         let input = SkillInput {
             name: "quran".into(),
             args: r#"{"action": "surah_list"}"#.into(),
@@ -910,7 +1283,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_invalid_args() {
-        let skill = QuranSkill;
+        let skill = QuranSkill::default();
         let input = SkillInput {
             name: "quran".into(),
             args: "not json".into(),
@@ -920,5 +1293,132 @@ mod tests {
         let result = skill.execute(input).await;
         assert!(!result.success);
         assert!(result.error.unwrap().contains("Invalid args"));
+    }
+
+    #[tokio::test]
+    async fn test_tafsir_without_db() {
+        let skill = QuranSkill::default();
+        let input = SkillInput {
+            name: "quran".into(),
+            args: r#"{"action": "tafsir", "surah": 1, "ayat": 1}"#.into(),
+            user_id: "test".into(),
+            platform: "test".into(),
+        };
+        let result = skill.execute(input).await;
+        assert!(!result.success);
+        assert!(result.error.unwrap().contains("requires local IslamicDb"));
+    }
+
+    #[tokio::test]
+    async fn test_thematic_without_db() {
+        let skill = QuranSkill::default();
+        let input = SkillInput {
+            name: "quran".into(),
+            args: r#"{"action": "thematic", "query": "mercy"}"#.into(),
+            user_id: "test".into(),
+            platform: "test".into(),
+        };
+        let result = skill.execute(input).await;
+        assert!(!result.success);
+        assert!(result.error.unwrap().contains("requires local IslamicDb"));
+    }
+
+    #[tokio::test]
+    async fn test_thematic_missing_query() {
+        let db = IslamicDb::new(":memory:").await.unwrap();
+        let skill = QuranSkill::new(Arc::new(db));
+        let input = SkillInput {
+            name: "quran".into(),
+            args: r#"{"action": "thematic"}"#.into(),
+            user_id: "test".into(),
+            platform: "test".into(),
+        };
+        let result = skill.execute(input).await;
+        assert!(!result.success);
+        assert!(result.error.unwrap().contains("query is required"));
+    }
+
+    #[tokio::test]
+    async fn test_verse_from_local_db() {
+        let db = IslamicDb::new(":memory:").await.unwrap();
+        sqlx::query(
+            "INSERT INTO quran_ayat (surah, ayat, text_uthmani, text_simple, translation_ms, translation_en, juz, hizb, page) VALUES (1, 1, 'بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ', 'bismillah', 'Dengan nama Allah', 'In the name of Allah', 1, 1, 1)"
+        )
+        .execute(db.pool())
+        .await
+        .unwrap();
+
+        let skill = QuranSkill::new(Arc::new(db));
+        let input = SkillInput {
+            name: "quran".into(),
+            args: r#"{"action": "verse", "surah": 1, "ayat": 1}"#.into(),
+            user_id: "test".into(),
+            platform: "test".into(),
+        };
+        let result = skill.execute(input).await;
+        assert!(result.success);
+        assert!(result.output.contains("Al-Fatihah"));
+        assert!(result.output.contains("Dengan nama Allah"));
+    }
+
+    #[tokio::test]
+    async fn test_verse_from_local_db_english() {
+        let db = IslamicDb::new(":memory:").await.unwrap();
+        sqlx::query(
+            "INSERT INTO quran_ayat (surah, ayat, text_uthmani, text_simple, translation_ms, translation_en, juz, hizb, page) VALUES (1, 1, 'بِسْمِ ٱللَّهِ', 'bismillah', 'Dengan nama Allah', 'In the name of Allah', 1, 1, 1)"
+        )
+        .execute(db.pool())
+        .await
+        .unwrap();
+
+        let skill = QuranSkill::new(Arc::new(db));
+        let input = SkillInput {
+            name: "quran".into(),
+            args: r#"{"action": "verse", "surah": 1, "ayat": 1, "language": "en"}"#.into(),
+            user_id: "test".into(),
+            platform: "test".into(),
+        };
+        let result = skill.execute(input).await;
+        assert!(result.success);
+        assert!(result.output.contains("In the name of Allah"));
+        assert!(result.output.contains("English"));
+    }
+
+    #[tokio::test]
+    async fn test_tafsir_from_local_db() {
+        let db = IslamicDb::new(":memory:").await.unwrap();
+        sqlx::query(
+            "INSERT INTO quran_tafsir (surah, ayat, tafsir_name, language, text) VALUES (1, 1, 'ibn_kathir', 'en', 'The Basmalah is the opening verse.')"
+        )
+        .execute(db.pool())
+        .await
+        .unwrap();
+
+        let skill = QuranSkill::new(Arc::new(db));
+        let input = SkillInput {
+            name: "quran".into(),
+            args: r#"{"action": "tafsir", "surah": 1, "ayat": 1}"#.into(),
+            user_id: "test".into(),
+            platform: "test".into(),
+        };
+        let result = skill.execute(input).await;
+        assert!(result.success);
+        assert!(result.output.contains("ibn_kathir"));
+        assert!(result.output.contains("Basmalah"));
+    }
+
+    #[tokio::test]
+    async fn test_tafsir_missing_surah() {
+        let db = IslamicDb::new(":memory:").await.unwrap();
+        let skill = QuranSkill::new(Arc::new(db));
+        let input = SkillInput {
+            name: "quran".into(),
+            args: r#"{"action": "tafsir", "ayat": 1}"#.into(),
+            user_id: "test".into(),
+            platform: "test".into(),
+        };
+        let result = skill.execute(input).await;
+        assert!(!result.success);
+        assert!(result.error.unwrap().contains("Surah number required"));
     }
 }
