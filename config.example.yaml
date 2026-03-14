@@ -130,6 +130,69 @@ script_plugins:
     command: "python3"
     args: ["plugins/skill_jakim.py"]
     env: {}
+  # General — Research
+  web_search:
+    command: "python3"
+    args: ["plugins/skill_web_search.py"]
+    env: {}
+  url_reader:
+    command: "python3"
+    args: ["plugins/skill_url_reader.py"]
+    env: {}
+  summarize:
+    command: "python3"
+    args: ["plugins/skill_summarize.py"]
+    env: {}
+  translate:
+    command: "python3"
+    args: ["plugins/skill_translate.py"]
+    env: {}
+  # General — Productivity
+  datetime_tool:
+    command: "python3"
+    args: ["plugins/skill_datetime.py"]
+    env: {}
+  unit_convert:
+    command: "python3"
+    args: ["plugins/skill_unit_convert.py"]
+    env: {}
+  todo:
+    command: "python3"
+    args: ["plugins/skill_todo.py"]
+    env: {}
+  weather:
+    command: "python3"
+    args: ["plugins/skill_weather.py"]
+    env: {}
+  reminder:
+    command: "python3"
+    args: ["plugins/skill_reminder.py"]
+    env: {}
+  # General — Developer
+  json_tool:
+    command: "python3"
+    args: ["plugins/skill_json_tool.py"]
+    env: {}
+  base64_tool:
+    command: "python3"
+    args: ["plugins/skill_base64.py"]
+    env: {}
+  hash_tool:
+    command: "python3"
+    args: ["plugins/skill_hash.py"]
+    env: {}
+  regex_tool:
+    command: "python3"
+    args: ["plugins/skill_regex.py"]
+    env: {}
+  http_client:
+    command: "python3"
+    args: ["plugins/skill_http_client.py"]
+    env: {}
+  csv_tool:
+    command: "python3"
+    args: ["plugins/skill_csv_tool.py"]
+    env: {}
 
 # --- MCP Servers (optional) ---
 # mcp_servers:
