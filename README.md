@@ -69,7 +69,7 @@ You (Telegram / Discord / WhatsApp / Slack)
   │
   ├── Chat message ──► Engine ──► Agent Router ──► Pipeline:
   │                       │         │               Metrics → Auth → Commands → Rate Limit
-  │                       │         │               → Sanitize → RAG Retrieve → Context
+  │                       │         │               → Sanitize → RLE Retrieve → Context
   │                       │         │               → LLM ◄──► Skills (up to 5 rounds)
   │                       │         │                                         │
   ├── Cron job ─────► Scheduler ──►─┘  (bypass auth + rate limit)            │
@@ -452,7 +452,7 @@ desktop/                           # Tauri 2 desktop admin app
    - **Commands** — handle special commands (`/remember`, `/forget`, `/learned`, etc.)
    - **Rate Limit** — enforce per-user rate limits
    - **Sanitize** — input sanitization and prompt injection detection
-   - **RAG Retrieve** — (optional) retrieve relevant knowledge base entries and learned facts via embeddings
+   - **RLE Retrieve** — (optional) Recency-weighted Long-term Embeddings — retrieves learned corrections and knowledge base entries via vector similarity, records hits for recency scoring
    - **Context** — build context window (summary + facts + history + FTS5/vector hybrid search)
    - **Persist** — call LLM, store results, auto-summarize when history exceeds 40 messages
    - **Tool Calling** — execute skills iteratively (up to 5 rounds)
