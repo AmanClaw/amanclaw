@@ -253,6 +253,94 @@ pub async fn sync_all_hadith(pool: &SqlitePool, api_key: Option<&str>) -> Result
     Ok(total)
 }
 
+/// Sync tafsir from Quran.com API for a specific tafsir resource.
+pub async fn sync_tafsir(pool: &SqlitePool, tafsir_name: &str, resource_id: i64) -> Result<i64> {
+    let client = reqwest::Client::new();
+    let mut total_inserted: i64 = 0;
+
+    for surah in 1..=114 {
+        tracing::info!(surah, tafsir = tafsir_name, "Syncing tafsir surah {}/114", surah);
+
+        let url = format!(
+            "https://api.quran.com/api/v4/tafsirs/{}?chapter_number={}",
+            resource_id, surah
+        );
+
+        let resp = client.get(&url)
+            .header("Accept", "application/json")
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            tracing::warn!(surah, tafsir = tafsir_name, "Failed to fetch tafsir");
+            continue;
+        }
+
+        let data: serde_json::Value = resp.json().await?;
+        let empty = vec![];
+        let tafsirs = data["tafsirs"].as_array().unwrap_or(&empty);
+
+        for t in tafsirs {
+            let verse_key = t["verse_key"].as_str().unwrap_or("");
+            let parts: Vec<&str> = verse_key.split(':').collect();
+            if parts.len() != 2 { continue; }
+            let s: i64 = parts[0].parse().unwrap_or(0);
+            let a: i64 = parts[1].parse().unwrap_or(0);
+
+            let text = t["text"].as_str().unwrap_or("");
+            let language = t["language_name"].as_str().unwrap_or("en");
+            let lang_code = match language {
+                "english" | "English" => "en",
+                "arabic" | "Arabic" => "ar",
+                _ => "en",
+            };
+
+            // Strip HTML
+            let clean_text: String = text.split('<').map(|s| {
+                if let Some(idx) = s.find('>') { &s[idx + 1..] } else { s }
+            }).collect::<Vec<_>>().join("").trim().to_string();
+
+            sqlx::query(
+                "INSERT OR REPLACE INTO quran_tafsir (surah, ayat, tafsir_name, language, text) VALUES (?, ?, ?, ?, ?)"
+            )
+            .bind(s)
+            .bind(a)
+            .bind(tafsir_name)
+            .bind(lang_code)
+            .bind(&clean_text)
+            .execute(pool)
+            .await?;
+
+            total_inserted += 1;
+        }
+    }
+
+    let dataset = format!("tafsir_{tafsir_name}");
+    update_metadata(pool, &dataset, total_inserted).await?;
+    tracing::info!(tafsir = tafsir_name, total = total_inserted, "Tafsir sync complete");
+    Ok(total_inserted)
+}
+
+/// Master sync: import all Islamic data.
+pub async fn sync_all(pool: &SqlitePool, sunnah_api_key: Option<&str>) -> Result<()> {
+    tracing::info!("Starting full Islamic data sync...");
+
+    tracing::info!("Syncing Quran...");
+    sync_quran(pool).await?;
+
+    tracing::info!("Syncing Tafsir Ibn Kathir...");
+    sync_tafsir(pool, "ibn_kathir", 169).await?;
+
+    tracing::info!("Syncing Tafsir Al-Jalalayn...");
+    sync_tafsir(pool, "jalalayn", 74).await?;
+
+    tracing::info!("Syncing Hadith collections...");
+    sync_all_hadith(pool, sunnah_api_key).await?;
+
+    tracing::info!("Full Islamic data sync complete!");
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
