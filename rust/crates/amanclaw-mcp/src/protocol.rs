@@ -71,11 +71,64 @@ pub struct McpTool {
 }
 
 /// MCP tool call result content.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpContent {
     #[serde(rename = "type")]
     pub content_type: String,
     pub text: String,
+}
+
+/// MCP Resource definition.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResource {
+    pub uri: String,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+}
+
+/// Content returned when reading a resource.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceContent {
+    pub uri: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blob: Option<String>, // base64-encoded
+}
+
+/// MCP Prompt definition.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPrompt {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub arguments: Vec<PromptArgument>,
+}
+
+/// Argument definition for a prompt.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PromptArgument {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub required: bool,
+}
+
+/// Message returned from getting a prompt.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PromptMessage {
+    pub role: String, // "user" or "assistant"
+    pub content: McpContent,
 }
 
 /// MCP server info (for initialize response).
@@ -87,13 +140,32 @@ pub struct ServerInfo {
 }
 
 /// MCP capabilities advertised by the server.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerCapabilities {
-    pub tools: Option<ToolsCapability>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tools: Option<ToolCapability>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resources: Option<ResourceCapability>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompts: Option<PromptCapability>,
 }
 
-#[derive(Debug, Serialize)]
-pub struct ToolsCapability {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolCapability {
+    #[serde(rename = "listChanged")]
+    pub list_changed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResourceCapability {
+    #[serde(rename = "listChanged")]
+    pub list_changed: bool,
+    #[serde(default)]
+    pub subscribe: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PromptCapability {
     #[serde(rename = "listChanged")]
     pub list_changed: bool,
 }
@@ -131,5 +203,36 @@ mod tests {
         let json = r#"{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}"#;
         let req: JsonRpcRequest = serde_json::from_str(json).unwrap();
         assert_eq!(req.method, "tools/list");
+    }
+
+    #[test]
+    fn test_resource_serialization() {
+        let resource = McpResource {
+            uri: "file:///tmp/test.txt".into(),
+            name: "test file".into(),
+            description: Some("A test file".into()),
+            mime_type: Some("text/plain".into()),
+        };
+        let json = serde_json::to_string(&resource).unwrap();
+        assert!(json.contains("mimeType"));
+        let parsed: McpResource = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.uri, "file:///tmp/test.txt");
+    }
+
+    #[test]
+    fn test_prompt_serialization() {
+        let prompt = McpPrompt {
+            name: "greeting".into(),
+            description: Some("A greeting prompt".into()),
+            arguments: vec![PromptArgument {
+                name: "name".into(),
+                description: Some("Person's name".into()),
+                required: true,
+            }],
+        };
+        let json = serde_json::to_string(&prompt).unwrap();
+        let parsed: McpPrompt = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.arguments.len(), 1);
+        assert!(parsed.arguments[0].required);
     }
 }
