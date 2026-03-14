@@ -30,6 +30,8 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 reqwest = { workspace = true }
 amanclaw-skill-index = { path = "../amanclaw-skill-index" }
+amanclaw-registry = { path = "../amanclaw-registry" }
+sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
 toml = "0.8"
 rand = "0.9"
 whoami = "1"

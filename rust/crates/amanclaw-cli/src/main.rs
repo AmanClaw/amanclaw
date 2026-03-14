@@ -370,10 +370,38 @@ async fn cmd_skill(action: SkillAction) -> Result<()> {
             Ok(())
         }
         SkillAction::ListInstalled => {
-            todo!("list-installed handler")
+            let registry = open_skill_registry("plugins/registry").await?;
+            let skills = registry.list_installed().await?;
+            if skills.is_empty() {
+                println!("No skills installed via marketplace.");
+                println!("(Built-in skills and config-registered plugins are not tracked here)");
+                return Ok(());
+            }
+            println!("Installed skills:\n");
+            for s in &skills {
+                println!("  {} v{} ({}) — {}", s.name, s.version, s.skill_type,
+                    s.description.as_deref().unwrap_or(""));
+            }
+            println!("\n{} skill(s) installed.", skills.len());
+            Ok(())
         }
-        SkillAction::Info { name: _ } => {
-            todo!("info handler")
+        SkillAction::Info { name } => {
+            let registry = open_skill_registry("plugins/registry").await?;
+            match registry.get(&name).await? {
+                Some(skill) => {
+                    println!("Skill: {}", skill.name);
+                    println!("Version: {}", skill.version);
+                    println!("Type: {}", skill.skill_type);
+                    println!("Description: {}", skill.description.as_deref().unwrap_or("-"));
+                    println!("Install dir: {}", skill.install_dir);
+                    println!("Installed at: {}", skill.installed_at);
+                    if let Some(cs) = &skill.checksum {
+                        println!("Checksum: {cs}");
+                    }
+                }
+                None => println!("Skill '{name}' not found. Use 'amanclaw skill list-installed' to see installed skills."),
+            }
+            Ok(())
         }
         SkillAction::Update { name: _, plugins_dir: _ } => {
             todo!("update handler")
@@ -653,6 +681,16 @@ fn find_config(hint: &str) -> Result<PathBuf> {
          1. Run: amanclaw init    (creates config.yaml from template)\n\
          2. Or:  amanclaw -c /path/to/config.yaml run"
     );
+}
+
+async fn open_skill_registry(registry_dir: &str) -> Result<amanclaw_registry::local::SkillRegistry> {
+    std::fs::create_dir_all(registry_dir)
+        .with_context(|| format!("Failed to create registry dir: {registry_dir}"))?;
+    let db_path = format!("{registry_dir}/skills.db");
+    let db_url = format!("sqlite:{}?mode=rwc", db_path);
+    let pool = sqlx::SqlitePool::connect(&db_url).await
+        .with_context(|| format!("Failed to open registry database: {db_path}"))?;
+    amanclaw_registry::local::SkillRegistry::new(pool, registry_dir.to_string()).await
 }
 
 fn setup_logging(format: Option<&str>) {
