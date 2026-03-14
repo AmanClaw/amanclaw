@@ -84,6 +84,33 @@ jobs:
           name: benchmark-results
           path: rust/target/criterion/
 
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Build dashboard (required by tests)
+        working-directory: dashboard
+        run: npm ci && npm run build
+      - name: Generate coverage
+        working-directory: rust
+        run: cargo llvm-cov --workspace --lcov --output-path lcov.info
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: rust/lcov.info
+          fail_ci_if_error: false
+
   audit:
     name: Security Audit
     runs-on: ubuntu-latest
