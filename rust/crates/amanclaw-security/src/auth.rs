@@ -263,4 +263,90 @@ mod tests {
             UserState::Pending
         );
     }
+
+    #[test]
+    fn test_admin_on_different_platform_is_new() {
+        let auth = make_auth();
+        // Admin on telegram, but not on discord
+        assert_eq!(auth.get_user_state("12345", "telegram"), UserState::Admin);
+        assert_eq!(auth.get_user_state("12345", "discord"), UserState::New);
+    }
+
+    #[test]
+    fn test_register_same_user_twice_no_overwrite() {
+        let mut auth = make_auth();
+        auth.register_user("55555", "telegram", None, None);
+        auth.approve_user("55555", "telegram");
+        // Re-registering should not overwrite approved state
+        auth.register_user("55555", "telegram", Some("newname"), Some("New"));
+        assert_eq!(
+            auth.get_user_state("55555", "telegram"),
+            UserState::Approved
+        );
+    }
+
+    #[test]
+    fn test_make_admin() {
+        let mut auth = make_auth();
+        auth.register_user("55555", "telegram", None, None);
+        auth.make_admin("55555", "telegram");
+        assert_eq!(auth.get_user_state("55555", "telegram"), UserState::Admin);
+    }
+
+    #[test]
+    fn test_make_admin_idempotent() {
+        let mut auth = make_auth();
+        auth.make_admin("55555", "telegram");
+        auth.make_admin("55555", "telegram");
+        let admins = auth.admin_users().get("telegram").unwrap();
+        let count = admins.iter().filter(|id| *id == "55555").count();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_remove_admin_sets_approved() {
+        let mut auth = make_auth();
+        auth.remove_admin("12345", "telegram");
+        assert_eq!(
+            auth.get_user_state("12345", "telegram"),
+            UserState::Approved
+        );
+    }
+
+    #[test]
+    fn test_user_state_display() {
+        assert_eq!(format!("{}", UserState::Admin), "Admin");
+        assert_eq!(format!("{}", UserState::Approved), "Approved");
+        assert_eq!(format!("{}", UserState::Pending), "Pending");
+        assert_eq!(format!("{}", UserState::Blocked), "Blocked");
+        assert_eq!(format!("{}", UserState::New), "New");
+    }
+
+    #[test]
+    fn test_admin_users_returns_correct_map() {
+        let auth = make_auth();
+        let admins = auth.admin_users();
+        assert!(admins.contains_key("telegram"));
+        assert_eq!(admins["telegram"], vec!["12345".to_string()]);
+    }
+
+    #[test]
+    fn test_list_users_empty_initially() {
+        let auth = make_auth();
+        let users = auth.list_users();
+        assert!(users.is_empty());
+    }
+
+    #[test]
+    fn test_multiple_platforms() {
+        let mut admin_users = HashMap::new();
+        admin_users.insert("telegram".into(), vec!["admin1".into()]);
+        admin_users.insert("discord".into(), vec!["admin2".into()]);
+        let auth = Auth::new(admin_users);
+
+        assert_eq!(auth.get_user_state("admin1", "telegram"), UserState::Admin);
+        assert_eq!(auth.get_user_state("admin2", "discord"), UserState::Admin);
+        assert_eq!(auth.get_user_state("admin1", "discord"), UserState::New);
+        assert_eq!(auth.get_user_state("admin2", "telegram"), UserState::New);
+    }
 }

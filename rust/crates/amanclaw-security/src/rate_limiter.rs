@@ -62,4 +62,35 @@ mod tests {
         // user2 is independent
         assert!(limiter.check("user2"));
     }
+
+    #[test]
+    fn test_limit_of_one() {
+        let limiter = RateLimiter::new(1);
+        assert!(limiter.check("user1"));
+        assert!(!limiter.check("user1"));
+    }
+
+    #[test]
+    fn test_exact_limit_boundary() {
+        let limiter = RateLimiter::new(5);
+        for _ in 0..5 {
+            assert!(limiter.check("user1"));
+        }
+        // 6th should fail
+        assert!(!limiter.check("user1"));
+    }
+
+    #[test]
+    fn test_many_independent_users() {
+        let limiter = RateLimiter::new(1);
+        for i in 0..100 {
+            assert!(limiter.check(&format!("user{i}")));
+        }
+    }
+
+    #[test]
+    fn test_zero_limit_blocks_all() {
+        let limiter = RateLimiter::new(0);
+        assert!(!limiter.check("user1"));
+    }
 }
