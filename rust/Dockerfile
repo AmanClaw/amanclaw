@@ -19,16 +19,21 @@ RUN cargo build --release -p amanclaw-cli
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y \
     ca-certificates \
+    curl \
     python3 \
     python3-pip \
     python3-venv \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
+# Install uvx (for uvx-based MCP servers)
+RUN pip3 install --break-system-packages uv
 RUN useradd --system --create-home amanclaw
 WORKDIR /home/amanclaw
 COPY --from=builder /app/rust/target/release/amanclaw /usr/local/bin/amanclaw
 COPY rust/sdks/python/ /tmp/amanclaw-sdk/
 RUN pip3 install --break-system-packages /tmp/amanclaw-sdk/ && rm -rf /tmp/amanclaw-sdk/
-RUN mkdir -p plugins data
+RUN mkdir -p plugins data .npm .cache
 RUN chown -R amanclaw:amanclaw /home/amanclaw
 USER amanclaw
 EXPOSE 8443
