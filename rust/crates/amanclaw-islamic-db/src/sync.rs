@@ -132,6 +132,127 @@ pub async fn sync_quran(pool: &SqlitePool) -> Result<i64> {
     Ok(total_inserted)
 }
 
+/// Sync a single hadith collection from Sunnah.com API.
+pub async fn sync_hadith_collection(pool: &SqlitePool, collection: &str, api_key: Option<&str>) -> Result<i64> {
+    let client = reqwest::Client::new();
+    let mut total_inserted: i64 = 0;
+    let mut page = 1;
+    let per_page = 50;
+
+    loop {
+        tracing::info!(collection, page, "Syncing hadith page {}", page);
+
+        let url = format!(
+            "https://api.sunnah.com/v1/collections/{}/hadiths?page={}&limit={}",
+            collection, page, per_page
+        );
+
+        let mut req = client.get(&url)
+            .header("Accept", "application/json");
+        if let Some(key) = api_key {
+            req = req.header("x-api-key", key);
+        }
+
+        let resp = req.send().await?;
+        if !resp.status().is_success() {
+            tracing::warn!(collection, status = %resp.status(), "Failed to fetch hadith page");
+            break;
+        }
+
+        let data: serde_json::Value = resp.json().await?;
+        let empty = vec![];
+        let hadiths = data["data"].as_array().unwrap_or(&empty);
+
+        if hadiths.is_empty() {
+            break;
+        }
+
+        for h in hadiths {
+            let hadith_number = h["hadithNumber"].as_i64()
+                .or_else(|| h["hadithNumber"].as_str().and_then(|s| s.parse().ok()))
+                .unwrap_or(0);
+            let book_number = h["bookNumber"].as_i64()
+                .or_else(|| h["bookNumber"].as_str().and_then(|s| s.parse().ok()))
+                .unwrap_or(0);
+
+            let text_ar = h["hadith"].as_array()
+                .and_then(|arr| arr.iter().find(|t| t["lang"].as_str() == Some("ar")))
+                .and_then(|t| t["body"].as_str())
+                .unwrap_or("");
+
+            let text_en = h["hadith"].as_array()
+                .and_then(|arr| arr.iter().find(|t| t["lang"].as_str() == Some("en")))
+                .and_then(|t| t["body"].as_str())
+                .unwrap_or("");
+
+            let grade = h["grade"].as_str()
+                .or_else(|| h["grades"].as_array().and_then(|g| g.first()).and_then(|g| g["grade"].as_str()))
+                .unwrap_or("");
+
+            let graded_by = h["grades"].as_array()
+                .and_then(|g| g.first())
+                .and_then(|g| g["name"].as_str())
+                .unwrap_or("");
+
+            let chapter = h["chapterTitle"].as_str()
+                .or_else(|| h["chapter"].as_object().and_then(|c| c.get("english")).and_then(|e| e.as_str()))
+                .unwrap_or("");
+
+            sqlx::query(
+                "INSERT OR REPLACE INTO hadith (collection, book_number, hadith_number, text_ar, text_en, grade, graded_by, chapter) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            )
+            .bind(collection)
+            .bind(book_number)
+            .bind(hadith_number)
+            .bind(text_ar)
+            .bind(text_en)
+            .bind(grade)
+            .bind(graded_by)
+            .bind(chapter)
+            .execute(pool)
+            .await?;
+
+            total_inserted += 1;
+        }
+
+        if hadiths.len() < per_page as usize {
+            break;
+        }
+        page += 1;
+    }
+
+    // Rebuild FTS index for this collection
+    sqlx::query("DELETE FROM hadith_fts WHERE collection = ?")
+        .bind(collection)
+        .execute(pool)
+        .await
+        .ok(); // FTS5 content tables don't support WHERE — rebuild all instead
+
+    let dataset = format!("hadith_{collection}");
+    update_metadata(pool, &dataset, total_inserted).await?;
+    tracing::info!(collection, total = total_inserted, "Hadith sync complete");
+    Ok(total_inserted)
+}
+
+/// Sync all 6 hadith collections.
+pub async fn sync_all_hadith(pool: &SqlitePool, api_key: Option<&str>) -> Result<i64> {
+    let collections = ["bukhari", "muslim", "abudawud", "tirmidhi", "nasai", "ibnmajah"];
+    let mut total = 0i64;
+
+    for collection in &collections {
+        let count = sync_hadith_collection(pool, collection, api_key).await?;
+        total += count;
+    }
+
+    // Rebuild full FTS index
+    sqlx::query("DELETE FROM hadith_fts").execute(pool).await.ok();
+    sqlx::query("INSERT INTO hadith_fts(rowid, collection, hadith_number, text_ar, text_en, chapter) SELECT rowid, collection, hadith_number, text_ar, text_en, chapter FROM hadith")
+        .execute(pool)
+        .await?;
+
+    Ok(total)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
