@@ -44,7 +44,18 @@ pub fn api_router(state: ApiState) -> Router {
             put(routes::communities::update_community_skills),
         )
         .route("/api/skills", get(routes::skills::list_skills))
-        .route("/api/users", get(routes::users::list_users))
+        .route(
+            "/api/users",
+            get(routes::users::list_users).post(routes::users::add_user),
+        )
+        .route(
+            "/api/users/{platform}/{user_id}/make-admin",
+            put(routes::users::make_admin),
+        )
+        .route(
+            "/api/users/{platform}/{user_id}/remove-admin",
+            put(routes::users::remove_admin),
+        )
         .route(
             "/api/users/{platform}/{user_id}",
             get(routes::users::get_user),

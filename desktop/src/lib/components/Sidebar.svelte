@@ -38,18 +38,18 @@
 	);
 </script>
 
-<aside class="w-56 h-screen bg-gray-50/80 backdrop-blur-xl border-r border-gray-200 flex flex-col justify-between p-3">
+<aside class="w-56 h-screen bg-gray-50/80 dark:bg-gray-800/80 backdrop-blur-xl border-r border-gray-200 dark:border-gray-700 flex flex-col justify-between p-3">
 	<div>
 		<div class="px-3 py-4 mb-2">
-			<h1 class="text-sm font-semibold text-gray-900 tracking-tight">AmanClaw</h1>
+			<h1 class="text-sm font-semibold text-gray-900 dark:text-white tracking-tight">AmanClaw</h1>
 		</div>
 		<nav class="space-y-0.5">
 			{#each pages as page}
 				<button
 					class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-md text-[13px] transition-colors
 						{$currentPage === page.id
-							? 'bg-gray-200/80 text-gray-900 font-medium'
-							: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}"
+							? 'bg-gray-200/80 dark:bg-gray-700/80 text-gray-900 dark:text-white font-medium'
+							: 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-white'}"
 					onclick={() => currentPage.set(page.id)}
 				>
 					<span class="text-base leading-none">{page.icon}</span>
@@ -60,10 +60,10 @@
 	</div>
 
 	<div>
-		<div class="border-t border-gray-200 pt-2 mb-2">
+		<div class="border-t border-gray-200 dark:border-gray-700 pt-2 mb-2">
 			{#each bottomPages as page}
 				<button
-					class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-md text-[13px] text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+					class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-md text-[13px] text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-white transition-colors"
 					onclick={() => currentPage.set(page.id)}
 				>
 					<span class="text-base leading-none">{page.icon}</span>
@@ -71,10 +71,10 @@
 				</button>
 			{/each}
 		</div>
-		<div class="mx-2 p-2.5 bg-white rounded-lg border border-gray-200 shadow-sm">
+		<div class="mx-2 p-2.5 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
 			<div class="flex items-center gap-2">
 				<span class="w-2 h-2 rounded-full {statusColor}"></span>
-				<span class="text-[11px] font-medium text-gray-700">{statusText}</span>
+				<span class="text-[11px] font-medium text-gray-700 dark:text-gray-300">{statusText}</span>
 			</div>
 		</div>
 	</div>

@@ -10,5 +10,15 @@ pub async fn get_stats(
         .get_user_stats()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    Ok(Json(serde_json::json!(stats)))
+
+    let auth = state.auth.read().await;
+    let admin_count: usize = auth.admin_users().values().map(|v| v.len()).sum();
+
+    Ok(Json(serde_json::json!({
+        "total": stats.total,
+        "pending": stats.pending,
+        "approved": stats.approved,
+        "blocked": stats.blocked,
+        "admin": admin_count,
+    })))
 }
