@@ -103,3 +103,125 @@ pub fn parse_xml_tool_calls(text: &str) -> Option<Vec<ToolCall>> {
 
     if calls.is_empty() { None } else { Some(calls) }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_strip_thinking_tagged() {
+        let result = strip_thinking("<think>some reasoning</think>Hello!");
+        assert_eq!(result, "Hello!");
+    }
+
+    #[test]
+    fn test_strip_thinking_before_close() {
+        let result = strip_thinking("reasoning text</think>Hello!");
+        assert_eq!(result, "Hello!");
+    }
+
+    #[test]
+    fn test_strip_thinking_unclosed() {
+        let result = strip_thinking("<think>some reasoning without close tag");
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn test_strip_thinking_no_tags() {
+        let result = strip_thinking("No thinking tags here");
+        assert_eq!(result, "No thinking tags here");
+    }
+
+    #[test]
+    fn test_strip_thinking_multiple_tags() {
+        let result = strip_thinking("<think>first</think>Hello <think>second</think>World");
+        assert_eq!(result, "Hello World");
+    }
+
+    #[test]
+    fn test_strip_thinking_tag_variant() {
+        let result = strip_thinking("<thinking>deep thought</thinking>Answer");
+        assert_eq!(result, "Answer");
+    }
+
+    #[test]
+    fn test_parse_xml_tool_calls_json_format() {
+        let text = r#"<tool_call>
+{"name": "weather", "arguments": {"city": "KL"}}
+</tool_call>"#;
+        let calls = parse_xml_tool_calls(text).unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "weather");
+        assert!(calls[0].arguments.contains("KL"));
+    }
+
+    #[test]
+    fn test_parse_xml_tool_calls_parameters_key() {
+        let text = r#"<tool_call>
+{"name": "search", "parameters": {"query": "rust"}}
+</tool_call>"#;
+        let calls = parse_xml_tool_calls(text).unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "search");
+        assert!(calls[0].arguments.contains("rust"));
+    }
+
+    #[test]
+    fn test_parse_xml_tool_calls_function_format() {
+        let text = r#"<tool_call>
+<function=weather><parameter=city>Kuala Lumpur</parameter></function>
+</tool_call>"#;
+        let calls = parse_xml_tool_calls(text).unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "weather");
+        assert!(calls[0].arguments.contains("Kuala Lumpur"));
+    }
+
+    #[test]
+    fn test_parse_xml_tool_calls_bare_function() {
+        let text = r#"<function=solat><parameter=zone>WLY01</parameter></function>"#;
+        let calls = parse_xml_tool_calls(text).unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "solat");
+        assert!(calls[0].arguments.contains("WLY01"));
+    }
+
+    #[test]
+    fn test_parse_xml_tool_calls_multiple() {
+        let text = r#"<tool_call>
+{"name": "weather", "arguments": {"city": "KL"}}
+</tool_call>
+<tool_call>
+{"name": "solat", "arguments": {"zone": "WLY01"}}
+</tool_call>"#;
+        let calls = parse_xml_tool_calls(text).unwrap();
+        assert_eq!(calls.len(), 2);
+        assert_eq!(calls[0].name, "weather");
+        assert_eq!(calls[1].name, "solat");
+    }
+
+    #[test]
+    fn test_parse_xml_tool_calls_no_match() {
+        let text = "Just a regular response with no tool calls.";
+        let result = parse_xml_tool_calls(text);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_parse_xml_tool_call_ids_are_sequential() {
+        let text = r#"<tool_call>{"name": "a", "arguments": {}}</tool_call>
+<tool_call>{"name": "b", "arguments": {}}</tool_call>"#;
+        let calls = parse_xml_tool_calls(text).unwrap();
+        assert_eq!(calls[0].id, "xml_call_1");
+        assert_eq!(calls[1].id, "xml_call_2");
+    }
+
+    #[test]
+    fn test_parse_xml_tool_calls_no_arguments() {
+        let text = r#"<tool_call>{"name": "sysinfo"}</tool_call>"#;
+        let calls = parse_xml_tool_calls(text).unwrap();
+        assert_eq!(calls[0].name, "sysinfo");
+        // Should have empty object as arguments
+        assert_eq!(calls[0].arguments, "{}");
+    }
+}

@@ -333,4 +333,183 @@ mod tests {
         assert_eq!(strip_thinking("Some text</think>Hello!"), "Hello!");
         assert_eq!(strip_thinking("No tags here"), "No tags here");
     }
+
+    #[test]
+    fn test_format_tools_empty() {
+        let tools: Vec<ToolDefinition> = vec![];
+        let formatted = LlmClient::format_tools(&tools);
+        assert!(formatted.is_empty());
+    }
+
+    #[test]
+    fn test_format_tools_single() {
+        let tools = vec![ToolDefinition {
+            name: "weather".into(),
+            description: "Get weather data".into(),
+            parameters_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "city": { "type": "string" }
+                }
+            }),
+        }];
+        let formatted = LlmClient::format_tools(&tools);
+        assert_eq!(formatted.len(), 1);
+        assert_eq!(formatted[0]["type"], "function");
+        assert_eq!(formatted[0]["function"]["name"], "weather");
+        assert_eq!(formatted[0]["function"]["description"], "Get weather data");
+        assert!(formatted[0]["function"]["parameters"]["properties"]["city"].is_object());
+    }
+
+    #[test]
+    fn test_format_tools_multiple() {
+        let tools = vec![
+            ToolDefinition {
+                name: "weather".into(),
+                description: "Get weather".into(),
+                parameters_schema: serde_json::json!({"type": "object"}),
+            },
+            ToolDefinition {
+                name: "solat".into(),
+                description: "Get prayer times".into(),
+                parameters_schema: serde_json::json!({"type": "object"}),
+            },
+        ];
+        let formatted = LlmClient::format_tools(&tools);
+        assert_eq!(formatted.len(), 2);
+        assert_eq!(formatted[0]["function"]["name"], "weather");
+        assert_eq!(formatted[1]["function"]["name"], "solat");
+    }
+
+    #[test]
+    fn test_parse_tool_calls_valid() {
+        let message = serde_json::json!({
+            "tool_calls": [{
+                "id": "call_1",
+                "function": {
+                    "name": "weather",
+                    "arguments": "{\"city\": \"KL\"}"
+                }
+            }]
+        });
+        let calls = LlmClient::parse_tool_calls(&message).unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "weather");
+        assert_eq!(calls[0].id, "call_1");
+    }
+
+    #[test]
+    fn test_parse_tool_calls_empty_array() {
+        let message = serde_json::json!({
+            "tool_calls": []
+        });
+        let result = LlmClient::parse_tool_calls(&message);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_parse_tool_calls_no_field() {
+        let message = serde_json::json!({
+            "content": "Hello"
+        });
+        let result = LlmClient::parse_tool_calls(&message);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_parse_tool_calls_null_field() {
+        let message = serde_json::json!({
+            "tool_calls": null
+        });
+        let result = LlmClient::parse_tool_calls(&message);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_parse_tool_calls_multiple() {
+        let message = serde_json::json!({
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "function": { "name": "weather", "arguments": "{}" }
+                },
+                {
+                    "id": "call_2",
+                    "function": { "name": "solat", "arguments": "{\"zone\": \"WLY01\"}" }
+                }
+            ]
+        });
+        let calls = LlmClient::parse_tool_calls(&message).unwrap();
+        assert_eq!(calls.len(), 2);
+        assert_eq!(calls[0].name, "weather");
+        assert_eq!(calls[1].name, "solat");
+    }
+
+    #[tokio::test]
+    async fn test_llm_api_error_handling() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/v1/chat/completions"))
+            .respond_with(ResponseTemplate::new(500).set_body_string("Internal Server Error"))
+            .mount(&mock_server)
+            .await;
+
+        let config = amanclaw_traits::config::LlmConfig {
+            base_url: format!("{}/v1", mock_server.uri()),
+            model: "test-model".into(),
+            max_tokens: 100,
+            temperature: 0.7,
+            api_key: Some("test-key".into()),
+            native_tool_calling: Some(false),
+        };
+
+        let client = LlmClient::new(config);
+        let result = client.respond("Hello", &[], &[]).await;
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("500"));
+    }
+
+    #[tokio::test]
+    async fn test_llm_xml_tool_call_in_content() {
+        let mock_server = MockServer::start().await;
+
+        let response_body = serde_json::json!({
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": "<tool_call>\n{\"name\": \"solat\", \"arguments\": {\"zone\": \"WLY01\"}}\n</tool_call>"
+                },
+                "finish_reason": "stop"
+            }]
+        });
+
+        Mock::given(method("POST"))
+            .and(path("/v1/chat/completions"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&response_body))
+            .mount(&mock_server)
+            .await;
+
+        let config = amanclaw_traits::config::LlmConfig {
+            base_url: format!("{}/v1", mock_server.uri()),
+            model: "test-model".into(),
+            max_tokens: 100,
+            temperature: 0.7,
+            api_key: Some("test-key".into()),
+            native_tool_calling: Some(false),
+        };
+
+        let client = LlmClient::new(config);
+        let messages = vec![serde_json::json!({"role": "user", "content": "solat time"})];
+        let result = client.call(&messages, &[]).await.unwrap();
+
+        match result {
+            LlmResponse::ToolCalls(calls) => {
+                assert_eq!(calls.len(), 1);
+                assert_eq!(calls[0].name, "solat");
+            }
+            LlmResponse::Text(_) => panic!("Expected tool calls from XML content"),
+        }
+    }
 }
