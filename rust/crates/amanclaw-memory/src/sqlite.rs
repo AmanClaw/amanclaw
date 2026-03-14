@@ -777,4 +777,127 @@ mod tests {
         let facts = backend.get_facts("u1").await.unwrap();
         assert_eq!(facts.get("name").unwrap(), "Aman");
     }
+
+    #[tokio::test]
+    async fn test_clear_history() {
+        let mem = make_memory().await;
+        mem.save_exchange("u1", "telegram", "hello", "hi")
+            .await
+            .unwrap();
+        assert_eq!(mem.get_message_count("u1").await.unwrap(), 2);
+
+        mem.clear_history("u1").await.unwrap();
+        assert_eq!(mem.get_message_count("u1").await.unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_history_ordering() {
+        let mem = make_memory().await;
+        mem.save_exchange("u1", "telegram", "first", "reply1")
+            .await
+            .unwrap();
+        mem.save_exchange("u1", "telegram", "second", "reply2")
+            .await
+            .unwrap();
+
+        let history = mem.get_history("u1", 10).await.unwrap();
+        assert_eq!(history[0].content, "first");
+        assert_eq!(history[1].content, "reply1");
+        assert_eq!(history[2].content, "second");
+        assert_eq!(history[3].content, "reply2");
+    }
+
+    #[tokio::test]
+    async fn test_history_limit() {
+        let mem = make_memory().await;
+        for i in 0..10 {
+            mem.save_exchange("u1", "telegram", &format!("msg{i}"), &format!("reply{i}"))
+                .await
+                .unwrap();
+        }
+        // Total messages: 20 (10 pairs). Limit 4 should return the last 4.
+        let history = mem.get_history("u1", 4).await.unwrap();
+        assert_eq!(history.len(), 4);
+        // Should be the most recent messages in order
+        assert_eq!(history[0].content, "msg8");
+        assert_eq!(history[3].content, "reply9");
+    }
+
+    #[tokio::test]
+    async fn test_get_nonexistent_user() {
+        let mem = make_memory().await;
+        let user = mem.get_user("nonexistent", "telegram").await.unwrap();
+        assert!(user.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_update_nonexistent_user_returns_false() {
+        let mem = make_memory().await;
+        let updated = mem
+            .update_user_state("nonexistent", "telegram", "approved")
+            .await
+            .unwrap();
+        assert!(!updated);
+    }
+
+    #[tokio::test]
+    async fn test_upsert_user_preserves_existing_fields() {
+        let mem = make_memory().await;
+        mem.upsert_user("123", "telegram", "pending", Some("aman"), Some("Aman"))
+            .await
+            .unwrap();
+        // Re-upsert without username/first_name
+        mem.upsert_user("123", "telegram", "pending", None, None)
+            .await
+            .unwrap();
+        let user = mem.get_user("123", "telegram").await.unwrap().unwrap();
+        // COALESCE should preserve the existing values
+        assert_eq!(user.username.as_deref(), Some("aman"));
+        assert_eq!(user.first_name.as_deref(), Some("Aman"));
+    }
+
+    #[tokio::test]
+    async fn test_list_users_search() {
+        let mem = make_memory().await;
+        mem.upsert_user("1", "telegram", "pending", Some("ali"), Some("Ali"))
+            .await
+            .unwrap();
+        mem.upsert_user("2", "telegram", "approved", Some("abu"), Some("Abu"))
+            .await
+            .unwrap();
+
+        let results = mem
+            .list_users(None, None, Some("ali"))
+            .await
+            .unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].username.as_deref(), Some("ali"));
+    }
+
+    #[tokio::test]
+    async fn test_empty_history_for_nonexistent_user() {
+        let mem = make_memory().await;
+        let history = mem.get_history("nonexistent", 10).await.unwrap();
+        assert!(history.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_empty_facts_for_nonexistent_user() {
+        let mem = make_memory().await;
+        let facts = mem.get_facts("nonexistent").await.unwrap();
+        assert!(facts.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_history_paginated() {
+        let mem = make_memory().await;
+        for i in 0..5 {
+            mem.save_exchange_ns("ns", "u1", "telegram", &format!("msg{i}"), &format!("reply{i}"))
+                .await
+                .unwrap();
+        }
+        // 10 messages total. Page: limit=4, offset=2
+        let page = mem.get_history_paginated("ns", "u1", 4, 2).await.unwrap();
+        assert_eq!(page.len(), 4);
+    }
 }
