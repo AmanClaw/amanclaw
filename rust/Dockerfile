@@ -26,6 +26,8 @@ RUN apt-get update && apt-get install -y \
 RUN useradd --system --create-home amanclaw
 WORKDIR /home/amanclaw
 COPY --from=builder /app/rust/target/release/amanclaw /usr/local/bin/amanclaw
+COPY rust/sdks/python/ /tmp/amanclaw-sdk/
+RUN pip3 install --break-system-packages /tmp/amanclaw-sdk/ && rm -rf /tmp/amanclaw-sdk/
 RUN mkdir -p plugins data
 RUN chown -R amanclaw:amanclaw /home/amanclaw
 USER amanclaw
