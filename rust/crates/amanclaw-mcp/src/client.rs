@@ -4,7 +4,7 @@
 //! - **Stdio**: Spawns a child process, communicates via stdin/stdout JSON-RPC
 //! - **HTTP**: Sends JSON-RPC POST requests to a remote URL
 
-use crate::protocol::JsonRpcResponse;
+use crate::protocol::{JsonRpcResponse, McpPrompt, McpResource, ResourceContent};
 use anyhow::{Context, Result};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -367,6 +367,43 @@ impl McpClient {
         }
 
         Ok(text.join("\n"))
+    }
+
+    /// Discover available resources from the MCP server.
+    pub async fn list_resources(&self) -> Result<Vec<McpResource>> {
+        let result = self.call("resources/list", None).await?;
+        let resources: Vec<McpResource> = serde_json::from_value(
+            result.get("resources").cloned().unwrap_or(serde_json::json!([]))
+        )?;
+        Ok(resources)
+    }
+
+    /// Read a specific resource by URI.
+    pub async fn read_resource(&self, uri: &str) -> Result<Vec<ResourceContent>> {
+        let result = self.call("resources/read", Some(serde_json::json!({"uri": uri}))).await?;
+        let contents: Vec<ResourceContent> = serde_json::from_value(
+            result.get("contents").cloned().unwrap_or(serde_json::json!([]))
+        )?;
+        Ok(contents)
+    }
+
+    /// Discover available prompts from the MCP server.
+    pub async fn list_prompts(&self) -> Result<Vec<McpPrompt>> {
+        let result = self.call("prompts/list", None).await?;
+        let prompts: Vec<McpPrompt> = serde_json::from_value(
+            result.get("prompts").cloned().unwrap_or(serde_json::json!([]))
+        )?;
+        Ok(prompts)
+    }
+
+    /// Get a prompt by name with optional arguments.
+    pub async fn get_prompt(&self, name: &str, arguments: Option<Value>) -> Result<Value> {
+        let params = serde_json::json!({
+            "name": name,
+            "arguments": arguments.unwrap_or(serde_json::json!({})),
+        });
+        let result = self.call("prompts/get", Some(params)).await?;
+        Ok(result)
     }
 
     pub fn server_name(&self) -> &str {
