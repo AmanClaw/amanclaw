@@ -340,6 +340,68 @@ plugins:
 }
 
 #[tokio::test]
+async fn test_engine_ask_returns_response() {
+    let mock_server = MockServer::start().await;
+
+    let tmp_db = tempfile::NamedTempFile::new().unwrap();
+    unsafe { std::env::set_var("MEMORY_DB_PATH", tmp_db.path().to_str().unwrap()) };
+
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "choices": [{
+                "message": { "role": "assistant", "content": "Hello from Ask!", "tool_calls": null },
+                "finish_reason": "stop"
+            }]
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let yaml = format!(
+        r#"
+llm:
+  base_url: "{}/v1"
+  model: "test"
+admin_users:
+  telegram: ["askuser"]
+plugins:
+  dir: "/tmp/amanclaw-test-plugins-ask"
+"#,
+        mock_server.uri()
+    );
+
+    let config: AppConfig = serde_yaml::from_str(&yaml).unwrap();
+    let result = Engine::start(config).await.unwrap();
+    let handle = result.handle.clone();
+
+    let msg = amanclaw_traits::message::IncomingMessage {
+        user_id: "askuser".into(),
+        chat_id: "cli-test".into(),
+        platform: "cli".into(),
+        text: "hello".into(),
+        username: Some("tester".into()),
+        first_name: None,
+        is_group: false,
+        image_data: None,
+        reply_to: None,
+        topic_id: None,
+        channel_context: None,
+        is_cron: false,
+        is_webhook: false,
+        is_subagent: false,
+    };
+
+    let response = handle.ask(msg).await.unwrap();
+    assert!(response.is_some(), "Ask should return a response");
+    let response = response.unwrap();
+    assert!(!response.text.is_empty(), "Response text should not be empty");
+
+    handle.shutdown().await.unwrap();
+    let join_result = result.join.await.unwrap();
+    assert!(join_result.is_ok());
+}
+
+#[tokio::test]
 async fn test_soul_loader_resolves_agent_prompt() {
     let tmp_dir = tempfile::tempdir().unwrap();
     let soul_path = tmp_dir.path().join("test-agent.md");
