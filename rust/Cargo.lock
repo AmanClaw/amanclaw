@@ -50,6 +50,7 @@ version = "0.1.0"
 dependencies = [
  "amanclaw-core",
  "amanclaw-gateway",
+ "amanclaw-islamic-db",
  "amanclaw-memory",
  "amanclaw-security",
  "amanclaw-traits",
@@ -187,6 +188,7 @@ dependencies = [
  "amanclaw-channel-telegram",
  "amanclaw-channel-whatsapp",
  "amanclaw-channel-whatsapp-web",
+ "amanclaw-islamic-db",
  "amanclaw-llm",
  "amanclaw-mcp",
  "amanclaw-memory",
@@ -397,6 +399,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "amanclaw-skill-hadith"
+version = "0.1.0"
+dependencies = [
+ "amanclaw-islamic-db",
+ "amanclaw-traits",
+ "anyhow",
+ "async-trait",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "amanclaw-skill-hijri"
 version = "0.1.0"
 dependencies = [
@@ -431,12 +448,14 @@ dependencies = [
 name = "amanclaw-skill-quran"
 version = "0.1.0"
 dependencies = [
+ "amanclaw-islamic-db",
  "amanclaw-traits",
  "async-trait",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
  "tokio",
+ "tracing",
  "urlencoding",
 ]
 
