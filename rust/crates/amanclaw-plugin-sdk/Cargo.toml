@@ -5,7 +5,10 @@ edition.workspace = true
 license.workspace = true
 description = "SDK for building AmanClaw plugins and skills"
 repository.workspace = true
+homepage.workspace = true
 keywords.workspace = true
+categories = ["wasm", "development-tools"]
+readme = "README.md"
 
 [dependencies]
 serde = { workspace = true }
