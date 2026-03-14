@@ -3,6 +3,10 @@ name = "amanclaw-cli"
 version.workspace = true
 edition.workspace = true
 
+[lib]
+name = "amanclaw_cli"
+path = "src/lib.rs"
+
 [[bin]]
 name = "amanclaw"
 path = "src/main.rs"
@@ -27,6 +31,7 @@ reqwest = { workspace = true }
 amanclaw-skill-index = { path = "../amanclaw-skill-index" }
 toml = "0.8"
 rand = "0.9"
+whoami = "1"
 
 [dev-dependencies]
 tempfile = "3"
