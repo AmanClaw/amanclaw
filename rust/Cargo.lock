@@ -150,6 +150,7 @@ version = "0.1.0"
 dependencies = [
  "amanclaw-api",
  "amanclaw-core",
+ "amanclaw-islamic-db",
  "amanclaw-mcp",
  "amanclaw-registry",
  "amanclaw-skill-index",
@@ -239,6 +240,20 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "amanclaw-islamic-db"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
