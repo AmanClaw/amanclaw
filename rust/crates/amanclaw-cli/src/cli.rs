@@ -61,6 +61,11 @@ pub enum Command {
         #[command(subcommand)]
         action: ProductAction,
     },
+    /// Manage MCP servers
+    Mcp {
+        #[command(subcommand)]
+        action: McpAction,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -111,6 +116,26 @@ pub enum SkillAction {
         /// Path to skill directory (default: current dir)
         #[arg(default_value = ".")]
         path: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum McpAction {
+    /// List configured MCP servers
+    List,
+    /// List tools from a specific server
+    Tools {
+        /// Server name from config
+        name: String,
+    },
+    /// Start MCP server mode (expose AmanClaw as MCP server)
+    Serve {
+        /// Transport: "stdio" or "sse"
+        #[arg(short, long, default_value = "stdio")]
+        transport: String,
+        /// Port for SSE transport
+        #[arg(short, long, default_value = "3001")]
+        port: u16,
     },
 }
 
@@ -366,5 +391,57 @@ mod tests {
                 action: ProductAction::List
             })
         ));
+    }
+
+    #[test]
+    fn test_cli_mcp_list() {
+        let cli = Cli::parse_from(["amanclaw", "mcp", "list"]);
+        assert!(matches!(
+            cli.command,
+            Some(Command::Mcp {
+                action: McpAction::List
+            })
+        ));
+    }
+
+    #[test]
+    fn test_cli_mcp_tools() {
+        let cli = Cli::parse_from(["amanclaw", "mcp", "tools", "filesystem"]);
+        match cli.command {
+            Some(Command::Mcp {
+                action: McpAction::Tools { name },
+            }) => {
+                assert_eq!(name, "filesystem");
+            }
+            _ => panic!("expected Mcp Tools command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_mcp_serve_stdio() {
+        let cli = Cli::parse_from(["amanclaw", "mcp", "serve"]);
+        match cli.command {
+            Some(Command::Mcp {
+                action: McpAction::Serve { transport, port },
+            }) => {
+                assert_eq!(transport, "stdio");
+                assert_eq!(port, 3001);
+            }
+            _ => panic!("expected Mcp Serve command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_mcp_serve_sse() {
+        let cli = Cli::parse_from(["amanclaw", "mcp", "serve", "-t", "sse", "-p", "4000"]);
+        match cli.command {
+            Some(Command::Mcp {
+                action: McpAction::Serve { transport, port },
+            }) => {
+                assert_eq!(transport, "sse");
+                assert_eq!(port, 4000);
+            }
+            _ => panic!("expected Mcp Serve command"),
+        }
     }
 }

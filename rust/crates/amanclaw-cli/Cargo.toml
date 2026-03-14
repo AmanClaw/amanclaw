@@ -15,6 +15,7 @@ path = "src/main.rs"
 amanclaw-core = { path = "../amanclaw-core" }
 amanclaw-api = { path = "../amanclaw-api" }
 amanclaw-traits = { path = "../amanclaw-traits" }
+amanclaw-mcp = { path = "../amanclaw-mcp" }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

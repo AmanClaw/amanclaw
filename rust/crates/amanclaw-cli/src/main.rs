@@ -8,7 +8,7 @@ mod skill_publisher;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use cli::{Cli, Command, ProductAction, SkillAction};
+use cli::{Cli, Command, McpAction, ProductAction, SkillAction};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing_subscriber::EnvFilter;
@@ -29,6 +29,7 @@ async fn main() -> Result<()> {
         Some(Command::Skill { action }) => cmd_skill(action).await,
         Some(Command::Playground { port }) => playground::run_playground(port).await,
         Some(Command::Product { action }) => cmd_product(action),
+        Some(Command::Mcp { action }) => cmd_mcp(&cli.config, action).await,
         Some(Command::Ask { query }) => cmd_ask(&cli.config, query).await,
         Some(Command::Chat) => cmd_chat(&cli.config).await,
         Some(Command::Agent { task, max_rounds }) => cmd_agent(&cli.config, task, max_rounds).await,
@@ -414,6 +415,93 @@ fn cmd_product(action: ProductAction) -> Result<()> {
                 println!("  {name} — {desc}");
             }
             println!("\nCreate one: amanclaw product new <template>");
+            Ok(())
+        }
+    }
+}
+
+async fn cmd_mcp(config_path: &str, action: McpAction) -> Result<()> {
+    match action {
+        McpAction::List => {
+            let config_path = find_config(config_path)?;
+            let config_str = std::fs::read_to_string(&config_path)?;
+            let config: amanclaw_traits::config::AppConfig = serde_yaml::from_str(&config_str)?;
+
+            if config.mcp_servers.is_empty() {
+                println!("No MCP servers configured.");
+                return Ok(());
+            }
+
+            println!("Configured MCP servers:\n");
+            for (name, server) in &config.mcp_servers {
+                let transport = if server.url.is_some() { "HTTP" } else { "stdio" };
+                let target = server
+                    .url
+                    .as_deref()
+                    .or(server.command.as_deref())
+                    .unwrap_or("unknown");
+                println!("  {name} ({transport}): {target}");
+            }
+            Ok(())
+        }
+        McpAction::Tools { name } => {
+            let config_path = find_config(config_path)?;
+            let config_str = std::fs::read_to_string(&config_path)?;
+            let config: amanclaw_traits::config::AppConfig = serde_yaml::from_str(&config_str)?;
+
+            let server_config = config
+                .mcp_servers
+                .get(&name)
+                .ok_or_else(|| anyhow::anyhow!("MCP server '{name}' not found in config"))?;
+
+            println!("Connecting to MCP server '{name}'...");
+
+            let client = if let Some(ref url) = server_config.url {
+                amanclaw_mcp::client::McpClient::connect_http(&name, url)?
+            } else if let Some(ref command) = server_config.command {
+                amanclaw_mcp::client::McpClient::connect_stdio(
+                    &name,
+                    command,
+                    &server_config.args,
+                    &server_config.env,
+                )
+                .await?
+            } else {
+                anyhow::bail!("MCP server '{name}' has no command or url configured");
+            };
+
+            client.initialize().await?;
+            client.send_initialized().await?;
+            let tools = client.list_tools().await?;
+
+            println!("\nTools from '{name}' ({} total):\n", tools.len());
+            for tool in &tools {
+                println!(
+                    "  {} — {}",
+                    tool.name,
+                    if tool.description.is_empty() {
+                        "(no description)"
+                    } else {
+                        &tool.description
+                    }
+                );
+            }
+            Ok(())
+        }
+        McpAction::Serve { transport, port } => {
+            let handler = amanclaw_mcp::handler::McpHandler::new("amanclaw", env!("CARGO_PKG_VERSION"));
+
+            match transport.as_str() {
+                "stdio" => {
+                    println!("Starting AmanClaw MCP server (stdio)...");
+                    amanclaw_mcp::stdio::run_stdio(Arc::new(handler)).await?;
+                }
+                "sse" => {
+                    println!("Starting AmanClaw MCP server (SSE) on port {port}...");
+                    amanclaw_mcp::sse::run_sse(handler, port).await?;
+                }
+                other => anyhow::bail!("Unknown transport: {other}. Use 'stdio' or 'sse'."),
+            }
             Ok(())
         }
     }
