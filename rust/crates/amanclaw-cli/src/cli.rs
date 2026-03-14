@@ -66,6 +66,11 @@ pub enum Command {
         #[command(subcommand)]
         action: McpAction,
     },
+    /// Manage Islamic knowledge database
+    Islamic {
+        #[command(subcommand)]
+        action: IslamicAction,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -160,6 +165,18 @@ pub enum McpAction {
         #[arg(short, long, default_value = "3001")]
         port: u16,
     },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum IslamicAction {
+    /// Sync Islamic data from remote APIs
+    Sync {
+        /// Dataset to sync: quran, hadith, tafsir, fiqh, or all
+        #[arg(default_value = "all")]
+        dataset: String,
+    },
+    /// Show sync status and record counts
+    Status,
 }
 
 #[derive(Subcommand, Debug)]
@@ -495,6 +512,37 @@ mod tests {
             }
             _ => panic!("expected Skill Update"),
         }
+    }
+
+    #[test]
+    fn test_cli_islamic_sync_all() {
+        let cli = Cli::parse_from(["amanclaw", "islamic", "sync"]);
+        match cli.command {
+            Some(Command::Islamic { action: IslamicAction::Sync { dataset } }) => {
+                assert_eq!(dataset, "all");
+            }
+            _ => panic!("expected Islamic Sync"),
+        }
+    }
+
+    #[test]
+    fn test_cli_islamic_sync_quran() {
+        let cli = Cli::parse_from(["amanclaw", "islamic", "sync", "quran"]);
+        match cli.command {
+            Some(Command::Islamic { action: IslamicAction::Sync { dataset } }) => {
+                assert_eq!(dataset, "quran");
+            }
+            _ => panic!("expected Islamic Sync quran"),
+        }
+    }
+
+    #[test]
+    fn test_cli_islamic_status() {
+        let cli = Cli::parse_from(["amanclaw", "islamic", "status"]);
+        assert!(matches!(
+            cli.command,
+            Some(Command::Islamic { action: IslamicAction::Status })
+        ));
     }
 
     #[test]

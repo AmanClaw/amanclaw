@@ -8,7 +8,7 @@ mod skill_publisher;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use cli::{Cli, Command, McpAction, ProductAction, SkillAction};
+use cli::{Cli, Command, IslamicAction, McpAction, ProductAction, SkillAction};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing_subscriber::EnvFilter;
@@ -30,6 +30,7 @@ async fn main() -> Result<()> {
         Some(Command::Playground { port }) => playground::run_playground(port).await,
         Some(Command::Product { action }) => cmd_product(action),
         Some(Command::Mcp { action }) => cmd_mcp(&cli.config, action).await,
+        Some(Command::Islamic { action }) => cmd_islamic(&cli.config, action).await,
         Some(Command::Ask { query }) => cmd_ask(&cli.config, query).await,
         Some(Command::Chat) => cmd_chat(&cli.config).await,
         Some(Command::Agent { task, max_rounds }) => cmd_agent(&cli.config, task, max_rounds).await,
@@ -726,6 +727,80 @@ async fn cmd_agent(config_path: &str, task: String, max_rounds: usize) -> Result
 
     runner.shutdown().await.ok();
     Ok(())
+}
+
+async fn cmd_islamic(_config_path: &str, action: IslamicAction) -> Result<()> {
+    match action {
+        IslamicAction::Status => {
+            let db_path = std::env::var("ISLAMIC_DB_PATH")
+                .unwrap_or_else(|_| "data/islamic.db".into());
+            let db = amanclaw_islamic_db::IslamicDb::new(&db_path).await?;
+            let statuses = amanclaw_islamic_db::sync::get_all_status(db.pool()).await?;
+
+            if statuses.is_empty() {
+                println!("Islamic database is empty. Run 'amanclaw islamic sync' to populate.");
+                return Ok(());
+            }
+
+            println!("Islamic Knowledge Database:\n");
+            println!("{:<25} {:<25} {:>10}", "Dataset", "Last Synced", "Records");
+            println!("{}", "-".repeat(62));
+            for s in &statuses {
+                let synced = if s.last_synced.is_empty() { "never".to_string() } else {
+                    s.last_synced.chars().take(19).collect()
+                };
+                println!("{:<25} {:<25} {:>10}", s.dataset, synced, s.record_count);
+            }
+            Ok(())
+        }
+        IslamicAction::Sync { dataset } => {
+            let db_path = std::env::var("ISLAMIC_DB_PATH")
+                .unwrap_or_else(|_| "data/islamic.db".into());
+
+            // Ensure data directory exists
+            if let Some(parent) = std::path::Path::new(&db_path).parent() {
+                std::fs::create_dir_all(parent).ok();
+            }
+
+            let db = amanclaw_islamic_db::IslamicDb::new(&db_path).await?;
+            let api_key = std::env::var("SUNNAH_API_KEY").ok();
+
+            match dataset.as_str() {
+                "all" => {
+                    println!("Syncing all Islamic data (this may take several minutes)...\n");
+                    amanclaw_islamic_db::sync::sync_all(db.pool(), api_key.as_deref()).await?;
+                    // Also load fiqh seed
+                    amanclaw_islamic_db::seed::load_fiqh_seed(db.pool()).await?;
+                    println!("\nSync complete!");
+                }
+                "quran" => {
+                    println!("Syncing Quran...");
+                    let count = amanclaw_islamic_db::sync::sync_quran(db.pool()).await?;
+                    println!("Synced {count} ayat.");
+                }
+                "hadith" => {
+                    println!("Syncing all hadith collections...");
+                    let count = amanclaw_islamic_db::sync::sync_all_hadith(db.pool(), api_key.as_deref()).await?;
+                    println!("Synced {count} hadith.");
+                }
+                "tafsir" => {
+                    println!("Syncing tafsir...");
+                    amanclaw_islamic_db::sync::sync_tafsir(db.pool(), "ibn_kathir", 169).await?;
+                    amanclaw_islamic_db::sync::sync_tafsir(db.pool(), "jalalayn", 74).await?;
+                    println!("Tafsir sync complete.");
+                }
+                "fiqh" => {
+                    println!("Loading fiqh seed data...");
+                    let count = amanclaw_islamic_db::seed::load_fiqh_seed(db.pool()).await?;
+                    println!("Loaded {count} fiqh rulings.");
+                }
+                other => {
+                    anyhow::bail!("Unknown dataset: {other}. Use: all, quran, hadith, tafsir, fiqh");
+                }
+            }
+            Ok(())
+        }
+    }
 }
 
 fn find_config(hint: &str) -> Result<PathBuf> {
