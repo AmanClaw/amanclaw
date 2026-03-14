@@ -284,4 +284,180 @@ version = "0.1.0"
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].name, "calendar");
     }
+
+    #[tokio::test]
+    async fn test_get_existing() {
+        let pool = test_pool().await;
+        let tmp = tempfile::tempdir().unwrap();
+        let skills_dir = tmp.path().join("installed");
+        std::fs::create_dir_all(&skills_dir).unwrap();
+
+        let registry = SkillRegistry::new(pool, skills_dir.to_string_lossy().into())
+            .await
+            .unwrap();
+
+        let pkg_dir = tmp.path().join("test-pkg");
+        std::fs::create_dir_all(&pkg_dir).unwrap();
+        std::fs::write(
+            pkg_dir.join("amanclaw-skill.toml"),
+            "name = \"test-skill\"\nversion = \"0.1.0\"\ndescription = \"A test\"",
+        )
+        .unwrap();
+        registry.install_from_path(&pkg_dir).await.unwrap();
+
+        let skill = registry.get("test-skill").await.unwrap().unwrap();
+        assert_eq!(skill.name, "test-skill");
+        assert_eq!(skill.version, "0.1.0");
+        assert_eq!(skill.description.as_deref(), Some("A test"));
+    }
+
+    #[tokio::test]
+    async fn test_get_nonexistent() {
+        let pool = test_pool().await;
+        let tmp = tempfile::tempdir().unwrap();
+        let skills_dir = tmp.path().join("installed");
+        std::fs::create_dir_all(&skills_dir).unwrap();
+
+        let registry = SkillRegistry::new(pool, skills_dir.to_string_lossy().into())
+            .await
+            .unwrap();
+
+        let result = registry.get("nonexistent").await.unwrap();
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_reinstall_overwrites() {
+        let pool = test_pool().await;
+        let tmp = tempfile::tempdir().unwrap();
+        let skills_dir = tmp.path().join("installed");
+        std::fs::create_dir_all(&skills_dir).unwrap();
+
+        let registry = SkillRegistry::new(pool, skills_dir.to_string_lossy().into())
+            .await
+            .unwrap();
+
+        let pkg_dir = tmp.path().join("test-pkg");
+        std::fs::create_dir_all(&pkg_dir).unwrap();
+        std::fs::write(
+            pkg_dir.join("amanclaw-skill.toml"),
+            "name = \"test-skill\"\nversion = \"1.0.0\"",
+        )
+        .unwrap();
+        registry.install_from_path(&pkg_dir).await.unwrap();
+
+        // Reinstall with new version
+        std::fs::write(
+            pkg_dir.join("amanclaw-skill.toml"),
+            "name = \"test-skill\"\nversion = \"2.0.0\"",
+        )
+        .unwrap();
+        let installed = registry.install_from_path(&pkg_dir).await.unwrap();
+        assert_eq!(installed.version, "2.0.0");
+
+        let all = registry.list_installed().await.unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].version, "2.0.0");
+    }
+
+    #[tokio::test]
+    async fn test_search_no_results() {
+        let pool = test_pool().await;
+        let tmp = tempfile::tempdir().unwrap();
+        let skills_dir = tmp.path().join("installed");
+        std::fs::create_dir_all(&skills_dir).unwrap();
+
+        let registry = SkillRegistry::new(pool, skills_dir.to_string_lossy().into())
+            .await
+            .unwrap();
+
+        let results = registry.search_installed("nonexistent").await.unwrap();
+        assert!(results.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_install_with_dependencies() {
+        let pool = test_pool().await;
+        let tmp = tempfile::tempdir().unwrap();
+        let skills_dir = tmp.path().join("installed");
+        std::fs::create_dir_all(&skills_dir).unwrap();
+
+        let registry = SkillRegistry::new(pool.clone(), skills_dir.to_string_lossy().into())
+            .await
+            .unwrap();
+
+        let pkg_dir = tmp.path().join("dep-pkg");
+        std::fs::create_dir_all(&pkg_dir).unwrap();
+        std::fs::write(
+            pkg_dir.join("amanclaw-skill.toml"),
+            r#"
+name = "with-deps"
+version = "1.0.0"
+
+[dependencies]
+http-client = "0.2"
+parser = { version = "1.0", optional = true }
+"#,
+        )
+        .unwrap();
+
+        let installed = registry.install_from_path(&pkg_dir).await.unwrap();
+        assert_eq!(installed.name, "with-deps");
+
+        // Verify dependencies were stored
+        let deps = sqlx::query("SELECT dep_name, dep_version, optional FROM skill_dependencies WHERE skill_name = 'with-deps' ORDER BY dep_name")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+        assert_eq!(deps.len(), 2);
+
+        let dep1_name: String = sqlx::Row::get(&deps[0], "dep_name");
+        let dep2_name: String = sqlx::Row::get(&deps[1], "dep_name");
+        assert_eq!(dep1_name, "http-client");
+        assert_eq!(dep2_name, "parser");
+
+        let dep2_optional: bool = sqlx::Row::get(&deps[1], "optional");
+        assert!(dep2_optional);
+    }
+
+    #[tokio::test]
+    async fn test_list_installed_empty() {
+        let pool = test_pool().await;
+        let tmp = tempfile::tempdir().unwrap();
+        let skills_dir = tmp.path().join("installed");
+        std::fs::create_dir_all(&skills_dir).unwrap();
+
+        let registry = SkillRegistry::new(pool, skills_dir.to_string_lossy().into())
+            .await
+            .unwrap();
+
+        let all = registry.list_installed().await.unwrap();
+        assert!(all.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_install_copies_subdirectories() {
+        let pool = test_pool().await;
+        let tmp = tempfile::tempdir().unwrap();
+        let skills_dir = tmp.path().join("installed");
+        std::fs::create_dir_all(&skills_dir).unwrap();
+
+        let registry = SkillRegistry::new(pool, skills_dir.to_string_lossy().into())
+            .await
+            .unwrap();
+
+        let pkg_dir = tmp.path().join("complex-pkg");
+        std::fs::create_dir_all(pkg_dir.join("src")).unwrap();
+        std::fs::write(
+            pkg_dir.join("amanclaw-skill.toml"),
+            "name = \"complex\"\nversion = \"1.0.0\"",
+        )
+        .unwrap();
+        std::fs::write(pkg_dir.join("src/main.py"), "print('hello')").unwrap();
+
+        registry.install_from_path(&pkg_dir).await.unwrap();
+
+        let installed_main = skills_dir.join("complex/src/main.py");
+        assert!(installed_main.exists());
+    }
 }
