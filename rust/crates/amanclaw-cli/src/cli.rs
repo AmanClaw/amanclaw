@@ -40,6 +40,22 @@ pub enum Command {
         #[arg(short, long, default_value = "3000")]
         port: u16,
     },
+    /// Ask a one-shot question
+    Ask {
+        /// The question to ask (multiple words joined)
+        query: Vec<String>,
+    },
+    /// Start interactive chat session
+    Chat,
+    /// Run an autonomous agent for a task
+    Agent {
+        /// Task description
+        #[arg(short, long)]
+        task: String,
+        /// Maximum rounds of execution
+        #[arg(long, default_value = "10")]
+        max_rounds: usize,
+    },
     /// Manage product templates (pre-configured bot distributions)
     Product {
         #[command(subcommand)]
