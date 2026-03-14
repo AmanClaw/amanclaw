@@ -744,7 +744,7 @@ fn find_config(hint: &str) -> Result<PathBuf> {
     );
 }
 
-async fn open_skill_registry(registry_dir: &str) -> Result<amanclaw_registry::local::SkillRegistry> {
+pub(crate) async fn open_skill_registry(registry_dir: &str) -> Result<amanclaw_registry::local::SkillRegistry> {
     std::fs::create_dir_all(registry_dir)
         .with_context(|| format!("Failed to create registry dir: {registry_dir}"))?;
     let db_path = format!("{registry_dir}/skills.db");

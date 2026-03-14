@@ -42,6 +42,10 @@ pub struct SkillRegistry {
 }
 
 impl SkillRegistry {
+    pub fn pool(&self) -> &SqlitePool {
+        &self.pool
+    }
+
     pub async fn new(pool: SqlitePool, skills_dir: String) -> Result<Self> {
         sqlx::raw_sql(REGISTRY_SCHEMA).execute(&pool).await?;
         Ok(Self { pool, skills_dir })
