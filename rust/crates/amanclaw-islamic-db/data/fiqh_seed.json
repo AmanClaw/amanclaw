@@ -1,0 +1,62 @@
+[
+  {
+    "id": 0, "topic": "prayer", "subtopic": "combining prayers during travel",
+    "madhab": "shafii", "ruling": "Permissible during travel of approximately 82km or more. Can combine Zuhr+Asr or Maghrib+Isha (jam' taqdim or ta'khir).",
+    "evidence": "Quran 4:101; Sahih Muslim 705", "source": "Al-Umm, Imam al-Shafi'i", "language": "en"
+  },
+  {
+    "id": 0, "topic": "prayer", "subtopic": "combining prayers during travel",
+    "madhab": "hanafi", "ruling": "Only permitted at Arafah (Zuhr+Asr) and Muzdalifah (Maghrib+Isha) during Hajj.",
+    "evidence": "Sahih Bukhari 1662", "source": "Al-Hidayah, al-Marghinani", "language": "en"
+  },
+  {
+    "id": 0, "topic": "prayer", "subtopic": "combining prayers during travel",
+    "madhab": "maliki", "ruling": "Permissible during travel. Also permitted for rain, mud, illness, and fear.",
+    "evidence": "Sahih Muslim 705; Muwatta Malik", "source": "Al-Mudawwanah, Sahnun", "language": "en"
+  },
+  {
+    "id": 0, "topic": "prayer", "subtopic": "combining prayers during travel",
+    "madhab": "hanbali", "ruling": "Permissible during travel, illness, rain, extreme cold, and genuine hardship.",
+    "evidence": "Sahih Muslim 705; Sahih Bukhari 1174", "source": "Al-Mughni, Ibn Qudamah", "language": "en"
+  },
+  {
+    "id": 0, "topic": "fasting", "subtopic": "breaking fast accidentally",
+    "madhab": "shafii", "ruling": "If one eats or drinks forgetfully, the fast is valid and should be completed. No makeup required.",
+    "evidence": "Sahih Bukhari 1933; Sahih Muslim 1155", "source": "Al-Majmu', Imam al-Nawawi", "language": "en"
+  },
+  {
+    "id": 0, "topic": "fasting", "subtopic": "breaking fast accidentally",
+    "madhab": "hanafi", "ruling": "Eating or drinking forgetfully does not break the fast. Continue fasting.",
+    "evidence": "Sahih Bukhari 1933", "source": "Al-Hidayah, al-Marghinani", "language": "en"
+  },
+  {
+    "id": 0, "topic": "fasting", "subtopic": "breaking fast accidentally",
+    "madhab": "maliki", "ruling": "The fast is valid if broken forgetfully. If one remembers mid-eating, must stop immediately.",
+    "evidence": "Sahih Muslim 1155", "source": "Al-Mudawwanah, Sahnun", "language": "en"
+  },
+  {
+    "id": 0, "topic": "fasting", "subtopic": "breaking fast accidentally",
+    "madhab": "hanbali", "ruling": "Eating or drinking forgetfully does not invalidate the fast. No expiation required.",
+    "evidence": "Sahih Bukhari 1933; Sahih Muslim 1155", "source": "Al-Mughni, Ibn Qudamah", "language": "en"
+  },
+  {
+    "id": 0, "topic": "zakat", "subtopic": "nisab threshold",
+    "madhab": "consensus", "ruling": "Zakat is obligatory when wealth reaches the nisab: 85 grams of gold or 595 grams of silver (or equivalent currency), held for one lunar year.",
+    "evidence": "Sahih Bukhari 1459; Sunan Abu Dawud 1573", "source": "Agreed upon by all four schools", "language": "en"
+  },
+  {
+    "id": 0, "topic": "zakat", "subtopic": "zakat on salary/income",
+    "madhab": "shafii", "ruling": "Zakat on income is calculated at 2.5% of net savings that exceed nisab at the end of the haul (lunar year).",
+    "evidence": "Quran 2:267", "source": "Contemporary Shafi'i scholars", "language": "en"
+  },
+  {
+    "id": 0, "topic": "zakat", "subtopic": "zakat on salary/income",
+    "madhab": "hanafi", "ruling": "Zakat is due on savings exceeding nisab at year-end. Income spent before year-end is not zakatable.",
+    "evidence": "Quran 9:103", "source": "Al-Hidayah, al-Marghinani", "language": "en"
+  },
+  {
+    "id": 0, "topic": "zakat", "subtopic": "zakat on salary/income",
+    "madhab": "consensus", "ruling": "Modern scholars in Malaysia (JAKIM) recommend 2.5% of gross annual income minus essential expenses, payable monthly or annually.",
+    "evidence": "Fatwa JAKIM; Quran 2:267", "source": "JAKIM Fatwa Committee", "language": "en"
+  }
+]
