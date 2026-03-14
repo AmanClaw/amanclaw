@@ -406,8 +406,37 @@ async fn cmd_skill(action: SkillAction) -> Result<()> {
         SkillAction::Update { name: _, plugins_dir: _ } => {
             todo!("update handler")
         }
-        SkillAction::Remove { name: _, plugins_dir: _ } => {
-            todo!("remove handler")
+        SkillAction::Remove { name, plugins_dir } => {
+            let registry = open_skill_registry(&format!("{plugins_dir}/registry")).await?;
+            match registry.get(&name).await? {
+                Some(skill) => {
+                    // Remove files
+                    let skill_path = std::path::Path::new(&skill.install_dir);
+                    if skill_path.exists() {
+                        std::fs::remove_dir_all(skill_path)
+                            .or_else(|_| std::fs::remove_file(skill_path))
+                            .ok();
+                    }
+                    // Remove from registry
+                    registry.uninstall(&name).await?;
+                    println!("Removed skill: {name}");
+                }
+                None => {
+                    // Try removing the file directly from plugins dir
+                    let py_path = format!("{plugins_dir}/skill_{name}.py");
+                    let wasm_path = format!("{plugins_dir}/{name}.wasm");
+                    if std::path::Path::new(&py_path).exists() {
+                        std::fs::remove_file(&py_path)?;
+                        println!("Removed plugin file: {py_path}");
+                    } else if std::path::Path::new(&wasm_path).exists() {
+                        std::fs::remove_file(&wasm_path)?;
+                        println!("Removed plugin file: {wasm_path}");
+                    } else {
+                        println!("Skill '{name}' not found.");
+                    }
+                }
+            }
+            Ok(())
         }
         SkillAction::Publish { path } => {
             let dir = std::path::Path::new(&path);
