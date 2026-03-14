@@ -494,6 +494,23 @@ impl Engine {
                         EngineCommand::SchedulerEvent(event) => {
                             self.handle_scheduler_event(event, &semaphore, &mut join_set);
                         }
+                        EngineCommand::Ask(msg, reply) => {
+                            messages_processed += 1;
+                            let _ = status_tx.send(EngineStatus::Running {
+                                started_at,
+                                messages_processed,
+                            });
+                            let pipeline = self.pipeline.clone();
+                            let registry = self.registry.clone();
+                            let agent_router = self.agent_router.clone();
+                            let semaphore = semaphore.clone();
+                            join_set.spawn(async move {
+                                let _permit = semaphore.acquire_owned().await.unwrap();
+                                let profile = agent_router.resolve(&msg);
+                                let result = pipeline.process(msg, &registry, &profile).await;
+                                let _ = reply.send(result.unwrap_or(None));
+                            });
+                        }
                         EngineCommand::GetStatus(reply) => {
                             let _ = reply.send(EngineStatus::Running {
                                 started_at,
