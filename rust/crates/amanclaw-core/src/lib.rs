@@ -64,6 +64,8 @@ pub struct EngineStartResult {
     pub channel_manager: Arc<ChannelManager>,
     /// Shared channels config (from config.yaml + env vars).
     pub channels_config: Arc<RwLock<ChannelsConfig>>,
+    /// Optional Islamic knowledge database.
+    pub islamic_db: Option<Arc<amanclaw_islamic_db::IslamicDb>>,
 }
 
 pub struct Engine {
@@ -86,6 +88,29 @@ impl Engine {
         let rate_limiter = RateLimiter::new(config.rate_limit_per_minute);
         let llm = LlmClient::new(config.llm.clone());
 
+        // Initialize Islamic knowledge database
+        let islamic_db_path =
+            std::env::var("ISLAMIC_DB_PATH").unwrap_or_else(|_| "data/islamic.db".into());
+        let islamic_db = if let Some(parent) = Path::new(&islamic_db_path).parent() {
+            std::fs::create_dir_all(parent).ok();
+            match amanclaw_islamic_db::IslamicDb::new(&islamic_db_path).await {
+                Ok(db) => {
+                    if db.is_empty().await.unwrap_or(true) {
+                        tracing::info!(
+                            "Islamic database empty — run 'amanclaw islamic sync' to populate"
+                        );
+                    }
+                    Some(Arc::new(db))
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to open Islamic DB: {e}");
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         // Register built-in skills (skip disabled ones)
         let disabled = &config.skills.disabled;
         let mut registry = PluginRegistry::new();
@@ -96,7 +121,11 @@ impl Engine {
             Arc::new(amanclaw_skill_qiblat::QiblatSkill),
             Arc::new(amanclaw_skill_hijri::HijriSkill),
             Arc::new(amanclaw_skill_doa::DoaSkill),
-            Arc::new(amanclaw_skill_quran::QuranSkill),
+            if let Some(ref idb) = islamic_db {
+                Arc::new(amanclaw_skill_quran::QuranSkill::new(idb.clone()))
+            } else {
+                Arc::new(amanclaw_skill_quran::QuranSkill::default())
+            },
         ];
         for skill in builtins {
             let name = skill.metadata().name;
@@ -105,6 +134,17 @@ impl Engine {
                 continue;
             }
             registry.register(skill);
+        }
+
+        // Register Islamic DB-backed skills when available
+        if let Some(ref idb) = islamic_db {
+            let hadith_skill: Arc<dyn amanclaw_traits::skill::Skill> =
+                Arc::new(amanclaw_skill_hadith::HadithSkill::new(idb.clone()));
+            let name = hadith_skill.metadata().name;
+            if !disabled.iter().any(|d| d == &name) {
+                registry.register(hadith_skill);
+                tracing::info!("Hadith skill registered (IslamicDb available)");
+            }
         }
 
         // Register sub-agent skill if enabled
@@ -456,6 +496,7 @@ impl Engine {
             registry,
             channel_manager,
             channels_config,
+            islamic_db,
         })
     }
 

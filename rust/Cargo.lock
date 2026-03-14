@@ -196,6 +196,7 @@ dependencies = [
  "amanclaw-script-runtime",
  "amanclaw-security",
  "amanclaw-skill-doa",
+ "amanclaw-skill-hadith",
  "amanclaw-skill-hijri",
  "amanclaw-skill-qiblat",
  "amanclaw-skill-quran",
