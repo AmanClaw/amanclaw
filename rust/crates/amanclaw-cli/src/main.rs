@@ -325,17 +325,22 @@ async fn cmd_skill(action: SkillAction) -> Result<()> {
             Ok(())
         }
         SkillAction::Install { name, plugins_dir } => {
+            let (skill_name, version) = skill_installer::parse_name_version(&name);
             let client = amanclaw_skill_index::IndexClient::new();
             let index = client.fetch_index().await?;
-            let entry = index.find(&name);
+            let entry = index.find(skill_name);
             let (repo, lang) = if let Some(e) = entry {
                 (e.repo.clone(), e.lang.clone())
             } else {
-                let repo = skill_installer::resolve_repo(&name);
+                let repo = skill_installer::resolve_repo(skill_name);
                 (repo, "rust".into())
             };
-            println!("Installing {name} from {repo}...");
-            skill_installer::install_skill(&repo, &name, &lang, std::path::Path::new(&plugins_dir))
+            if let Some(ver) = version {
+                println!("Installing {skill_name}@{ver} from {repo}...");
+            } else {
+                println!("Installing {skill_name} from {repo}...");
+            }
+            skill_installer::install_skill_version(&repo, skill_name, &lang, std::path::Path::new(&plugins_dir), version)
                 .await?;
             Ok(())
         }

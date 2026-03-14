@@ -154,6 +154,15 @@ pub async fn install_skill_version(
     Ok(())
 }
 
+/// Parse a skill name with optional version specifier (e.g., "skill-solat@1.2.3").
+pub fn parse_name_version(input: &str) -> (&str, Option<&str>) {
+    if let Some((name, version)) = input.rsplit_once('@') {
+        (name, Some(version))
+    } else {
+        (input, None)
+    }
+}
+
 /// Resolve a skill name to a repo path.
 pub fn resolve_repo(name: &str) -> String {
     if name.contains('/') {
@@ -175,6 +184,12 @@ mod tests {
     #[test]
     fn test_resolve_repo_without_slash() {
         assert_eq!(resolve_repo("skill-solat"), "amanclaw/skill-solat");
+    }
+
+    #[test]
+    fn test_parse_name_version() {
+        assert_eq!(parse_name_version("skill-solat"), ("skill-solat", None));
+        assert_eq!(parse_name_version("skill-solat@1.2.3"), ("skill-solat", Some("1.2.3")));
     }
 
     #[test]
