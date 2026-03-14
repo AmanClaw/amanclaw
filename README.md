@@ -67,16 +67,19 @@ AmanClaw is a personal AI assistant that lives in your chat apps. You message it
 ```text
 You (Telegram / Discord / WhatsApp / Slack)
   │
-  ├── Chat message ──► Engine ──► Auth ──► Rate Limit ──► Sanitize ──► LLM ◄──► Skills
-  │                                                                               │
-  ├── Cron job ─────► Scheduler ──► Pipeline (bypass auth) ──► LLM ◄──► Skills   │
-  │                                                                               │
-  ├── Webhook ──────► Router ──► Auth (HMAC/Bearer) ──► Transform ──► Pipeline   │
-  │                                                                               │
-  ├── WebSocket ────► Gateway (JSON-RPC 2.0) ──► Session Manager                 │
-  │                                                                               │
-  ▼                                                                               ▼
-Reply  ◄──────────────────────────────────────────────────────────────────────────┘
+  ├── Chat message ──► Engine ──► Agent Router ──► Pipeline:
+  │                       │         │               Metrics → Auth → Commands → Rate Limit
+  │                       │         │               → Sanitize → RAG Retrieve → Context
+  │                       │         │               → LLM ◄──► Skills (up to 5 rounds)
+  │                       │         │                                         │
+  ├── Cron job ─────► Scheduler ──►─┘  (bypass auth + rate limit)            │
+  │                                                                          │
+  ├── Webhook ──────► Router ──► Auth (HMAC/Bearer) ──► Transform ──► Pipeline
+  │                                                                          │
+  ├── WebSocket ────► Gateway (JSON-RPC 2.0) ──► Session Manager             │
+  │                                                                          │
+  ▼                                                                          ▼
+Reply  ◄─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -366,7 +369,7 @@ See [products/communitybot/README.md](products/communitybot/README.md) for full 
 
 ## Architecture
 
-AmanClaw is a Cargo workspace with 29 crates (16 core + 13 plugins) plus a Tauri desktop app:
+AmanClaw is a Cargo workspace with 28 crates (15 core + 13 plugins) plus a web dashboard and a Tauri desktop app:
 
 ```text
 rust/
@@ -380,11 +383,13 @@ rust/
 │   ├── amanclaw-llm/             # OpenAI-compatible LLM client + tool calling + embeddings
 │   ├── amanclaw-wasm-runtime/    # WASM plugin loader, sandbox, runtime, watcher
 │   ├── amanclaw-plugin-sdk/      # SDK + macro for WASM plugin authors
-│   ├── amanclaw-mcp/            # MCP server + client bridge (stdio + HTTP)
-│   ├── amanclaw-script-runtime/ # Script plugin loader (Python/JS via subprocess)
-│   ├── amanclaw-api/            # REST management API + WebSocket gateway (Axum)
-│   ├── amanclaw-gateway/        # WebSocket gateway (JSON-RPC 2.0, session management)
-│   └── amanclaw-registry/       # Skill marketplace (manifest, local/remote registry)
+│   ├── amanclaw-mcp/             # MCP server + client bridge (stdio + HTTP)
+│   ├── amanclaw-script-runtime/  # Script plugin loader (Python/JS via subprocess)
+│   ├── amanclaw-api/             # REST management API + embedded dashboard (Axum)
+│   ├── amanclaw-gateway/         # WebSocket gateway (JSON-RPC 2.0, session management)
+│   ├── amanclaw-registry/        # Plugin registry for loading and managing skills/channels
+│   ├── amanclaw-prayer-times/    # Pure-Rust prayer time calculator (6 methods: MWL, ISNA, Egyptian, Karachi, Umm al-Qura, JAKIM)
+│   └── amanclaw-skill-index/     # Skill marketplace index, search, curated packs, SHA256 verification
 ├── plugins/
 │   ├── skill-sysinfo/            # System info skill (built-in)
 │   ├── skill-shell/              # Whitelisted shell commands (built-in)
@@ -398,7 +403,7 @@ rust/
 │   ├── channel-discord/          # Discord adapter (serenity)
 │   ├── channel-whatsapp/         # WhatsApp Cloud API adapter
 │   ├── channel-whatsapp-web/     # Unofficial WhatsApp via WAHA bridge
-│   └── channel-slack/           # Slack adapter (Socket Mode)
+│   └── channel-slack/            # Slack adapter (Socket Mode)
 ├── sdks/
 │   ├── assemblyscript/           # AssemblyScript (JS/TS) plugin SDK
 │   └── python/                   # Python plugin SDK
@@ -408,6 +413,14 @@ rust/
 │   └── skill.wit                 # WASM Interface Types contract
 ├── Dockerfile
 └── docker-compose.yml
+dashboard/                         # Svelte 5 + Vite web dashboard (embedded in binary at build time)
+├── src/
+│   └── lib/
+│       ├── components/            # UI components
+│       ├── pages/                 # Login, Users, Channels, Communities, Skills, Content, Logs, Settings
+│       └── stores/                # API store, auth store
+├── package.json
+└── vite.config.ts
 desktop/                           # Tauri 2 desktop admin app
 ├── src/                           # Svelte 5 + Tailwind CSS 4 frontend
 │   ├── lib/
@@ -431,14 +444,21 @@ desktop/                           # Tauri 2 desktop admin app
 
 1. **Channel adapters** receive messages from platforms and push them into the engine via async channels
 2. **Engine** multiplexes chat messages and scheduler events via `tokio::select!`
-3. **Agent router** resolves which agent profile handles the message (per-platform, per-topic, or default)
+3. **Agent router** resolves which agent profile handles the message (per-platform, per-topic, per-group, or default)
 4. **SOUL.md loader** resolves agent personality files with frontmatter, inheritance, and variable interpolation
-5. **Pipeline** checks auth → rate limit → sanitize input → build context (summary + facts + history + FTS5/vector hybrid search) → call LLM
+5. **Pipeline** runs middleware chain in order:
+   - **Metrics** — record pipeline timing and counters
+   - **Auth** — check user allowlist + JWT
+   - **Commands** — handle special commands (`/remember`, `/forget`, `/learned`, etc.)
+   - **Rate Limit** — enforce per-user rate limits
+   - **Sanitize** — input sanitization and prompt injection detection
+   - **RAG Retrieve** — (optional) retrieve relevant knowledge base entries and learned facts via embeddings
+   - **Context** — build context window (summary + facts + history + FTS5/vector hybrid search)
+   - **Persist** — call LLM, store results, auto-summarize when history exceeds 40 messages
+   - **Tool Calling** — execute skills iteratively (up to 5 rounds)
 6. Internal messages (cron, webhook, sub-agent) bypass auth, rate limiting, and sanitization
-7. **LLM** may request tool calls, which are executed via the **plugin registry** (up to 5 rounds)
-8. **EventEmitter** broadcasts pipeline events (`message.received`, `message.sent`, `security.*`) to WebSocket subscribers
-9. **Auto-summarization** kicks in when history exceeds 40 messages — LLM summarizes, old messages are pruned
-10. **Response** is routed back to the correct channel adapter by platform
+7. **EventEmitter** broadcasts pipeline events (`message.received`, `message.sent`, `security.*`) to WebSocket subscribers
+8. **Response** is routed back to the correct channel adapter by platform
 
 ### Bot Commands
 
