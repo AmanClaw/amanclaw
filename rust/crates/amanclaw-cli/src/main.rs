@@ -403,8 +403,40 @@ async fn cmd_skill(action: SkillAction) -> Result<()> {
             }
             Ok(())
         }
-        SkillAction::Update { name: _, plugins_dir: _ } => {
-            todo!("update handler")
+        SkillAction::Update { name, plugins_dir } => {
+            let registry = open_skill_registry(&format!("{plugins_dir}/registry")).await?;
+            let client = amanclaw_skill_index::IndexClient::new();
+            let index = client.fetch_index().await?;
+
+            let skills_to_update = if name == "all" {
+                registry.list_installed().await?
+            } else {
+                match registry.get(&name).await? {
+                    Some(s) => vec![s],
+                    None => {
+                        println!("Skill '{name}' not installed.");
+                        return Ok(());
+                    }
+                }
+            };
+
+            let mut updated = 0;
+            for installed in &skills_to_update {
+                if let Some(remote) = index.find(&installed.name) {
+                    if remote.version != installed.version {
+                        println!("Updating {} {} -> {}...", installed.name, installed.version, remote.version);
+                        skill_installer::install_skill(&remote.repo, &installed.name, &remote.lang, std::path::Path::new(&plugins_dir)).await?;
+                        updated += 1;
+                    }
+                }
+            }
+
+            if updated == 0 {
+                println!("All skills are up to date.");
+            } else {
+                println!("\n{updated} skill(s) updated.");
+            }
+            Ok(())
         }
         SkillAction::Remove { name, plugins_dir } => {
             let registry = open_skill_registry(&format!("{plugins_dir}/registry")).await?;
