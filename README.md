@@ -3,7 +3,7 @@
   <br>
   <strong style="font-size:2em">AmanClaw</strong>
   <br>
-  <em>AI assistant for Malaysian Muslim communities</em>
+  <em>Your AI, your rules. Built on principles you trust.</em>
 </p>
 
 <p align="center">
@@ -14,7 +14,9 @@
 </p>
 
 <p align="center">
-  One binary. One SQLite database. One config file. ~2MB RAM on a Raspberry Pi.
+  A sovereign AI personal agent. One binary. Runs anywhere — your laptop, Raspberry Pi, or your own cloud.
+  <br>
+  26 skills from coding to Islamic finance. Your data never leaves your control.
   <br>
   Built in Malaysia. Open source. No bloat. Bilingual BM + English.
 </p>
@@ -62,7 +64,7 @@
 
 ## What Is This?
 
-AmanClaw is a personal AI assistant that lives in your chat apps. You message it, it thinks using an LLM, optionally calls skills (tools), and replies back.
+AmanClaw is a sovereign AI personal agent — it handles everyday tasks like coding, research, automation, and data analysis, plus world-class Islamic AI capabilities that no one else offers. Use it from the terminal, chat apps, or the desktop app. You own your data, you choose your model, you decide where it runs.
 
 ```text
 You (Telegram / Discord / WhatsApp / Slack)
@@ -90,14 +92,28 @@ Reply  ◄───────────────────────�
   <tr>
     <td width="50%">
 
-### 11 Islamic Skills
-Prayer times (JAKIM + 6 global methods), Quran, Halal check, Zakat calculator, Qiblat, Hijri calendar, Doa & Zikir, Hadith, Masjid finder, Khutbah, JAKIM services
+### 26 Skills (11 Islamic + 15 General)
+Prayer times, Quran, Halal, Zakat, Hadith — plus web search, weather, JSON tools, HTTP client, CSV analysis, regex, todo, reminders, and more
 
 </td>
     <td width="50%">
 
-### 5 Chat Channels
-Telegram, Discord, WhatsApp (official Cloud API + unofficial WAHA), Slack — all from one instance
+### CLI Agent Mode
+`amanclaw ask`, `amanclaw chat`, `amanclaw agent` — use from the terminal, piped input, or autonomous task execution
+
+</td>
+  </tr>
+  <tr>
+    <td width="50%">
+
+### 5 Chat Channels + MCP
+Telegram, Discord, WhatsApp (official + WAHA), Slack — plus full MCP protocol support (client + server + SSE)
+
+</td>
+    <td width="50%">
+
+### Sovereign by Design
+You own your data. You choose your model. You decide where it runs. Offline-first. No lock-in. No compromise.
 
 </td>
   </tr>
@@ -110,26 +126,33 @@ Ollama, vLLM, LM Studio, OpenAI, Groq, DeepSeek, Qwen, Together AI, OpenRouter �
 </td>
     <td width="50%">
 
-### Desktop Admin App
-Cross-platform Tauri 2 app with dashboard, channel setup, community management, live logs, and system tray
-
-</td>
-  </tr>
-  <tr>
-    <td width="50%">
-
-### Plugin System
-WASM (Rust/AssemblyScript) + Python/JS scripts + built-in Rust skills. Hot reload, marketplace, quality tiers
-
-</td>
-    <td width="50%">
-
-### Channel Setup Hub
-Configure, start, stop, and monitor all channels from the UI. WhatsApp Web gets in-app QR code scanning
+### Plugin Marketplace
+WASM + Python/JS plugins. Install, update, remove skills from CLI. Quality tiers, checksums, version pinning
 
 </td>
   </tr>
 </table>
+
+## CLI Agent Mode
+
+Use AmanClaw directly from your terminal:
+
+```bash
+# One-shot question
+amanclaw ask "What time is Maghrib in KL?"
+
+# Interactive chat
+amanclaw chat
+
+# Autonomous agent
+amanclaw agent --task "Find prayer times for today and calculate zakat on RM50,000"
+
+# Piped input
+echo "Translate this to BM" | amanclaw ask
+
+# MCP server mode
+amanclaw mcp serve --transport sse --port 3001
+```
 
 ## All Features
 
@@ -155,14 +178,16 @@ Configure, start, stop, and monitor all channels from the UI. WhatsApp Web gets 
 - **Live reload** — `amanclaw dev --watch` watches plugins, souls, and config for changes
 - **WhatsApp interactive messages** — Buttons and list messages for rich WhatsApp UX (beyond plain text)
 - **Plugin hot reload** — Filesystem watcher detects new/modified `.wasm` plugins
-- **MCP integration** — Expose skills as MCP tools + consume external MCP servers as skills
+- **CLI agent mode** — `amanclaw ask` (one-shot), `amanclaw chat` (interactive REPL), `amanclaw agent` (autonomous multi-round task execution) with piped stdin support
+- **15 general-purpose skills** — Web search (DuckDuckGo), URL reader, weather (Open-Meteo), datetime/timezone, unit converter, todo list, reminders, JSON tool, base64, hash, regex, HTTP client, CSV tool, summarizer, translator — all zero API keys
+- **MCP integration** — Expose skills as MCP tools + consume external MCP servers as skills. SSE transport, Resources, and Prompts support
 - **Hybrid search** — FTS5 full-text search with BM25 ranking + cosine vector similarity via Reciprocal Rank Fusion (RRF)
 - **SOUL.md agent personas** — YAML-frontmatter agent personality files with inheritance chains and variable interpolation
 - **Cron scheduler** — Scheduled jobs (direct messages, skill invocations, agent prompts) with timezone support and pipeline bypass
 - **Webhook triggers** — Inbound webhook routes with HMAC-SHA256/Bearer/header auth, Handlebars template transforms, and rate limiting
 - **WebSocket gateway** — JSON-RPC 2.0 real-time gateway with session management, topic subscriptions, and glob-based event routing
 - **Sub-agent spawning** — Parallel task execution via spawned sub-agents with per-session/global limits and max-depth control
-- **Skill marketplace** — `amanclaw-skill.toml` manifest format, local registry with SQLite-backed install/search, remote index with SHA256 verification
+- **Skill marketplace** — `amanclaw-skill.toml` manifest format, local registry with SQLite-backed install/search/update/remove, remote index with SHA256 verification, version pinning (`name@version`)
 - **Event system** — `EventEmitter` trait for broadcasting pipeline events (message.received, message.sent, security.*)
 - **Desktop admin app** — Cross-platform Tauri 2 desktop app (macOS, Windows, Linux) with system tray and native notifications
 - **REST management API** — Axum-based REST API for bot status, communities, skills, users, webhooks management
@@ -197,6 +222,11 @@ The binary is at `target/release/amanclaw`.
 # Initialize project with defaults
 amanclaw init
 
+# CLI Agent Mode
+amanclaw ask "What time is Maghrib in KL?"
+amanclaw chat
+amanclaw agent --task "Find weather for Kuala Lumpur"
+
 # Start in development mode (no API key needed)
 amanclaw dev
 
@@ -206,23 +236,25 @@ amanclaw dev --watch
 # Open interactive playground
 amanclaw playground
 
+# MCP server mode
+amanclaw mcp serve --transport sse
+amanclaw mcp list
+amanclaw mcp tools filesystem
+
+# Skill management
+amanclaw skill search "prayer"
+amanclaw skill install skill-solat
+amanclaw skill install skill-solat@1.2.3    # version pinning
+amanclaw skill install-pack islamic
+amanclaw skill list-installed
+amanclaw skill info web_search
+amanclaw skill update all
+amanclaw skill remove web_search
+amanclaw skill packs
+
 # Create a new skill (generates CI, README, LICENSE, tests)
 amanclaw skill new my-skill --lang rust
 amanclaw skill new my-skill --lang python
-
-# Search the skill index
-amanclaw skill search "prayer"
-
-# Install a skill from the index
-amanclaw skill install skill-solat
-
-# Install a curated skill pack
-amanclaw skill install-pack islamic
-
-# List available packs
-amanclaw skill packs
-
-# Validate a skill for publishing
 amanclaw skill publish ./my-skill
 ```
 
@@ -383,7 +415,7 @@ rust/
 │   ├── amanclaw-llm/             # OpenAI-compatible LLM client + tool calling + embeddings
 │   ├── amanclaw-wasm-runtime/    # WASM plugin loader, sandbox, runtime, watcher
 │   ├── amanclaw-plugin-sdk/      # SDK + macro for WASM plugin authors
-│   ├── amanclaw-mcp/             # MCP server + client bridge (stdio + HTTP)
+│   ├── amanclaw-mcp/             # MCP server + client bridge (stdio + HTTP + SSE), Resources, Prompts
 │   ├── amanclaw-script-runtime/  # Script plugin loader (Python/JS via subprocess)
 │   ├── amanclaw-api/             # REST management API + embedded dashboard (Axum)
 │   ├── amanclaw-gateway/         # WebSocket gateway (JSON-RPC 2.0, session management)
@@ -697,7 +729,15 @@ Template project at `sdks/assemblyscript/`.
 
 ## MCP Server
 
-AmanClaw can expose its skills as [Model Context Protocol](https://modelcontextprotocol.io/) tools, making them available to any MCP client (Claude Code, Claude Desktop, etc.).
+AmanClaw can expose its skills as [Model Context Protocol](https://modelcontextprotocol.io/) tools, making them available to any MCP client (Claude Code, Claude Desktop, etc.). Supports Tools, Resources, and Prompts.
+
+### SSE Transport (recommended)
+
+```bash
+amanclaw mcp serve --transport sse --port 3001
+```
+
+Clients connect to `http://your-server:3001/mcp/sse` for streaming, send requests via POST to `http://your-server:3001/mcp`.
 
 ### HTTP Transport
 
@@ -707,21 +747,28 @@ Set `MCP_HTTP_PORT` to start the MCP HTTP server alongside the bot:
 MCP_HTTP_PORT=3001 ./amanclaw
 ```
 
-Then configure your MCP client to connect to `http://your-server:3001/mcp`.
-
 ### Stdio Transport
 
-For local use with Claude Code, add to your MCP config:
+For local use with Claude Code:
 
 ```json
 {
   "mcpServers": {
     "amanclaw": {
       "command": "/path/to/amanclaw",
-      "args": ["--mcp-stdio"]
+      "args": ["mcp", "serve"]
     }
   }
 }
+```
+
+### MCP CLI Commands
+
+```bash
+amanclaw mcp list              # List configured MCP servers
+amanclaw mcp tools filesystem  # List tools from a server
+amanclaw mcp serve             # Start as MCP server (stdio)
+amanclaw mcp serve -t sse      # Start as MCP server (SSE)
 ```
 
 ### Available MCP Tools
@@ -1400,16 +1447,17 @@ RUST_LOG=amanclaw=debug cargo run -p amanclaw-cli
 ### Test coverage
 
 ```text
-220+ tests across 27 crates
+460+ tests across 27 crates
 ├── amanclaw-traits        21 tests (config, messages, skills, channels, agents, events, channel_config)
 ├── amanclaw-core          69 tests (pipeline, router, registry, scheduler, webhooks, soul, subagent, channel_manager, RLE, integration)
-├── amanclaw-security      11 tests (auth, rate limiter, sanitizer)
-├── amanclaw-memory        17 tests (history, facts, summaries, pruning, FTS5, hybrid RRF)
-├── amanclaw-llm            5 tests (LLM client, tool call parsing, thinking tags, embeddings)
+├── amanclaw-security      51 tests (auth, rate limiter, sanitizer, injection detection)
+├── amanclaw-memory        78 tests (history, facts, summaries, pruning, FTS5, hybrid RRF, community CRUD)
+├── amanclaw-llm           38 tests (LLM client, tool call parsing, thinking tags, embeddings, prompts)
 ├── amanclaw-wasm-runtime  13 tests (loader, host, sandbox, runtime, watcher)
-├── amanclaw-mcp           17 tests (protocol, handler, HTTP, client, bridge)
+├── amanclaw-mcp           25 tests (protocol, handler, HTTP, client, bridge, resources, prompts)
 ├── amanclaw-gateway       17 tests (protocol, session, handler, subscriptions)
-├── amanclaw-registry       9 tests (manifest, local install/uninstall/search, remote index)
+├── amanclaw-registry      24 tests (manifest, local install/uninstall/search, dependencies, remote index)
+├── amanclaw-cli           54 tests (CLI parsing, skill management, MCP commands, ask/chat/agent)
 ├── amanclaw-plugin-sdk     5 tests
 ├── skill-sysinfo           2 tests
 ├── skill-shell             4 tests
@@ -1467,14 +1515,14 @@ git checkout -b feature/my-feature
 
 | Area | Description | Difficulty |
 | ---- | ----------- | ---------- |
-| **Islamic skill plugins** | Improve doa collection, add more hadith sources, refine halal scraping | Easy |
-| **New skill plugins** | Weather, translation, news, etc. | Easy |
+| **Islamic knowledge engine** | Quran tafsir, hadith cross-referencing, fiqh resolver | Medium |
+| **Islamic finance** | Shariah stock screening, murabaha calculator | Medium |
+| **New skill plugins** | More general-purpose skills (PDF analysis, calendar, email) | Easy |
 | **LINE / Viber adapter** | Channel adapters for more messaging platforms | Medium |
-| **Web dashboard** | Web-based admin panel (desktop app already done) | Medium |
+| **Arabic / Urdu / Turkish** | Expand language support beyond BM + English | Easy |
 | **Documentation** | Tutorials, examples, architecture docs | Easy |
 | **Security review** | Audit injection detection, auth flow, sandbox | Hard |
 | **i18n / localization** | Improve BM translations, add Jawi script support | Easy |
-| **JAKIM API research** | Document and test official JAKIM API endpoints | Easy |
 
 ### Writing a Plugin
 
@@ -1484,104 +1532,70 @@ The easiest way to contribute is by writing a new skill plugin. See the [WASM Pl
 
 ## Roadmap
 
-### Core Platform (Done)
+> *"Your AI, your rules. Built on principles you trust."*
+>
+> AmanClaw is the world's first sovereign AI personal agent with Islamic AI capabilities. Full design spec: [`docs/superpowers/specs/2026-03-14-sovereign-islamic-ai-agent-design.md`](docs/superpowers/specs/2026-03-14-sovereign-islamic-ai-agent-design.md)
 
-- [x] Core engine with async pipeline
-- [x] Telegram channel adapter
-- [x] LLM client (OpenAI-compatible)
-- [x] SQLite conversation memory
-- [x] Security (auth, rate limiting, injection detection)
-- [x] WASM plugin runtime (loader, sandbox, SDK)
-- [x] Built-in skills (sysinfo, shell)
-- [x] Docker & systemd deployment
-- [x] LLM tool calling loop (multi-round skill execution)
-- [x] Admin commands (`/approve`, `/block`, `/stats`, `/users`)
-- [x] Conversation auto-summarization
-- [x] Learning engine (`/remember`, `/forget`, `/learned`)
-- [x] Vision support (image analysis via multimodal LLM)
-- [x] Plugin hot reload (filesystem watcher)
-- [x] Full WASM plugin instantiation and execution
-- [x] Discord channel adapter
-- [x] WhatsApp Cloud API channel adapter
-- [x] WhatsApp Web adapter (unofficial, via WAHA)
-- [x] MCP server integration (stdio + HTTP transports)
-- [x] MCP client bridge (consume external MCP server tools)
-- [x] Slack channel adapter (Socket Mode)
-- [x] Python and JavaScript (AssemblyScript) plugin SDKs
-- [x] RAG with SQLite vector store (knowledge base indexing + cosine similarity search)
-- [x] Embedding client for vector store indexing and retrieval
+### Foundation (Done)
 
-### Phase 1: Islamic Community Skills (Done)
+- [x] Rust async engine with pipeline, agent router, and middleware chain
+- [x] 5 chat channels: Telegram, Discord, WhatsApp (official + WAHA), Slack
+- [x] Any OpenAI-compatible LLM (Ollama, vLLM, OpenAI, Groq, DeepSeek, Qwen, etc.)
+- [x] SQLite conversation memory with auto-summarization and hybrid search (FTS5 + vector)
+- [x] Security: auth, rate limiting, prompt injection detection, output sanitization
+- [x] WASM plugin runtime with sandbox, hot reload, and SDK
+- [x] Python/JS script runtime with auto-discovery
+- [x] Desktop admin app (Tauri 2 + Svelte 5) with system tray
+- [x] Web dashboard with channel setup hub, user management, live logs
+- [x] SOUL.md agent personas, cron scheduler, webhooks, WebSocket gateway
+- [x] Sub-agent spawning, event system, RAG with embeddings
 
-- [x] skill-solat — Prayer times via JAKIM e-Solat API (Rust)
-- [x] skill-quran — Quran search & lookup via Quran.com API (Rust)
-- [x] skill-qiblat — Qiblat direction calculation (Rust)
-- [x] skill-hijri — Islamic calendar & date conversion (Rust)
-- [x] skill-doa — Doa & zikir collection (Rust)
-- [x] skill-hadith — Hadith search via sunnah.com (Python)
-- [x] skill-halal — JAKIM halal verification (Python)
-- [x] skill-zakat — Zakat calculator (Python)
-- [x] skill-masjid — Mosque finder via Google Places (Python)
-- [x] skill-khutbah — Weekly JAKIM khutbah (Python)
-- [x] skill-jakim — JAKIM services & fatwa search (Python)
-- [x] Multi-community model (per-group zone, language, skills config)
+### Phase 1: General Agent Parity (Done)
 
-### Phase 1.5: Desktop Admin App (Done)
+- [x] **CLI Agent Mode** — `amanclaw ask` (one-shot), `amanclaw chat` (REPL), `amanclaw agent` (autonomous), piped stdin
+- [x] **15 general-purpose skills** — web search, URL reader, weather, datetime, unit converter, todo, reminders, JSON tool, base64, hash, regex, HTTP client, CSV tool, summarizer, translator (all zero API keys)
+- [x] **11 Islamic skills** — solat, quran, qiblat, hijri, doa (Rust) + hadith, halal, zakat, masjid, khutbah, jakim (Python)
+- [x] **MCP enhancements** — SSE transport, Resources, Prompts, `amanclaw mcp list/tools/serve` commands
+- [x] **Skill marketplace CLI** — `list-installed`, `info`, `update`, `remove`, SHA256 checksums, version pinning (`name@version`)
+- [x] **460+ tests** across all crates with CI coverage reporting
+- [x] **Benchmarks** for pipeline and MCP protocol
+- [x] **crates.io ready** — `amanclaw-traits` and `amanclaw-plugin-sdk` prepared for publishing
 
-- [x] REST management API (amanclaw-api crate, Axum, 17 endpoints)
-- [x] Tauri 2 desktop app with Svelte 5 + Tailwind CSS 4
-- [x] Dashboard, Communities, Skills, Users, Content, Logs, Settings pages
-- [x] System tray with native notifications (solat, users, skill errors)
-- [x] Local/remote mode switching
-- [x] Apple-style clean minimal UI
+### Phase 2: Islamic Sovereign Core (Next)
 
-### Phase 1.75: OpenClaw Parity — Advanced Engine Features (Done)
+- [ ] Quran engine with tafsir (Ibn Kathir, Al-Jalalayn) + thematic search
+- [ ] Hadith engine with isnad grading + cross-referencing (Sunnah.com, HadithAPI.com)
+- [ ] Fiqh resolver with multi-madhab support (Shafi'i, Hanafi, Maliki, Hanbali)
+- [ ] Islamic finance module (Shariah screening, zakat expansion, murabaha calculator)
+- [ ] Ethical AI guardrails (3-layer content filtering, scholarly attribution, madhab awareness)
+- [ ] Hijri calendar-aware scheduling ("Remind me on 15 Ramadan")
+- [ ] Multi-agent orchestration (basic coordinator + worker pattern)
+- [ ] Begin university outreach (IIUM, Al-Azhar) for Phase 4 validation
 
-- [x] FTS5 hybrid search — BM25 full-text + cosine vector similarity via Reciprocal Rank Fusion
-- [x] SOUL.md agent personas — YAML frontmatter, inheritance chains, variable interpolation
-- [x] Cron scheduler — Timezone-aware jobs (direct message, skill invocation, agent prompt) with pipeline bypass
-- [x] Webhook triggers — Inbound routes with HMAC-SHA256/Bearer/header auth, Handlebars transforms
-- [x] WebSocket gateway — JSON-RPC 2.0 real-time protocol, session management, glob-based topic subscriptions
-- [x] Sub-agent spawning — Parallel task execution with per-session/global limits and max-depth control
-- [x] Skill marketplace — `amanclaw-skill.toml` manifest, local SQLite registry, remote index with checksum verification
-- [x] Event system — `EventEmitter` trait for broadcasting pipeline events to WebSocket subscribers
-- [x] Schema migrations — `cron_history` and `webhook_history` tables for execution tracking
+### Phase 3: Cloud & Community
 
-### Phase 1.8: Channel Setup Hub (Done)
+- [ ] AmanClaw Cloud launch (Malaysia region, MDEC-compliant)
+- [ ] One-click deploy for WhatsApp/Telegram (no terminal needed)
+- [ ] Marketplace with community submissions (70/30 revenue split)
+- [ ] Web-based agent interface
+- [ ] Freemium pricing (Free / Personal $5/mo / Community $15/mo / Enterprise custom)
 
-- [x] Channel management API (7 endpoints: list, get, update, start, stop, QR proxy, session proxy)
-- [x] ChannelManager with hot-reload lifecycle (start/stop channels without engine restart)
-- [x] ChannelsConfig types with config.yaml persistence and env var fallback
-- [x] Dashboard Channel Setup Hub (interactive channel cards with 5 visual states)
-- [x] Desktop Channel Setup Hub (native Tauri commands, inline config + QR display)
-- [x] WhatsApp Web QR code display (auto-polling, session detection, in-app scanning)
+### Phase 4: Sovereign Infrastructure
 
-### Phase 2: Community Onboarding
+- [ ] Experimental fine-tune of `amanclaw-islamic-7b` (scholar review required)
+- [ ] Self-hosted model registry
+- [ ] OIC cloud partnerships (Malaysia, Indonesia, Saudi Arabia)
+- [ ] Government compliance certifications
+- [ ] Formalize university partnerships for model validation
+- [ ] Advanced multi-agent orchestration (parallel agents, complex workflows)
 
-- [ ] In-chat onboarding wizard (bot added to group → setup flow)
-- [ ] Web dashboard for community admins (dashboard.amanclaw.my)
-- [ ] Proactive notifications (solat reminders, daily doa, weekly khutbah)
+### Phase 5: Ecosystem
 
-### Phase 3: AmanClaw Cloud
-
-- [ ] Managed hosting platform for non-technical communities
-- [ ] Freemium model (free: solat/doa/hijri/qiblat, paid: halal/quran/zakat)
-- [ ] Self-hosted open source + managed cloud
-
-### Phase 4: Specialized Bots
-
-- [ ] UstazBot — Islamic Q&A focused bot
-- [ ] HalalBot — Halal verification focused bot
-- [ ] SolatBot — Prayer times & reminders focused bot
-
-### Phase 5: Plugin Marketplace
-
-- [x] Skill manifest format (`amanclaw-skill.toml`) with semver, dependencies, metadata
-- [x] Local registry — install, uninstall, search installed skills (SQLite-backed)
-- [x] Remote registry — index refresh, search, download with SHA256 checksum verification
-- [ ] Public registry hosting (registry.amanclaw.my)
-- [ ] Skill discovery and installation via bot commands (`/install`, `/search`)
-- [ ] Skill ratings and reviews
+- [ ] Specialized bots (UstazBot, HalalBot, FinanceBot)
+- [ ] Mobile app (companion to chat channels)
+- [ ] Enterprise features (audit logs, SSO, RBAC)
+- [ ] Open marketplace with revenue sharing
+- [ ] Developer conference / community events
 
 ---
 
@@ -1617,4 +1631,4 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 Built with care from Puncak Alam, Malaysia. Made possible by the Rust ecosystem and the communities behind teloxide, serenity, wasmtime, axum, tokio, and sqlx.
 
-*Malaysia boleh!*
+*Your AI, your rules. Malaysia boleh!*
