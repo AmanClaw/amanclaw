@@ -8,6 +8,7 @@
     { id: 'channels', label: 'Channels', icon: '📡' },
     { id: 'communities', label: 'Communities', icon: '🏘️' },
     { id: 'content', label: 'Content', icon: '📝' },
+    { id: 'mcp', label: 'MCP Servers', icon: '🔌' },
     { id: 'logs', label: 'Logs', icon: '📋' },
     { id: 'settings', label: 'Settings', icon: '⚙️' },
   ]

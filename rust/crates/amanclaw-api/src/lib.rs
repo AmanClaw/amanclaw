@@ -91,6 +91,14 @@ pub fn api_router(state: ApiState) -> Router {
             "/api/channels/whatsapp-web/session",
             get(routes::channels::get_whatsapp_session),
         )
+        .route(
+            "/api/mcp-servers",
+            get(routes::mcp::list_mcp_servers),
+        )
+        .route(
+            "/api/mcp-servers/{name}",
+            put(routes::mcp::save_mcp_server).delete(routes::mcp::delete_mcp_server),
+        )
         .route("/api/channels/{id}", get(routes::channels::get_channel))
         .route(
             "/api/channels/{id}/start",

@@ -10,6 +10,7 @@
   import Communities from './lib/pages/Communities.svelte'
   import Content from './lib/pages/Content.svelte'
   import Logs from './lib/pages/Logs.svelte'
+  import McpServers from './lib/pages/McpServers.svelte'
   import Settings from './lib/pages/Settings.svelte'
   import { isLoggedIn } from './lib/stores/auth'
 
@@ -42,6 +43,8 @@
         <Communities />
       {:else if currentPage === 'content'}
         <Content />
+      {:else if currentPage === 'mcp'}
+        <McpServers />
       {:else if currentPage === 'logs'}
         <Logs />
       {:else if currentPage === 'settings'}

@@ -1,0 +1,424 @@
+<script lang="ts">
+  import { onMount, onDestroy } from 'svelte'
+  import { apiFetch } from '../stores/api'
+
+  let servers: Record<string, any> = {}
+  let loading = true
+  let showForm = false
+  let tab: 'installed' | 'catalog' = 'installed'
+  let catalogSearch = ''
+  let catalogCategory = 'all'
+
+  // Form fields
+  let name = ''
+  let transport: 'stdio' | 'http' = 'stdio'
+  let command = ''
+  let args = ''
+  let url = ''
+  let envPairs: { key: string; value: string }[] = []
+  let editingName: string | null = null
+  let saving = false
+
+  interface CatalogEntry {
+    name: string
+    description: string
+    category: string
+    source: string
+    transport: 'stdio' | 'http'
+    command: string
+    args: string[]
+    env?: { key: string; description: string }[]
+    repo: string
+  }
+
+  const catalog: CatalogEntry[] = [
+    { name: 'filesystem', description: 'Read, write, and manage files and directories', category: 'files', source: 'Anthropic', transport: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', '/home/user'], repo: 'https://github.com/modelcontextprotocol/servers' },
+    { name: 'github', description: 'GitHub API — repos, issues, PRs, code search', category: 'dev', source: 'Anthropic', transport: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-github'], env: [{ key: 'GITHUB_PERSONAL_ACCESS_TOKEN', description: 'GitHub PAT' }], repo: 'https://github.com/modelcontextprotocol/servers' },
+    { name: 'git', description: 'Git operations — clone, commit, diff, log, branch', category: 'dev', source: 'Anthropic', transport: 'stdio', command: 'uvx', args: ['mcp-server-git'], repo: 'https://github.com/modelcontextprotocol/servers' },
+    { name: 'postgres', description: 'Query and manage PostgreSQL databases', category: 'database', source: 'Anthropic', transport: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-postgres', 'postgresql://localhost/mydb'], repo: 'https://github.com/modelcontextprotocol/servers' },
+    { name: 'sqlite', description: 'Query and manage SQLite databases', category: 'database', source: 'Anthropic', transport: 'stdio', command: 'uvx', args: ['mcp-server-sqlite', '--db-path', '/path/to/db.sqlite'], repo: 'https://github.com/modelcontextprotocol/servers' },
+    { name: 'memory', description: 'Knowledge graph-based persistent memory', category: 'ai', source: 'Anthropic', transport: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-memory'], repo: 'https://github.com/modelcontextprotocol/servers' },
+    { name: 'fetch', description: 'Fetch and convert web pages to markdown', category: 'web', source: 'Anthropic', transport: 'stdio', command: 'uvx', args: ['mcp-server-fetch'], repo: 'https://github.com/modelcontextprotocol/servers' },
+    { name: 'brave-search', description: 'Web and local search via Brave Search API', category: 'web', source: 'Anthropic', transport: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-brave-search'], env: [{ key: 'BRAVE_API_KEY', description: 'Brave Search API key' }], repo: 'https://github.com/modelcontextprotocol/servers' },
+    { name: 'google-maps', description: 'Google Maps — geocoding, directions, places, elevation', category: 'web', source: 'Anthropic', transport: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-google-maps'], env: [{ key: 'GOOGLE_MAPS_API_KEY', description: 'Google Maps API key' }], repo: 'https://github.com/modelcontextprotocol/servers' },
+    { name: 'slack', description: 'Slack — channels, messages, users, reactions', category: 'communication', source: 'Anthropic', transport: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-slack'], env: [{ key: 'SLACK_BOT_TOKEN', description: 'Slack Bot token (xoxb-)' }, { key: 'SLACK_TEAM_ID', description: 'Slack workspace ID' }], repo: 'https://github.com/modelcontextprotocol/servers' },
+    { name: 'puppeteer', description: 'Browser automation — navigate, screenshot, click, type', category: 'web', source: 'Anthropic', transport: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-puppeteer'], repo: 'https://github.com/modelcontextprotocol/servers' },
+    { name: 'sequential-thinking', description: 'Dynamic problem-solving through thought sequences', category: 'ai', source: 'Anthropic', transport: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-sequential-thinking'], repo: 'https://github.com/modelcontextprotocol/servers' },
+    { name: 'everything', description: 'MCP test server — demo tools, resources, prompts', category: 'dev', source: 'Anthropic', transport: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-everything'], repo: 'https://github.com/modelcontextprotocol/servers' },
+    { name: 'docker', description: 'Manage Docker containers, images, volumes, networks', category: 'dev', source: 'Community', transport: 'stdio', command: 'uvx', args: ['mcp-server-docker'], repo: 'https://github.com/ckreiling/mcp-server-docker' },
+    { name: 'kubernetes', description: 'Manage Kubernetes clusters — pods, deployments, services', category: 'dev', source: 'Community', transport: 'stdio', command: 'npx', args: ['-y', 'mcp-server-kubernetes'], repo: 'https://github.com/Flux159/mcp-server-kubernetes' },
+    { name: 'notion', description: 'Search, read, and manage Notion pages and databases', category: 'productivity', source: 'Community', transport: 'stdio', command: 'npx', args: ['-y', '@notionhq/notion-mcp-server'], env: [{ key: 'OPENAPI_MCP_HEADERS', description: '{"Authorization":"Bearer ntn_...","Notion-Version":"2022-06-28"}' }], repo: 'https://github.com/makenotion/notion-mcp-server' },
+    { name: 'linear', description: 'Linear — issues, projects, teams, cycles', category: 'productivity', source: 'Community', transport: 'stdio', command: 'npx', args: ['-y', '@linear/mcp-server'], env: [{ key: 'LINEAR_API_KEY', description: 'Linear API key' }], repo: 'https://github.com/linear/linear-mcp-server' },
+    { name: 'sentry', description: 'Sentry — error tracking, issues, releases', category: 'dev', source: 'Community', transport: 'stdio', command: 'npx', args: ['-y', '@sentry/mcp-server'], env: [{ key: 'SENTRY_AUTH_TOKEN', description: 'Sentry auth token' }], repo: 'https://github.com/getsentry/sentry-mcp-server' },
+    { name: 'playwright', description: 'Browser automation via Playwright — navigate, fill, screenshot', category: 'web', source: 'Community', transport: 'stdio', command: 'npx', args: ['-y', '@playwright/mcp-server'], repo: 'https://github.com/microsoft/playwright-mcp' },
+    { name: 'redis', description: 'Redis operations — get, set, lists, hashes, pub/sub', category: 'database', source: 'Community', transport: 'stdio', command: 'uvx', args: ['mcp-server-redis', '--url', 'redis://localhost:6379'], repo: 'https://github.com/modelcontextprotocol/servers' },
+    { name: 'mysql', description: 'Query and manage MySQL databases', category: 'database', source: 'Community', transport: 'stdio', command: 'uvx', args: ['mcp-server-mysql', '--host', 'localhost', '--user', 'root', '--db', 'mydb'], repo: 'https://github.com/benborla/mcp-server-mysql' },
+    { name: 'grafana', description: 'Grafana — dashboards, datasources, alerts, incidents', category: 'dev', source: 'Community', transport: 'stdio', command: 'npx', args: ['-y', 'mcp-server-grafana'], env: [{ key: 'GRAFANA_URL', description: 'Grafana instance URL' }, { key: 'GRAFANA_API_KEY', description: 'Grafana API key' }], repo: 'https://github.com/grafana/mcp-grafana' },
+    { name: 'cloudflare', description: 'Cloudflare — Workers, KV, R2, D1, DNS', category: 'cloud', source: 'Community', transport: 'stdio', command: 'npx', args: ['-y', '@cloudflare/mcp-server-cloudflare'], env: [{ key: 'CLOUDFLARE_API_TOKEN', description: 'Cloudflare API token' }], repo: 'https://github.com/cloudflare/mcp-server-cloudflare' },
+    { name: 'aws', description: 'AWS services — S3, Lambda, EC2, CloudWatch', category: 'cloud', source: 'Community', transport: 'stdio', command: 'uvx', args: ['awslabs.core-mcp-server@latest'], env: [{ key: 'AWS_ACCESS_KEY_ID', description: 'AWS access key' }, { key: 'AWS_SECRET_ACCESS_KEY', description: 'AWS secret key' }, { key: 'AWS_REGION', description: 'AWS region (e.g. us-east-1)' }], repo: 'https://github.com/awslabs/mcp' },
+    { name: 'stripe', description: 'Stripe — payments, customers, subscriptions, invoices', category: 'productivity', source: 'Community', transport: 'stdio', command: 'npx', args: ['-y', '@stripe/mcp'], env: [{ key: 'STRIPE_SECRET_KEY', description: 'Stripe secret key (sk_...)' }], repo: 'https://github.com/stripe/agent-toolkit' },
+  ]
+
+  const categories = [
+    { id: 'all', label: 'All' },
+    { id: 'dev', label: 'Development' },
+    { id: 'database', label: 'Database' },
+    { id: 'web', label: 'Web' },
+    { id: 'ai', label: 'AI' },
+    { id: 'communication', label: 'Communication' },
+    { id: 'productivity', label: 'Productivity' },
+    { id: 'cloud', label: 'Cloud' },
+    { id: 'files', label: 'Files' },
+  ]
+
+  $: filteredCatalog = catalog.filter(entry => {
+    const matchCategory = catalogCategory === 'all' || entry.category === catalogCategory
+    const matchSearch = !catalogSearch ||
+      entry.name.toLowerCase().includes(catalogSearch.toLowerCase()) ||
+      entry.description.toLowerCase().includes(catalogSearch.toLowerCase())
+    return matchCategory && matchSearch
+  })
+
+  $: installedNames = new Set(Object.keys(servers))
+
+  function installFromCatalog(entry: CatalogEntry) {
+    editingName = null
+    name = entry.name
+    transport = entry.transport
+    command = entry.command
+    args = entry.args.join(' ')
+    url = ''
+    envPairs = (entry.env || []).map(e => ({ key: e.key, value: '' }))
+    showForm = true
+    tab = 'installed'
+  }
+
+  async function quickInstall(entry: CatalogEntry) {
+    if (entry.env && entry.env.length > 0) {
+      installFromCatalog(entry)
+      return
+    }
+    saving = true
+    try {
+      await apiFetch(`/mcp-servers/${entry.name}`, {
+        method: 'PUT',
+        body: JSON.stringify({ command: entry.command, args: entry.args }),
+      })
+      await loadServers()
+      tab = 'installed'
+    } catch (_) {}
+    saving = false
+  }
+
+  async function loadServers() {
+    try {
+      const data = await apiFetch('/mcp-servers')
+      servers = data.servers || {}
+    } catch (_) {}
+    loading = false
+  }
+
+  function resetForm() {
+    name = ''
+    transport = 'stdio'
+    command = ''
+    args = ''
+    url = ''
+    envPairs = []
+    editingName = null
+    showForm = false
+  }
+
+  function editServer(serverName: string) {
+    const s = servers[serverName]
+    editingName = serverName
+    name = serverName
+    transport = s.transport || (s.url ? 'http' : 'stdio')
+    command = s.command || ''
+    args = (s.args || []).join(' ')
+    url = s.url || ''
+    envPairs = Object.entries(s.env || {}).map(([key, value]) => ({ key, value: value as string }))
+    showForm = true
+  }
+
+  function addEnvPair() {
+    envPairs = [...envPairs, { key: '', value: '' }]
+  }
+
+  function removeEnvPair(index: number) {
+    envPairs = envPairs.filter((_, i) => i !== index)
+  }
+
+  async function saveServer() {
+    if (!name.trim()) return
+    saving = true
+    try {
+      const env: Record<string, string> = {}
+      for (const pair of envPairs) {
+        if (pair.key.trim()) env[pair.key.trim()] = pair.value
+      }
+
+      if (editingName && editingName !== name) {
+        await apiFetch(`/mcp-servers/${editingName}`, { method: 'DELETE' })
+      }
+
+      await apiFetch(`/mcp-servers/${name.trim()}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          command: transport === 'stdio' ? command.trim() || undefined : undefined,
+          args: transport === 'stdio' && args.trim() ? args.trim().split(/\s+/) : undefined,
+          env: Object.keys(env).length > 0 ? env : undefined,
+          url: transport === 'http' ? url.trim() || undefined : undefined,
+        }),
+      })
+      resetForm()
+      await loadServers()
+    } catch (_) {}
+    saving = false
+  }
+
+  async function deleteServer(serverName: string) {
+    try {
+      await apiFetch(`/mcp-servers/${serverName}`, { method: 'DELETE' })
+      await loadServers()
+    } catch (_) {}
+  }
+
+  onMount(() => { loadServers() })
+</script>
+
+<div class="p-6 md:p-8 max-w-5xl">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h2 class="text-xl font-semibold text-gray-900 dark:text-white">MCP Servers</h2>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Connect external tool servers via Model Context Protocol</p>
+    </div>
+    {#if tab === 'installed' && !showForm}
+      <button on:click={() => { resetForm(); showForm = true; }}
+        class="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors">
+        Add Server
+      </button>
+    {/if}
+  </div>
+
+  <!-- Tabs -->
+  <div class="flex gap-1 mb-6 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+    <button on:click={() => tab = 'installed'}
+      class="flex-1 px-4 py-2 text-xs font-medium rounded-md transition-colors
+        {tab === 'installed' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}">
+      Installed ({Object.keys(servers).length})
+    </button>
+    <button on:click={() => { tab = 'catalog'; showForm = false; }}
+      class="flex-1 px-4 py-2 text-xs font-medium rounded-md transition-colors
+        {tab === 'catalog' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}">
+      Catalog ({catalog.length})
+    </button>
+  </div>
+
+  {#if tab === 'installed'}
+    {#if showForm}
+      <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 mb-6">
+        <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-4">{editingName ? 'Edit' : 'Add'} MCP Server</h3>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Server Name</label>
+            <input type="text" bind:value={name} placeholder="e.g. filesystem, github"
+              class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="block text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Transport</label>
+            <div class="flex gap-2">
+              <button on:click={() => transport = 'stdio'}
+                class="px-3 py-1.5 text-xs font-medium rounded-md border transition-colors
+                  {transport === 'stdio' ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}">
+                Stdio (Local)
+              </button>
+              <button on:click={() => transport = 'http'}
+                class="px-3 py-1.5 text-xs font-medium rounded-md border transition-colors
+                  {transport === 'http' ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}">
+                HTTP (Remote)
+              </button>
+            </div>
+          </div>
+          {#if transport === 'stdio'}
+            <div>
+              <label class="block text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Command</label>
+              <input type="text" bind:value={command} placeholder="e.g. npx, uvx, node"
+                class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+              <label class="block text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Arguments</label>
+              <input type="text" bind:value={args} placeholder="e.g. -y @modelcontextprotocol/server-filesystem /home/user/docs"
+                class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Environment Variables</label>
+                <button on:click={addEnvPair} class="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400">+ Add</button>
+              </div>
+              {#each envPairs as pair, i}
+                <div class="flex gap-2 mb-2">
+                  <input type="text" bind:value={pair.key} placeholder="KEY"
+                    class="w-1/3 px-2 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono">
+                  <input type="text" bind:value={pair.value} placeholder="value"
+                    class="flex-1 px-2 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono">
+                  <button on:click={() => removeEnvPair(i)} class="text-xs text-red-500 hover:text-red-700 px-1">x</button>
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <div>
+              <label class="block text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Server URL</label>
+              <input type="text" bind:value={url} placeholder="e.g. http://localhost:8080/sse"
+                class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+          {/if}
+        </div>
+        <div class="flex gap-2 mt-5">
+          <button on:click={saveServer} disabled={saving || !name.trim()}
+            class="px-4 py-1.5 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50">
+            {saving ? 'Saving...' : editingName ? 'Update' : 'Save'}
+          </button>
+          <button on:click={resetForm}
+            class="px-4 py-1.5 text-xs font-medium rounded-md border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+            Cancel
+          </button>
+        </div>
+        <p class="text-[11px] text-gray-400 mt-3">Restart the engine after adding/removing servers for changes to take effect.</p>
+      </div>
+    {/if}
+
+    {#if loading}
+      <p class="text-sm text-gray-500 dark:text-gray-400">Loading...</p>
+    {:else if Object.keys(servers).length === 0 && !showForm}
+      <div class="text-center py-16 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
+        <p class="text-3xl mb-3">&#x2B21;</p>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">No MCP servers configured</p>
+        <p class="text-xs text-gray-400 dark:text-gray-500 mb-4">Browse the catalog to find and install servers</p>
+        <button on:click={() => tab = 'catalog'}
+          class="px-4 py-2 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors">
+          Browse Catalog
+        </button>
+      </div>
+    {:else}
+      <div class="space-y-3">
+        {#each Object.entries(servers) as [serverName, server]}
+          <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <span class="inline-flex px-2 py-0.5 text-[10px] font-medium rounded-full
+                  {server.transport === 'http' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400'}">
+                  {server.transport === 'http' ? 'HTTP' : 'STDIO'}
+                </span>
+                <div>
+                  <p class="text-sm font-medium text-gray-900 dark:text-white">{serverName}</p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5">
+                    {#if server.transport === 'http'}
+                      {server.url}
+                    {:else}
+                      {server.command} {(server.args || []).join(' ')}
+                    {/if}
+                  </p>
+                </div>
+              </div>
+              <div class="flex gap-2">
+                <button on:click={() => editServer(serverName)}
+                  class="text-xs text-gray-500 hover:text-gray-900 dark:hover:text-white font-medium">Edit</button>
+                <button on:click={() => deleteServer(serverName)}
+                  class="text-xs text-red-500 hover:text-red-700 font-medium">Remove</button>
+              </div>
+            </div>
+            {#if server.env && Object.keys(server.env).length > 0}
+              <div class="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                <p class="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Env</p>
+                <div class="flex flex-wrap gap-1">
+                  {#each Object.keys(server.env) as key}
+                    <span class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-[10px] font-mono text-gray-600 dark:text-gray-400">{key}</span>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    {/if}
+
+  {:else}
+    <!-- Catalog -->
+    <div class="mb-5 space-y-3">
+      <input type="text" bind:value={catalogSearch} placeholder="Search servers..."
+        class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+      <div class="flex flex-wrap gap-1.5">
+        {#each categories as cat}
+          <button on:click={() => catalogCategory = cat.id}
+            class="px-2.5 py-1 text-[11px] font-medium rounded-full border transition-colors
+              {catalogCategory === cat.id
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}">
+            {cat.label}
+          </button>
+        {/each}
+      </div>
+    </div>
+
+    {#if filteredCatalog.length === 0}
+      <div class="text-center py-12">
+        <p class="text-sm text-gray-500 dark:text-gray-400">No servers found matching your search</p>
+      </div>
+    {:else}
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {#each filteredCatalog as entry}
+          <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 flex flex-col justify-between">
+            <div>
+              <div class="flex items-start justify-between mb-2">
+                <div class="flex items-center gap-2">
+                  <h4 class="text-sm font-medium text-gray-900 dark:text-white">{entry.name}</h4>
+                  {#if installedNames.has(entry.name)}
+                    <span class="px-1.5 py-0.5 text-[9px] font-medium rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">Installed</span>
+                  {/if}
+                </div>
+                <span class="px-1.5 py-0.5 text-[9px] font-medium rounded-full
+                  {entry.source === 'Anthropic' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}">
+                  {entry.source}
+                </span>
+              </div>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mb-3 leading-relaxed">{entry.description}</p>
+              <div class="flex flex-wrap gap-1 mb-3">
+                <span class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-[10px] font-mono text-gray-500 dark:text-gray-400">
+                  {entry.command} {entry.args[entry.args.length - 1]}
+                </span>
+                {#if entry.env && entry.env.length > 0}
+                  <span class="px-1.5 py-0.5 bg-yellow-50 dark:bg-yellow-900/20 rounded text-[10px] text-yellow-700 dark:text-yellow-400">
+                    {entry.env.length} key{entry.env.length > 1 ? 's' : ''} required
+                  </span>
+                {/if}
+              </div>
+            </div>
+            <div class="flex gap-2">
+              {#if installedNames.has(entry.name)}
+                <button disabled
+                  class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed">
+                  Already Installed
+                </button>
+              {:else if entry.env && entry.env.length > 0}
+                <button on:click={() => installFromCatalog(entry)} disabled={saving}
+                  class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50">
+                  Configure & Install
+                </button>
+              {:else}
+                <button on:click={() => quickInstall(entry)} disabled={saving}
+                  class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50">
+                  {saving ? 'Installing...' : 'Install'}
+                </button>
+              {/if}
+              <a href={entry.repo} target="_blank" rel="noopener noreferrer"
+                class="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                Repo
+              </a>
+            </div>
+          </div>
+        {/each}
+      </div>
+    {/if}
+  {/if}
+</div>
