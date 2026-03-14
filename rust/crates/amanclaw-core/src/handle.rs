@@ -14,6 +14,8 @@ pub enum EngineCommand {
     GetStatus(oneshot::Sender<EngineStatus>),
     /// Query available skills.
     GetSkills(oneshot::Sender<Vec<SkillMetadata>>),
+    /// Process a message and return the response (for CLI / headless use).
+    Ask(IncomingMessage, oneshot::Sender<Option<amanclaw_traits::message::OutgoingMessage>>),
     /// Request graceful shutdown.
     Shutdown(oneshot::Sender<()>),
 }
@@ -75,6 +77,19 @@ impl EngineHandle {
         let (tx, rx) = oneshot::channel();
         self.cmd_tx
             .send(EngineCommand::GetSkills(tx))
+            .await
+            .map_err(|_| anyhow::anyhow!("engine actor stopped"))?;
+        rx.await
+            .map_err(|_| anyhow::anyhow!("engine actor dropped response"))
+    }
+
+    /// Send a message and wait for the response.
+    /// Unlike `send_message`, this returns the pipeline result instead of
+    /// routing it through a channel adapter.
+    pub async fn ask(&self, msg: IncomingMessage) -> anyhow::Result<Option<amanclaw_traits::message::OutgoingMessage>> {
+        let (tx, rx) = oneshot::channel();
+        self.cmd_tx
+            .send(EngineCommand::Ask(msg, tx))
             .await
             .map_err(|_| anyhow::anyhow!("engine actor stopped"))?;
         rx.await
