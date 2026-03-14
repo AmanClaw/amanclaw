@@ -29,6 +29,9 @@ async fn main() -> Result<()> {
         Some(Command::Skill { action }) => cmd_skill(action).await,
         Some(Command::Playground { port }) => playground::run_playground(port).await,
         Some(Command::Product { action }) => cmd_product(action),
+        Some(Command::Ask { query }) => cmd_ask(&cli.config, query).await,
+        Some(Command::Chat) => cmd_chat(&cli.config).await,
+        Some(Command::Agent { task, max_rounds }) => cmd_agent(&cli.config, task, max_rounds).await,
         Some(Command::Run) | None => cmd_run(&cli.config).await,
     }
 }
@@ -414,6 +417,121 @@ fn cmd_product(action: ProductAction) -> Result<()> {
             Ok(())
         }
     }
+}
+
+async fn cmd_ask(config_path: &str, query: Vec<String>) -> Result<()> {
+    let query_text = if query.is_empty() {
+        // Read from stdin (piped input)
+        use std::io::Read;
+        let mut input = String::new();
+        std::io::stdin().read_to_string(&mut input)?;
+        input.trim().to_string()
+    } else {
+        query.join(" ")
+    };
+
+    if query_text.is_empty() {
+        anyhow::bail!("Usage: amanclaw ask <question>\n       echo 'question' | amanclaw ask");
+    }
+
+    let config_path = find_config(config_path)?;
+    let runner = amanclaw_cli::runner::CliRunner::from_config(config_path).await?;
+
+    amanclaw_cli::render::print_thinking();
+    match runner.ask(&query_text).await {
+        Ok(response) => {
+            amanclaw_cli::render::clear_thinking();
+            amanclaw_cli::render::print_response(&response);
+        }
+        Err(e) => {
+            amanclaw_cli::render::clear_thinking();
+            amanclaw_cli::render::print_error(&e);
+        }
+    }
+
+    runner.shutdown().await.ok();
+    Ok(())
+}
+
+async fn cmd_chat(config_path: &str) -> Result<()> {
+    eprintln!("AmanClaw Chat (type 'exit' or Ctrl+C to quit)\n");
+
+    let config_path = find_config(config_path)?;
+    let runner = amanclaw_cli::runner::CliRunner::from_config(config_path).await?;
+
+    loop {
+        amanclaw_cli::render::print_prompt();
+
+        let mut input = String::new();
+        if std::io::stdin().read_line(&mut input)? == 0 {
+            break; // EOF
+        }
+
+        let input = input.trim();
+        if input.is_empty() {
+            continue;
+        }
+        if input == "exit" || input == "quit" {
+            break;
+        }
+
+        amanclaw_cli::render::print_thinking();
+        match runner.ask(input).await {
+            Ok(response) => {
+                amanclaw_cli::render::clear_thinking();
+                amanclaw_cli::render::print_response(&response);
+                eprintln!(); // blank line between exchanges
+            }
+            Err(e) => {
+                amanclaw_cli::render::clear_thinking();
+                amanclaw_cli::render::print_error(&e);
+            }
+        }
+    }
+
+    eprintln!("Goodbye!");
+    runner.shutdown().await.ok();
+    Ok(())
+}
+
+async fn cmd_agent(config_path: &str, task: String, max_rounds: usize) -> Result<()> {
+    eprintln!("AmanClaw Agent");
+    eprintln!("Task: {task}");
+    eprintln!("Max rounds: {max_rounds}\n");
+
+    let config_path = find_config(config_path)?;
+    let runner = amanclaw_cli::runner::CliRunner::from_config(config_path).await?;
+
+    let prompt = format!(
+        "You are an autonomous agent. Complete this task step by step. \
+         Use available tools as needed. When done, start your response with TASK_COMPLETE \
+         followed by a summary.\n\nTask: {task}"
+    );
+
+    for round in 1..=max_rounds {
+        eprintln!("[Round {round}/{max_rounds}]");
+
+        amanclaw_cli::render::print_thinking();
+        match runner.ask(&prompt).await {
+            Ok(response) => {
+                amanclaw_cli::render::clear_thinking();
+                amanclaw_cli::render::print_response(&response);
+
+                if response.contains("TASK_COMPLETE") {
+                    eprintln!("\nTask completed in {round} round(s).");
+                    break;
+                }
+            }
+            Err(e) => {
+                amanclaw_cli::render::clear_thinking();
+                amanclaw_cli::render::print_error(&e);
+                break;
+            }
+        }
+    }
+
+    runner.shutdown().await.ok();
+    Ok(())
 }
 
 fn find_config(hint: &str) -> Result<PathBuf> {
