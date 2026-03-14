@@ -29,6 +29,7 @@ members = [
     "plugins/skill-doa",
     "plugins/skill-quran",
     "crates/amanclaw-skill-index",
+    "crates/amanclaw-islamic-db",
 ]
 
 [workspace.package]
