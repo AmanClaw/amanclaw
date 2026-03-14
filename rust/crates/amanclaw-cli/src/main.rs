@@ -97,6 +97,7 @@ async fn cmd_run(config_path: &str) -> Result<()> {
                 secret
             }),
             started_at: std::time::Instant::now(),
+            islamic_db: result.islamic_db.clone(),
         };
         tokio::spawn(async move {
             if let Err(e) = amanclaw_api::run_api_server(api_state, port).await {
