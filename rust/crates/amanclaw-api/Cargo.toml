@@ -9,6 +9,7 @@ amanclaw-memory = { path = "../amanclaw-memory" }
 amanclaw-core = { path = "../amanclaw-core" }
 amanclaw-security = { path = "../amanclaw-security" }
 amanclaw-gateway = { path = "../amanclaw-gateway" }
+amanclaw-islamic-db = { path = "../amanclaw-islamic-db" }
 axum = { version = "0.8", features = ["json", "ws"] }
 tokio = { workspace = true }
 serde = { workspace = true }

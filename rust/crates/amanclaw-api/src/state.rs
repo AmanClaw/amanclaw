@@ -25,6 +25,7 @@ pub struct ApiState {
     pub channel_manager: Option<Arc<ChannelManager>>,
     pub channels_config: Arc<RwLock<ChannelsConfig>>,
     pub config_path: Option<PathBuf>,
+    pub islamic_db: Option<Arc<amanclaw_islamic_db::IslamicDb>>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]

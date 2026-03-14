@@ -91,6 +91,8 @@ pub fn api_router(state: ApiState) -> Router {
             "/api/channels/whatsapp-web/session",
             get(routes::channels::get_whatsapp_session),
         )
+        .route("/api/islamic/status", get(routes::islamic::get_status))
+        .route("/api/islamic/sync", post(routes::islamic::trigger_sync))
         .route(
             "/api/mcp-servers",
             get(routes::mcp::list_mcp_servers),

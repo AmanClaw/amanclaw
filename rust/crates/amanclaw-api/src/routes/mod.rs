@@ -5,4 +5,5 @@ pub mod mcp;
 pub mod skills;
 pub mod stats;
 pub mod users;
+pub mod islamic;
 pub mod webhooks;
