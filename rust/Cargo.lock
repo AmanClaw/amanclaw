@@ -150,6 +150,7 @@ version = "0.1.0"
 dependencies = [
  "amanclaw-api",
  "amanclaw-core",
+ "amanclaw-mcp",
  "amanclaw-skill-index",
  "amanclaw-traits",
  "anyhow",
@@ -261,10 +262,12 @@ dependencies = [
  "anyhow",
  "async-trait",
  "axum",
+ "futures-util",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
  "tokio",
+ "tokio-stream",
  "tower",
  "tracing",
 ]
@@ -5094,6 +5097,7 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]
