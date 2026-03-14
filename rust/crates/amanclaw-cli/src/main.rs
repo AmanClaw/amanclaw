@@ -369,6 +369,18 @@ async fn cmd_skill(action: SkillAction) -> Result<()> {
             println!("\nPack '{pack}' installation complete.");
             Ok(())
         }
+        SkillAction::ListInstalled => {
+            todo!("list-installed handler")
+        }
+        SkillAction::Info { name: _ } => {
+            todo!("info handler")
+        }
+        SkillAction::Update { name: _, plugins_dir: _ } => {
+            todo!("update handler")
+        }
+        SkillAction::Remove { name: _, plugins_dir: _ } => {
+            todo!("remove handler")
+        }
         SkillAction::Publish { path } => {
             let dir = std::path::Path::new(&path);
             let result = skill_publisher::validate_skill(dir)?;

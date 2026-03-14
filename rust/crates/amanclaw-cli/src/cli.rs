@@ -117,6 +117,29 @@ pub enum SkillAction {
         #[arg(default_value = ".")]
         path: String,
     },
+    /// List installed skills
+    ListInstalled,
+    /// Show details about an installed skill
+    Info {
+        /// Skill name
+        name: String,
+    },
+    /// Update an installed skill to latest version
+    Update {
+        /// Skill name (or "all" to update everything)
+        name: String,
+        /// Custom plugins directory
+        #[arg(long, default_value = "plugins")]
+        plugins_dir: String,
+    },
+    /// Remove an installed skill
+    Remove {
+        /// Skill name
+        name: String,
+        /// Custom plugins directory
+        #[arg(long, default_value = "plugins")]
+        plugins_dir: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -428,6 +451,49 @@ mod tests {
                 assert_eq!(port, 3001);
             }
             _ => panic!("expected Mcp Serve command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_skill_list_installed() {
+        let cli = Cli::parse_from(["amanclaw", "skill", "list-installed"]);
+        assert!(matches!(
+            cli.command,
+            Some(Command::Skill { action: SkillAction::ListInstalled })
+        ));
+    }
+
+    #[test]
+    fn test_cli_skill_info() {
+        let cli = Cli::parse_from(["amanclaw", "skill", "info", "web_search"]);
+        match cli.command {
+            Some(Command::Skill { action: SkillAction::Info { name } }) => {
+                assert_eq!(name, "web_search");
+            }
+            _ => panic!("expected Skill Info"),
+        }
+    }
+
+    #[test]
+    fn test_cli_skill_remove() {
+        let cli = Cli::parse_from(["amanclaw", "skill", "remove", "web_search"]);
+        match cli.command {
+            Some(Command::Skill { action: SkillAction::Remove { name, plugins_dir } }) => {
+                assert_eq!(name, "web_search");
+                assert_eq!(plugins_dir, "plugins");
+            }
+            _ => panic!("expected Skill Remove"),
+        }
+    }
+
+    #[test]
+    fn test_cli_skill_update() {
+        let cli = Cli::parse_from(["amanclaw", "skill", "update", "all"]);
+        match cli.command {
+            Some(Command::Skill { action: SkillAction::Update { name, .. } }) => {
+                assert_eq!(name, "all");
+            }
+            _ => panic!("expected Skill Update"),
         }
     }
 
