@@ -1,4 +1,5 @@
-@import "tailwindcss";
+/* Note: @import "tailwindcss" must be in each app's app.css, not here,
+   because tailwindcss is not a dependency of @amanclaw/ui */
 @import "./colors.css";
 @import "./spacing.css";
 @import "./typography.css";
