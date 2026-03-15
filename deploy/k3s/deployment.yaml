@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloud-server
+  namespace: amanclaw-cloud
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: amanclaw-cloud
+  template:
+    metadata:
+      labels:
+        app: amanclaw-cloud
+    spec:
+      containers:
+        - name: amanclaw-cloud
+          image: amanclaw-cloud:latest
+          ports:
+            - containerPort: 8443
+          env:
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: cloud-secrets
+                  key: jwt-secret
+            - name: CLOUD_TENANTS_DIR
+              value: /data/tenants
+          volumeMounts:
+            - name: tenant-data
+              mountPath: /data
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"
+          livenessProbe:
+            httpGet:
+              path: /api/cloud/tenant
+              port: 8443
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/cloud/tenant
+              port: 8443
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: tenant-data
+          persistentVolumeClaim:
+            claimName: tenant-data-pvc

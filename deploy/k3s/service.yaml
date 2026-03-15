@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloud-svc
+  namespace: amanclaw-cloud
+spec:
+  selector:
+    app: amanclaw-cloud
+  ports:
+    - port: 80
+      targetPort: 8443
+  type: ClusterIP
