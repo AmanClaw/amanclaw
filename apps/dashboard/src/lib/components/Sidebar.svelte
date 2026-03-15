@@ -1,16 +1,21 @@
 <script lang="ts">
-  export let currentPage: string
+  import {
+    LayoutDashboard, User, Zap, Hash, Users,
+    FileText, Server, ScrollText, Settings
+  } from '@amanclaw/ui';
+
+  let { currentPage }: { currentPage: string } = $props();
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: '📊' },
-    { id: 'users', label: 'Users', icon: '👥' },
-    { id: 'skills', label: 'Skills', icon: '⚡' },
-    { id: 'channels', label: 'Channels', icon: '📡' },
-    { id: 'communities', label: 'Communities', icon: '🏘️' },
-    { id: 'content', label: 'Content', icon: '📝' },
-    { id: 'mcp', label: 'MCP Servers', icon: '🔌' },
-    { id: 'logs', label: 'Logs', icon: '📋' },
-    { id: 'settings', label: 'Settings', icon: '⚙️' },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'users', label: 'Users', icon: User },
+    { id: 'skills', label: 'Skills', icon: Zap },
+    { id: 'channels', label: 'Channels', icon: Hash },
+    { id: 'communities', label: 'Communities', icon: Users },
+    { id: 'content', label: 'Content', icon: FileText },
+    { id: 'mcp', label: 'MCP Servers', icon: Server },
+    { id: 'logs', label: 'Logs', icon: ScrollText },
+    { id: 'settings', label: 'Settings', icon: Settings },
   ]
 </script>
 
@@ -22,13 +27,13 @@
   <nav class="flex-1 px-3 space-y-1">
     {#each navItems as item}
       <button
-        on:click={() => window.location.hash = `#/${item.id}`}
+        onclick={() => window.location.hash = `#/${item.id}`}
         class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors
           {currentPage === item.id
             ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium'
             : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}"
       >
-        <span>{item.icon}</span>
+        <item.icon size={16} class="shrink-0" />
         <span>{item.label}</span>
       </button>
     {/each}
