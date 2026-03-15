@@ -118,6 +118,16 @@ impl ContextEngine for StandardContextEngine {
                     system.push_str(&line);
                 }
             }
+
+            // 3b. Inject madhab preference if the user has one stored
+            if let Some(madhab) = facts.get("madhab") {
+                let madhab_section = format!(
+                    "\n\nUser's preferred school of thought: {madhab}\n(Lead with this perspective but present others too)"
+                );
+                if budget.reserve(&madhab_section) {
+                    system.push_str(&madhab_section);
+                }
+            }
         }
 
         // 4. RAG retrieval if enabled (budget-checked per result)

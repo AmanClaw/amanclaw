@@ -3,8 +3,10 @@ pub mod context_engine;
 pub mod diagnostics;
 pub mod error;
 pub mod handle;
+pub mod hijri_scheduler;
 pub mod learning;
 pub mod middleware;
+pub mod orchestrator;
 pub mod pipeline;
 pub mod registry;
 pub mod router;
@@ -367,11 +369,15 @@ impl Engine {
             }
         }
 
+        // Enable Islamic guidelines when Islamic skills are available
+        let islamic_mode = islamic_db.is_some();
+        let base_prompt = amanclaw_llm::prompts::build_system_prompt(islamic_mode, None);
+
         let context_engine: Arc<dyn ContextEngine> = Arc::new(StandardContextEngine::new(
             memory_arc.clone(),
             llm_arc.clone(),
             registry.clone(),
-            amanclaw_llm::prompts::SYSTEM_PROMPT_BASE.to_string(),
+            base_prompt,
             vector_store,
             embedding_client.clone(),
         ));
