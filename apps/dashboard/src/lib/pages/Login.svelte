@@ -33,7 +33,7 @@
     <!-- Brand Header -->
     <div class="text-center mb-10">
       <!-- Large logo with animated glow -->
-      <div class="relative inline-block mb-6">
+      <div class="relative inline-block mb-2">
         <div class="absolute inset-0 w-36 h-36 mx-auto bg-primary-500/20 rounded-full blur-2xl animate-pulse"></div>
         <img src="/admin/logo.png" alt="AmanClaw" class="w-36 h-36 mx-auto relative drop-shadow-[0_0_30px_rgba(20,184,166,0.4)]" />
       </div>
