@@ -1,14 +1,19 @@
 //! Cloud management API routes.
 
 use crate::state::CloudState;
+use amanclaw_traits::message::IncomingMessage;
 use axum::{
-    extract::State,
+    extract::{Path, State},
     http::StatusCode,
+    response::Html,
     routing::{get, post},
     Json, Router,
 };
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
+
+/// The chat widget HTML template, embedded at compile time.
+const CHAT_HTML: &str = include_str!("chat.html");
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Claims {
@@ -38,6 +43,9 @@ pub fn cloud_router(state: CloudState) -> Router {
         .route("/api/cloud/login", post(login))
         .route("/api/cloud/tenant", get(get_tenant))
         .route("/api/cloud/tenant/status", get(tenant_status))
+        // Chat widget routes
+        .route("/t/{slug}/chat", get(serve_chat_widget))
+        .route("/t/{slug}/api/chat", post(tenant_chat))
         .with_state(state)
 }
 
@@ -169,6 +177,94 @@ async fn tenant_status(
         "status": tenant.status,
         "engine_running": running,
     })))
+}
+
+// --- Chat widget routes ---
+
+/// Serve the chat widget HTML with tenant placeholders filled in.
+async fn serve_chat_widget(
+    State(state): State<CloudState>,
+    Path(slug): Path<String>,
+) -> Result<Html<String>, StatusCode> {
+    let tenant = state
+        .db
+        .get_tenant_by_slug(&slug)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    if tenant.status != "active" {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let html = CHAT_HTML
+        .replace("{{TENANT_NAME}}", &tenant.name)
+        .replace("{{TENANT_SLUG}}", &tenant.slug);
+
+    Ok(Html(html))
+}
+
+#[derive(Deserialize)]
+struct ChatRequest {
+    text: String,
+}
+
+#[derive(Serialize)]
+struct ChatResponse {
+    text: String,
+}
+
+/// HTTP chat endpoint — accepts a user message and returns the bot response.
+async fn tenant_chat(
+    State(state): State<CloudState>,
+    Path(slug): Path<String>,
+    Json(req): Json<ChatRequest>,
+) -> Result<Json<ChatResponse>, StatusCode> {
+    if req.text.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    // Get or start the tenant engine
+    let engine = state
+        .router
+        .write()
+        .await
+        .get_engine(&slug)
+        .await
+        .map_err(|e| {
+            tracing::error!(slug, error = %e, "Failed to get engine for tenant");
+            StatusCode::SERVICE_UNAVAILABLE
+        })?;
+
+    // Build an IncomingMessage for the web chat
+    let msg = IncomingMessage {
+        user_id: format!("web-{slug}"),
+        chat_id: format!("web-{slug}"),
+        platform: "web".to_string(),
+        text: req.text,
+        username: Some("Web User".to_string()),
+        first_name: None,
+        is_group: false,
+        image_data: None,
+        reply_to: None,
+        topic_id: None,
+        channel_context: None,
+        is_cron: false,
+        is_webhook: false,
+        is_subagent: false,
+    };
+
+    // Ask the engine and wait for the response
+    let response = engine.ask(msg).await.map_err(|e| {
+        tracing::error!(slug, error = %e, "Engine ask failed");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let text = response
+        .map(|r| r.text)
+        .unwrap_or_else(|| "I'm not sure how to respond to that.".to_string());
+
+    Ok(Json(ChatResponse { text }))
 }
 
 fn create_jwt(secret: &str, user_id: &str, slug: &str) -> Result<String, StatusCode> {
