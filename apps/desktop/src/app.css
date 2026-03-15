@@ -1,10 +1,9 @@
 @import "tailwindcss";
 @import "@amanclaw/ui/tokens/theme.css";
 
-@layer base {
-  html, body {
-    background-color: var(--color-base);
-    color: var(--text-primary);
-    font-family: var(--font-sans);
-  }
+html, body {
+  background-color: var(--color-base) !important;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  color-scheme: dark;
 }
