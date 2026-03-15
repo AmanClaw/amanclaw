@@ -1,0 +1,36 @@
+@import "tailwindcss";
+@import "./colors.css";
+@import "./spacing.css";
+@import "./typography.css";
+
+@theme inline {
+  --color-base: var(--color-base);
+  --color-surface: var(--color-surface);
+  --color-elevated: var(--color-elevated);
+  --color-border: var(--color-border);
+
+  --color-primary-100: var(--color-primary-100);
+  --color-primary-300: var(--color-primary-300);
+  --color-primary-500: var(--color-primary-500);
+  --color-primary-700: var(--color-primary-700);
+  --color-primary-900: var(--color-primary-900);
+
+  --color-accent-100: var(--color-accent-100);
+  --color-accent-300: var(--color-accent-300);
+  --color-accent-500: var(--color-accent-500);
+  --color-accent-700: var(--color-accent-700);
+  --color-accent-900: var(--color-accent-900);
+
+  --color-success: var(--color-success);
+  --color-error: var(--color-error);
+  --color-warning: var(--color-warning);
+  --color-info: var(--color-info);
+
+  --color-fg: var(--text-primary);
+  --color-fg-secondary: var(--text-secondary);
+  --color-fg-muted: var(--text-muted);
+  --color-fg-accent: var(--text-accent);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
