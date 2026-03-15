@@ -20,6 +20,7 @@ members = [
     # Apps
     "apps/cli",
     "apps/cloud",
+    "apps/desktop/src-tauri",
     # Skills
     "skills/skill-solat",
     "skills/skill-quran",
