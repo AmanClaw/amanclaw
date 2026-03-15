@@ -45,11 +45,8 @@ jobs:
           sudo apt-get install -y gcc-aarch64-linux-gnu pkg-config libssl-dev
 
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: rust
 
       - name: Build
-        working-directory: rust
         run: cargo build --release --target ${{ matrix.target }} -p amanclaw-cli
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
@@ -57,7 +54,7 @@ jobs:
       - name: Package
         run: |
           mkdir -p dist
-          cp rust/target/${{ matrix.target }}/release/amanclaw dist/${{ matrix.artifact }}
+          cp target/${{ matrix.target }}/release/amanclaw dist/${{ matrix.artifact }}
           chmod +x dist/${{ matrix.artifact }}
 
       - uses: actions/upload-artifact@v4

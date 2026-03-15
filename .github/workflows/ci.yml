@@ -20,7 +20,6 @@ jobs:
         with:
           components: rustfmt
       - run: cargo fmt --all --check
-        working-directory: rust
 
   clippy:
     name: Clippy
@@ -31,16 +30,13 @@ jobs:
         with:
           node-version: 20
       - name: Build dashboard
-        working-directory: dashboard
+        working-directory: apps/dashboard
         run: npm ci && npm run build
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: rust
       - run: cargo clippy --workspace --all-targets -- -D warnings
-        working-directory: rust
 
   test:
     name: Test
@@ -51,14 +47,11 @@ jobs:
         with:
           node-version: 20
       - name: Build dashboard
-        working-directory: dashboard
+        working-directory: apps/dashboard
         run: npm ci && npm run build
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: rust
       - run: cargo test --workspace
-        working-directory: rust
 
   bench:
     name: Benchmarks
@@ -69,20 +62,17 @@ jobs:
         with:
           node-version: 20
       - name: Build dashboard
-        working-directory: dashboard
+        working-directory: apps/dashboard
         run: npm ci && npm run build
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: rust -> target
       - name: Run benchmarks
-        working-directory: rust
         run: cargo bench --workspace 2>&1 | tee bench-output.txt
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-results
-          path: rust/target/criterion/
+          path: target/criterion/
 
   coverage:
     name: Coverage
@@ -97,18 +87,15 @@ jobs:
           components: llvm-tools-preview
       - uses: taiki-e/install-action@cargo-llvm-cov
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: rust
       - name: Build dashboard (required by tests)
-        working-directory: dashboard
+        working-directory: apps/dashboard
         run: npm ci && npm run build
       - name: Generate coverage
-        working-directory: rust
         run: cargo llvm-cov --workspace --lcov --output-path lcov.info
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
-          files: rust/lcov.info
+          files: lcov.info
           fail_ci_if_error: false
 
   audit:
@@ -120,5 +107,4 @@ jobs:
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
       - name: Run audit
-        working-directory: rust
         run: cargo audit

@@ -180,6 +180,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "amanclaw-cloud"
+version = "0.1.0"
+dependencies = [
+ "amanclaw-api",
+ "amanclaw-core",
+ "amanclaw-islamic-db",
+ "amanclaw-security",
+ "amanclaw-traits",
+ "anyhow",
+ "axum",
+ "chrono",
+ "clap",
+ "jsonwebtoken",
+ "rand 0.9.2",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sqlx",
+ "tempfile",
+ "tokio",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "amanclaw-core"
 version = "0.1.0"
 dependencies = [
