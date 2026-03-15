@@ -92,8 +92,8 @@ Reply  ◄───────────────────────�
   <tr>
     <td width="50%">
 
-### 26 Skills (11 Islamic + 15 General)
-Prayer times, Quran, Halal, Zakat, Hadith — plus web search, weather, JSON tools, HTTP client, CSV analysis, regex, todo, reminders, and more
+### 31 Skills (16 Islamic + 15 General)
+Quran with tafsir, Hadith with isnad grading, Fiqh multi-madhab resolver, Shariah screening, Islamic financing — plus web search, weather, JSON tools, and more
 
 </td>
     <td width="50%">
@@ -112,8 +112,8 @@ Telegram, Discord, WhatsApp (official + WAHA), Slack — plus full MCP protocol 
 </td>
     <td width="50%">
 
-### Sovereign by Design
-You own your data. You choose your model. You decide where it runs. Offline-first. No lock-in. No compromise.
+### Sovereign Islamic AI
+Offline Quran + Hadith + Fiqh knowledge engine. Ethical AI guardrails with scholarly attribution. Hijri calendar scheduling. Your data, your rules.
 
 </td>
   </tr>
@@ -181,6 +181,11 @@ amanclaw mcp serve --transport sse --port 3001
 - **CLI agent mode** — `amanclaw ask` (one-shot), `amanclaw chat` (interactive REPL), `amanclaw agent` (autonomous multi-round task execution) with piped stdin support
 - **15 general-purpose skills** — Web search (DuckDuckGo), URL reader, weather (Open-Meteo), datetime/timezone, unit converter, todo list, reminders, JSON tool, base64, hash, regex, HTTP client, CSV tool, summarizer, translator — all zero API keys
 - **MCP integration** — Expose skills as MCP tools + consume external MCP servers as skills. SSE transport, Resources, and Prompts support
+- **Islamic knowledge engine** — Offline Quran with tafsir (Ibn Kathir, Al-Jalalayn), 6 Hadith collections with isnad grading, Fiqh multi-madhab resolver with RAG — all stored locally in SQLite, synced via `amanclaw islamic sync`
+- **Islamic finance** — Shariah stock screening (debt/revenue ratios, purification), expanded zakat (7 types: fitrah, income, savings, gold, business, agriculture, livestock), murabaha/musharakah/ijarah financing calculator
+- **Ethical AI guardrails** — 3-layer Islamic content filtering: system prompt guidelines, scholarly attribution detection, automatic disclaimers for unattributed rulings
+- **Hijri scheduling** — Calendar-aware event scheduling on Islamic dates (Ramadan reminders, Eid greetings) with automatic Hijri-to-Gregorian conversion
+- **Multi-agent orchestrator** — Dependency-based parallel task execution with topological sort, configurable worker limits
 - **Hybrid search** — FTS5 full-text search with BM25 ranking + cosine vector similarity via Reciprocal Rank Fusion (RRF)
 - **SOUL.md agent personas** — YAML-frontmatter agent personality files with inheritance chains and variable interpolation
 - **Cron scheduler** — Scheduled jobs (direct messages, skill invocations, agent prompts) with timezone support and pipeline bypass
@@ -235,6 +240,11 @@ amanclaw dev --watch
 
 # Open interactive playground
 amanclaw playground
+
+# Islamic knowledge database
+amanclaw islamic sync              # Download Quran + Hadith + tafsir
+amanclaw islamic sync quran        # Sync Quran only
+amanclaw islamic status            # Show sync status
 
 # MCP server mode
 amanclaw mcp serve --transport sse
@@ -891,30 +901,51 @@ cargo tauri build
 
 ---
 
-## Islamic Community Skills
+## Islamic Skills
 
-AmanClaw comes with 11 Islamic skills designed for Malaysian Muslim communities. All skills use official JAKIM (Jabatan Kemajuan Islam Malaysia) data sources where applicable.
+AmanClaw comes with 16 Islamic skills — the most comprehensive Islamic AI skill set available. All data can be synced locally for offline use.
 
-### Built-in Skills (Rust)
+### Islamic Knowledge Engine (Rust — offline after sync)
 
 | Skill | Description | Data Source |
 | ----- | ----------- | ----------- |
-| `solat` | Prayer times by JAKIM zone, proactive azan reminders | JAKIM e-Solat API |
-| `quran` | Verse lookup, search, tafsir (BM + English), daily verse | Quran.com API |
+| `quran` | Verse lookup, FTS5 search, tafsir (Ibn Kathir, Al-Jalalayn), thematic search | Local SQLite (synced from Quran.com) |
+| `hadith` | Search across 6 collections with isnad grading (sahih/hasan/da'if), grade filtering | Local SQLite (synced from Sunnah.com) |
+| `fiqh` | Multi-madhab resolver (Shafi'i, Hanafi, Maliki, Hanbali) with Quran/Hadith citations | Local SQLite + RAG |
+
+### Community Skills (Rust — built-in)
+
+| Skill | Description | Data Source |
+| ----- | ----------- | ----------- |
+| `solat` | Prayer times by JAKIM zone + 6 global methods, offline calculation | Pure Rust (no API) |
 | `qiblat` | Qiblat direction and distance to Kaaba | Great Circle calculation |
-| `hijri` | Hijri date conversion, Islamic events, Ramadan countdown | Hijri algorithm + JAKIM |
-| `doa` | Daily doa, morning/evening azkar, categorized collection | Local database |
+| `hijri` | Hijri date conversion, Islamic events, Ramadan countdown | Hijri algorithm |
+| `doa` | Daily doa, morning/evening azkar, 9 categories | Local collection |
 
-### Script Plugins (Python)
+### Islamic Finance (Python)
 
 | Skill | Description | Data Source |
 | ----- | ----------- | ----------- |
-| `hadith` | Search hadith by keyword across major collections | sunnah.com API |
-| `halal` | Verify product/restaurant halal status by name or cert number | JAKIM Halal Portal |
-| `zakat` | Calculate zakat fitrah, pendapatan, simpanan, emas | JAKIM rates |
+| `shariah_screen` | Shariah-compliant stock screening (debt ratio, revenue, purification) | Local calculation |
+| `zakat` | 7 types: fitrah, pendapatan, simpanan, emas, perniagaan, pertanian, ternakan | JAKIM rates |
+| `murabaha` | Islamic financing calculator: Murabaha, Musharakah Mutanaqisah, Ijarah | Local calculation |
+
+### Community Services (Python)
+
+| Skill | Description | Data Source |
+| ----- | ----------- | ----------- |
+| `halal` | Verify product/restaurant halal status | JAKIM Halal Portal |
 | `masjid` | Find nearest masjid/surau by location | Google Places API |
 | `khutbah` | Latest weekly Friday khutbah from JAKIM | JAKIM portal |
-| `jakim` | JAKIM services directory, fatwa search, events calendar | JAKIM portal |
+| `jakim` | JAKIM services directory, fatwa search | JAKIM portal |
+
+### Ethical AI Guardrails
+
+- **Scholarly attribution** — Islamic rulings always cite sources (Quran, Hadith, scholarly books)
+- **Multi-madhab** — Never presents single opinion on disputed matters
+- **Automatic disclaimers** — "Consult a qualified scholar" appended when discussing rulings without proper attribution
+- **Sensitivity detection** — High-sensitivity topics handled with extra care
+- **System prompt guidelines** — Islamic knowledge context injected when Islamic skills are active
 
 ### Multi-Community Support
 
@@ -1447,18 +1478,26 @@ RUST_LOG=amanclaw=debug cargo run -p amanclaw-cli
 ### Test coverage
 
 ```text
-460+ tests across 27 crates
+570+ tests across 30+ crates
 ├── amanclaw-traits        21 tests (config, messages, skills, channels, agents, events, channel_config)
-├── amanclaw-core          69 tests (pipeline, router, registry, scheduler, webhooks, soul, subagent, channel_manager, RLE, integration)
-├── amanclaw-security      51 tests (auth, rate limiter, sanitizer, injection detection)
+├── amanclaw-core          86 tests (pipeline, router, registry, scheduler, webhooks, soul, subagent, orchestrator, hijri_scheduler)
+├── amanclaw-security      48 tests (auth, rate limiter, sanitizer, injection detection, islamic guardrails)
 ├── amanclaw-memory        78 tests (history, facts, summaries, pruning, FTS5, hybrid RRF, community CRUD)
-├── amanclaw-llm           38 tests (LLM client, tool call parsing, thinking tags, embeddings, prompts)
+├── amanclaw-llm           37 tests (LLM client, tool call parsing, thinking tags, embeddings, prompts, islamic guidelines)
+├── amanclaw-islamic-db    20 tests (schema, quran queries, hadith queries, fiqh queries, sync metadata, seed data)
 ├── amanclaw-wasm-runtime  13 tests (loader, host, sandbox, runtime, watcher)
 ├── amanclaw-mcp           25 tests (protocol, handler, HTTP, client, bridge, resources, prompts)
 ├── amanclaw-gateway       17 tests (protocol, session, handler, subscriptions)
 ├── amanclaw-registry      24 tests (manifest, local install/uninstall/search, dependencies, remote index)
-├── amanclaw-cli           54 tests (CLI parsing, skill management, MCP commands, ask/chat/agent)
+├── amanclaw-cli           57 tests (CLI parsing, skill management, MCP, islamic, ask/chat/agent)
 ├── amanclaw-plugin-sdk     5 tests
+├── skill-quran            23 tests (verse lookup, search, tafsir, thematic, IslamicDb integration)
+├── skill-hadith           18 tests (lookup, search, browse, grade filtering, empty DB handling)
+├── skill-fiqh             13 tests (ask multi-madhab, browse, topics, RAG evidence, disclaimers)
+├── skill-solat              9 tests (prayer times, JAKIM zones)
+├── skill-qiblat             7 tests (direction, distance)
+├── skill-hijri             13 tests (conversion, events)
+├── skill-doa               17 tests (categories, search)
 ├── skill-sysinfo           2 tests
 ├── skill-shell             4 tests
 ├── channel-telegram        1 test
@@ -1466,12 +1505,7 @@ RUST_LOG=amanclaw=debug cargo run -p amanclaw-cli
 ├── channel-whatsapp        2 tests
 ├── channel-whatsapp-web    4 tests
 ├── channel-slack           4 tests (platform, env, envelope parsing)
-├── amanclaw-script-runtime 2 tests (config parsing, discovery)
-├── skill-solat              9 tests (prayer times, JAKIM zones)
-├── skill-qiblat             7 tests (direction, distance)
-├── skill-hijri             13 tests (conversion, events)
-├── skill-doa               17 tests (categories, search)
-└── skill-quran             11 tests (lookup, search, surahs)
+└── amanclaw-script-runtime 2 tests (config parsing, discovery)
 ```
 
 ---
@@ -1561,18 +1595,16 @@ The easiest way to contribute is by writing a new skill plugin. See the [WASM Pl
 - [x] **Benchmarks** for pipeline and MCP protocol
 - [x] **crates.io ready** — `amanclaw-traits` and `amanclaw-plugin-sdk` prepared for publishing
 
-### Phase 2: Islamic Sovereign Core (Next)
+### Phase 2: Islamic Sovereign Core (Done)
 
-- [ ] Quran engine with tafsir (Ibn Kathir, Al-Jalalayn) + thematic search
-- [ ] Hadith engine with isnad grading + cross-referencing (Sunnah.com, HadithAPI.com)
-- [ ] Fiqh resolver with multi-madhab support (Shafi'i, Hanafi, Maliki, Hanbali)
-- [ ] Islamic finance module (Shariah screening, zakat expansion, murabaha calculator)
-- [ ] Ethical AI guardrails (3-layer content filtering, scholarly attribution, madhab awareness)
-- [ ] Hijri calendar-aware scheduling ("Remind me on 15 Ramadan")
-- [ ] Multi-agent orchestration (basic coordinator + worker pattern)
-- [ ] Begin university outreach (IIUM, Al-Azhar) for Phase 4 validation
+- [x] **Islamic Knowledge Engine** — Offline Quran with tafsir (Ibn Kathir, Al-Jalalayn), thematic FTS5 search, 6 Hadith collections with isnad grading, Fiqh multi-madhab resolver with RAG evidence
+- [x] **Islamic Finance** — Shariah stock screening, expanded zakat (7 types), murabaha/musharakah/ijarah financing calculator
+- [x] **Ethical AI Guardrails** — 3-layer content filtering (system prompt, attribution detection, post-processing disclaimers), madhab awareness from user preferences
+- [x] **Hijri Calendar Scheduling** — Event scheduling on Islamic dates with Hijri-to-Gregorian conversion
+- [x] **Multi-Agent Orchestrator** — Dependency-based parallel task execution with topological sort
+- [x] **Data Sync** — `amanclaw islamic sync` CLI + dashboard "Sync All Data" button + REST API endpoints
 
-### Phase 3: Cloud & Community
+### Phase 3: Cloud & Community (Next)
 
 - [ ] AmanClaw Cloud launch (Malaysia region, MDEC-compliant)
 - [ ] One-click deploy for WhatsApp/Telegram (no terminal needed)
