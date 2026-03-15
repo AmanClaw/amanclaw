@@ -126,8 +126,8 @@ Ollama, vLLM, LM Studio, OpenAI, Groq, DeepSeek, Qwen, Together AI, OpenRouter �
 </td>
     <td width="50%">
 
-### Plugin Marketplace
-WASM + Python/JS plugins. Install, update, remove skills from CLI. Quality tiers, checksums, version pinning
+### AmanClaw Cloud
+Managed hosting with invite-only beta. Sign up, get a bot, chat from browser. K3s on Hostinger Malaysia. No terminal needed.
 
 </td>
   </tr>
@@ -153,6 +153,44 @@ echo "Translate this to BM" | amanclaw ask
 # MCP server mode
 amanclaw mcp serve --transport sse --port 3001
 ```
+
+## AmanClaw Cloud
+
+Managed hosting — sign up, get a bot, chat from your browser. No terminal needed.
+
+```bash
+# Operator: setup infrastructure
+./deploy/scripts/setup-k3s.sh          # Install K3s + TLS on Hostinger VPS
+./deploy/scripts/deploy.sh             # Deploy to cloud.amanclaw.my
+
+# Operator: generate invites
+amanclaw-cloud invite create --email user@example.com
+# → Code: ABC12345
+
+# User: sign up → connect channels → chat
+# 1. Sign up at cloud.amanclaw.my with invite code
+# 2. Get dashboard at cloud.amanclaw.my/t/my-bot/admin/
+# 3. Connect Telegram/WhatsApp via dashboard
+# 4. Chat via cloud.amanclaw.my/t/my-bot/chat (web widget)
+```
+
+### Cloud Architecture
+
+- **Multi-tenant** — shared process, per-tenant SQLite isolation
+- **Lazy engines** — tenant engines start on first request, stop after 30 min idle
+- **Data sovereignty** — all data on Hostinger Malaysia VPS
+- **Invite-only beta** — no billing, controlled rollout
+- **Daily backups** — automated K8s CronJob with 7-day retention
+
+### Cloud CLI
+
+```bash
+amanclaw-cloud serve --port 8443       # Start cloud server
+amanclaw-cloud invite create/list      # Manage invite codes
+amanclaw-cloud tenant list/info/suspend # Manage tenants
+```
+
+---
 
 ## All Features
 
@@ -186,6 +224,8 @@ amanclaw mcp serve --transport sse --port 3001
 - **Ethical AI guardrails** — 3-layer Islamic content filtering: system prompt guidelines, scholarly attribution detection, automatic disclaimers for unattributed rulings
 - **Hijri scheduling** — Calendar-aware event scheduling on Islamic dates (Ramadan reminders, Eid greetings) with automatic Hijri-to-Gregorian conversion
 - **Multi-agent orchestrator** — Dependency-based parallel task execution with topological sort, configurable worker limits
+- **AmanClaw Cloud** — Multi-tenant managed hosting with invite-only beta signup, per-tenant SQLite isolation, lazy engine start/stop, web chat widget, cloud management API
+- **K8s deployment** — K3s manifests, Dockerfile, setup/deploy/backup scripts for Hostinger Malaysia VPS with TLS via cert-manager
 - **Hybrid search** — FTS5 full-text search with BM25 ranking + cosine vector similarity via Reciprocal Rank Fusion (RRF)
 - **SOUL.md agent personas** — YAML-frontmatter agent personality files with inheritance chains and variable interpolation
 - **Cron scheduler** — Scheduled jobs (direct messages, skill invocations, agent prompts) with timezone support and pipeline bypass
@@ -455,6 +495,20 @@ rust/
 │   └── skill.wit                 # WASM Interface Types contract
 ├── Dockerfile
 └── docker-compose.yml
+cloud/                                # AmanClaw Cloud — managed hosting
+├── src/
+│   ├── main.rs                       # Cloud binary (serve, invite, tenant commands)
+│   ├── db.rs                         # Cloud database (tenants, users, invites CRUD)
+│   ├── router.rs                     # Tenant router (lazy engine start/stop)
+│   ├── api.rs                        # Cloud management API + chat endpoint
+│   ├── tenant.rs                     # Tenant directory provisioning
+│   ├── invite.rs                     # Invite code management
+│   └── chat.html                     # Web chat widget (embedded)
+├── Dockerfile
+└── Cargo.toml
+deploy/                               # K8s deployment
+├── k3s/                              # K3s manifests (namespace, deployment, service, ingress, PVC, secrets, backup)
+└── scripts/                          # setup-k3s.sh, deploy.sh, backup.sh
 dashboard/                         # Svelte 5 + Vite web dashboard (embedded in binary at build time)
 ├── src/
 │   └── lib/
@@ -1549,14 +1603,15 @@ git checkout -b feature/my-feature
 
 | Area | Description | Difficulty |
 | ---- | ----------- | ---------- |
-| **Islamic knowledge engine** | Quran tafsir, hadith cross-referencing, fiqh resolver | Medium |
-| **Islamic finance** | Shariah stock screening, murabaha calculator | Medium |
+| **Model fine-tuning** | Fine-tune open models (Qwen, Llama) on Islamic corpus | Hard |
+| **Billing integration** | Stripe/payment for cloud subscriptions (freemium → paid) | Medium |
 | **New skill plugins** | More general-purpose skills (PDF analysis, calendar, email) | Easy |
 | **LINE / Viber adapter** | Channel adapters for more messaging platforms | Medium |
 | **Arabic / Urdu / Turkish** | Expand language support beyond BM + English | Easy |
+| **Fiqh seed data** | Expand curated fiqh rulings database (currently ~12 entries) | Easy |
+| **Cloud dashboard** | Team management, usage analytics, onboarding wizard | Medium |
 | **Documentation** | Tutorials, examples, architecture docs | Easy |
-| **Security review** | Audit injection detection, auth flow, sandbox | Hard |
-| **i18n / localization** | Improve BM translations, add Jawi script support | Easy |
+| **Security review** | Audit cloud auth, tenant isolation, sandbox | Hard |
 
 ### Writing a Plugin
 
@@ -1604,15 +1659,16 @@ The easiest way to contribute is by writing a new skill plugin. See the [WASM Pl
 - [x] **Multi-Agent Orchestrator** — Dependency-based parallel task execution with topological sort
 - [x] **Data Sync** — `amanclaw islamic sync` CLI + dashboard "Sync All Data" button + REST API endpoints
 
-### Phase 3: Cloud & Community (Next)
+### Phase 3: Cloud & Community (Done)
 
-- [ ] AmanClaw Cloud launch (Malaysia region, MDEC-compliant)
-- [ ] One-click deploy for WhatsApp/Telegram (no terminal needed)
-- [ ] Marketplace with community submissions (70/30 revenue split)
-- [ ] Web-based agent interface
-- [ ] Freemium pricing (Free / Personal $5/mo / Community $15/mo / Enterprise custom)
+- [x] **AmanClaw Cloud** — Multi-tenant managed hosting with K3s on Hostinger Malaysia, invite-only beta
+- [x] **Cloud API** — Signup (with invite code), login (JWT), tenant management, engine status
+- [x] **Web Chat Widget** — Browser-based chat at `/t/{slug}/chat` with dark/light mode, markdown rendering, auto-reconnect
+- [x] **Tenant Isolation** — Per-tenant SQLite databases, config, plugins, and soul files. Lazy engine start/stop with 30-min idle timeout
+- [x] **K8s Deployment** — Dockerfile, 7 K3s manifests (namespace, deployment, service, ingress with TLS, PVC, secrets, backup CronJob), setup/deploy/backup scripts
+- [x] **Cloud CLI** — `amanclaw-cloud serve/invite/tenant` commands for operators
 
-### Phase 4: Sovereign Infrastructure
+### Phase 4: Sovereign Infrastructure (Next)
 
 - [ ] Experimental fine-tune of `amanclaw-islamic-7b` (scholar review required)
 - [ ] Self-hosted model registry
@@ -1645,8 +1701,11 @@ Yes. Add user IDs to `admin_users` in config. Non-admin users go through an appr
 **Q: Can I write plugins in Python?**
 Yes! Python plugins use a subprocess-based protocol (JSON over stdin/stdout). Write a Python script with the `@plugin` decorator, register it in `config.yaml` under `script_plugins`, and it works alongside WASM and built-in skills. See the [Python plugin section](#writing-plugins-in-python) and `sdks/python/` for the SDK.
 
+**Q: What is AmanClaw Cloud?**
+Managed hosting for AmanClaw. Sign up with an invite code, get your own bot instance, connect chat channels via dashboard, and chat from your browser. Currently invite-only beta on Hostinger Malaysia. Self-hosting remains fully supported — cloud sells convenience, not capability.
+
 **Q: Is my data stored?**
-Conversations are stored in a local SQLite database. Nothing leaves your server except LLM API calls.
+Self-hosted: conversations stored in a local SQLite database. Nothing leaves your server except LLM API calls. Cloud: data stored on Hostinger Malaysia VPS with per-tenant isolation. Each tenant gets their own SQLite databases.
 
 **Q: How does auto-summarization work?**
 When a user's message count exceeds 40, the engine asks the LLM to summarize the conversation, saves the summary, and prunes old messages (keeping the 10 most recent). The summary is included in future prompts as context.
