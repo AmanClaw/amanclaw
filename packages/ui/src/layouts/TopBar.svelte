@@ -11,13 +11,13 @@
   let { breadcrumbs = [], onSearch, class: className = '' }: Props = $props();
 </script>
 
-<header class="sticky top-0 h-12 px-6 flex items-center gap-4 border-b border-border bg-[var(--color-base-80)] backdrop-blur-sm z-[var(--z-sticky)] {className}">
-  <div class="flex items-center gap-1.5 flex-1">
+<header class="sticky top-0 h-14 px-8 flex items-center gap-4 border-b border-border bg-surface z-[var(--z-sticky)] {className}">
+  <div class="flex items-center gap-2 flex-1">
     {#each breadcrumbs as crumb, i}
       {#if i > 0}
-        <ChevronRight size={12} class="text-fg-muted" />
+        <ChevronRight size={14} class="text-fg-muted" />
       {/if}
-      <span class="text-[13px] {crumb.active ? 'text-fg font-medium' : 'text-fg-muted'}">{crumb.label}</span>
+      <span class="text-sm {crumb.active ? 'text-fg font-medium' : 'text-fg-muted'}">{crumb.label}</span>
     {/each}
   </div>
 

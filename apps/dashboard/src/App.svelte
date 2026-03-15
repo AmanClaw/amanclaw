@@ -77,7 +77,7 @@
 {#if currentPage === 'login' || !$isLoggedIn}
   <Login />
 {:else}
-  <div class="flex h-screen bg-base select-none">
+  <div class="flex h-screen bg-elevated select-none">
     <div class="hidden md:block">
       <SharedSidebar
         groups={navGroups}
@@ -95,7 +95,7 @@
           { label: pageTitles[currentPage] ?? currentPage, active: true }
         ]}
       />
-      <main class="flex-1 overflow-y-auto p-6">
+      <main class="flex-1 overflow-y-auto px-8 py-6">
         {#if currentPage === 'dashboard'}
           <Dashboard />
         {:else if currentPage === 'users'}

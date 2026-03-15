@@ -35,20 +35,21 @@
 
 <aside
   class="h-screen bg-surface border-r border-border flex flex-col z-[var(--z-sidebar)]"
-  style="width: {collapsed ? '64px' : '240px'}; transition: width var(--transition-normal);"
+  style="width: {collapsed ? '64px' : '260px'}; transition: width var(--transition-normal);"
 >
-  <div class="px-3 pt-4 pb-5 flex items-center gap-2.5 {collapsed ? 'justify-center' : ''}">
+  <!-- Logo header -->
+  <div class="px-5 pt-6 pb-6 flex items-center gap-3 {collapsed ? 'justify-center px-3' : ''}">
     {#if logoUrl}
-      <img src={logoUrl} alt="AmanClaw" class="w-8 h-8 rounded-lg object-cover shrink-0" />
+      <img src={logoUrl} alt="AmanClaw" class="w-9 h-9 rounded-lg object-cover shrink-0" />
     {:else}
-      <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shrink-0">
-        <span class="text-white text-xs font-bold">A</span>
+      <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shrink-0">
+        <span class="text-white text-sm font-bold">A</span>
       </div>
     {/if}
     {#if !collapsed}
       <div>
-        <span class="text-sm font-semibold text-fg">AmanClaw</span>
-        <p class="text-[10px] text-fg-muted">Community Bot</p>
+        <span class="text-sm font-bold text-fg tracking-tight">AmanClaw</span>
+        <p class="text-xs text-fg-muted mt-0.5">Community Bot</p>
       </div>
     {/if}
     {#if headerSlot}
@@ -56,55 +57,70 @@
     {/if}
   </div>
 
-  <nav class="flex-1 overflow-y-auto px-2 space-y-4">
+  <!-- Navigation -->
+  <nav class="flex-1 overflow-y-auto px-3 space-y-6">
     {#each groups as group}
       {#if !collapsed}
-        <p class="text-xs font-semibold uppercase tracking-wide text-fg-muted px-2.5">{group.label}</p>
+        <div>
+          <p class="text-[11px] font-semibold uppercase tracking-wider text-fg-muted px-3 mb-2">{group.label}</p>
+          <div class="space-y-1">
+            {#each group.items as item}
+              {@const active = activePage === item.id}
+              <button
+                onclick={() => onNavigate(item.id)}
+                class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-left
+                       {active ? 'bg-[var(--color-primary-500-10)] text-primary-500' : 'text-fg-secondary hover:bg-elevated hover:text-fg'}"
+              >
+                <item.icon size={18} class="{active ? 'text-primary-500' : 'text-fg-muted'} shrink-0" />
+                <span class="text-sm font-medium">{item.label}</span>
+                {#if item.badge}
+                  <span class="ml-auto text-[10px] font-semibold bg-[var(--color-accent-500-15)] text-accent-500 px-1.5 py-0.5 rounded">
+                    {item.badge}
+                  </span>
+                {/if}
+              </button>
+            {/each}
+          </div>
+        </div>
+      {:else}
+        <div class="space-y-1">
+          {#each group.items as item}
+            {@const active = activePage === item.id}
+            <button
+              onclick={() => onNavigate(item.id)}
+              class="w-full flex items-center justify-center p-2.5 rounded-lg transition-colors
+                     {active ? 'bg-[var(--color-primary-500-10)] text-primary-500' : 'text-fg-muted hover:bg-elevated hover:text-fg'}"
+            >
+              <item.icon size={18} />
+            </button>
+          {/each}
+        </div>
       {/if}
-      <div class="space-y-0.5">
-        {#each group.items as item}
-          {@const active = activePage === item.id}
-          <button
-            onclick={() => onNavigate(item.id)}
-            class="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg transition-colors text-left
-                   {active ? 'bg-[var(--color-primary-500-10)] text-primary-500' : 'text-fg-secondary hover:bg-[var(--color-elevated-50)] hover:text-fg'}
-                   {collapsed ? 'justify-center' : ''}"
-          >
-            <item.icon size={16} class="{active ? 'text-primary-500' : 'text-fg-muted'} shrink-0" />
-            {#if !collapsed}
-              <span class="text-[13px] font-medium">{item.label}</span>
-              {#if item.badge}
-                <span class="ml-auto text-[10px] font-semibold bg-[var(--color-accent-500-15)] text-accent-500 px-1.5 py-0.5 rounded">
-                  {item.badge}
-                </span>
-              {/if}
-            {/if}
-          </button>
-        {/each}
-      </div>
     {/each}
   </nav>
 
+  <!-- Collapse toggle -->
   {#if onToggleCollapse}
     <button
       onclick={onToggleCollapse}
-      class="mx-2 mb-2 p-2 rounded-lg text-fg-muted hover:bg-[var(--color-elevated-50)] hover:text-fg transition-colors
+      class="mx-3 mb-3 p-2 rounded-lg text-fg-muted hover:bg-elevated hover:text-fg transition-colors
              {collapsed ? 'self-center' : 'self-end'}"
     >
       <ChevronRight size={16} class="transition-transform {collapsed ? '' : 'rotate-180'}" />
     </button>
   {/if}
 
+  <!-- User profile -->
   {#if userName || onLogout}
-    <div class="px-3 py-3 border-t border-border flex items-center gap-2.5 {collapsed ? 'justify-center' : ''}">
-      <div class="w-7 h-7 rounded-full bg-gradient-to-br from-accent-500 to-accent-700 flex items-center justify-center shrink-0">
-        <span class="text-[11px] font-bold text-[#1a0f00]">{userInitials}</span>
+    <div class="px-4 py-4 border-t border-border flex items-center gap-3 {collapsed ? 'justify-center px-3' : ''}">
+      <div class="w-8 h-8 rounded-full bg-gradient-to-br from-accent-500 to-accent-700 flex items-center justify-center shrink-0">
+        <span class="text-xs font-bold text-[#1a0f00]">{userInitials}</span>
       </div>
       {#if !collapsed}
-        <span class="text-xs font-medium text-fg flex-1">{userName}</span>
+        <span class="text-sm font-medium text-fg flex-1">{userName}</span>
         {#if onLogout}
           <button onclick={onLogout} class="text-fg-muted hover:text-fg transition-colors">
-            <LogOut size={14} />
+            <LogOut size={16} />
           </button>
         {/if}
       {/if}
