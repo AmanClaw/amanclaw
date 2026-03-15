@@ -257,6 +257,13 @@ impl Engine {
             }
         }
 
+        // Ensure default agent always exists in agents map
+        let default_id = config.routing.default_agent.clone();
+        config
+            .agents
+            .entry(default_id)
+            .or_insert_with(amanclaw_traits::agent::AgentProfile::default_agent);
+
         // Load SOUL.md files for agents that have them configured
         let soul_dir = std::path::Path::new(&config.skills.soul_dir);
         for (_id, profile) in config.agents.iter_mut() {

@@ -98,10 +98,10 @@ impl AgentProfile {
         Self {
             id: "default".into(),
             name: "AmanClaw".into(),
-            system_prompt: String::new(), // Empty means use base prompt
+            system_prompt: String::new(), // Empty means use base prompt (or soul file)
             allowed_skills: Vec::new(),
             llm_override: None,
-            soul_file: None,
+            soul_file: Some("community.md".into()),
             memory_namespace: "default".into(),
             context: ContextConfig::default(),
         }
@@ -119,6 +119,7 @@ mod tests {
         assert_eq!(profile.memory_namespace, "default");
         assert!(profile.allowed_skills.is_empty());
         assert!(profile.llm_override.is_none());
+        assert_eq!(profile.soul_file.as_deref(), Some("community.md"));
     }
 
     #[test]
