@@ -86,6 +86,7 @@
 				onToggleCollapse={() => collapsed = !collapsed}
 				userName="Admin"
 				userInitials="AM"
+				logoUrl="/logo.png"
 			/>
 		</div>
 		<div class="flex-1 flex flex-col overflow-hidden">

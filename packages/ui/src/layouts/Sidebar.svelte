@@ -23,12 +23,13 @@
     userName?: string;
     userInitials?: string;
     onLogout?: () => void;
+    logoUrl?: string;
     headerSlot?: Snippet;
   }
 
   let {
     groups, activePage, onNavigate, collapsed = false, onToggleCollapse,
-    userName, userInitials = 'U', onLogout, headerSlot,
+    userName, userInitials = 'U', onLogout, logoUrl, headerSlot,
   }: Props = $props();
 </script>
 
@@ -37,9 +38,13 @@
   style="width: {collapsed ? '64px' : '240px'}; transition: width var(--transition-normal);"
 >
   <div class="px-3 pt-4 pb-5 flex items-center gap-2.5 {collapsed ? 'justify-center' : ''}">
-    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shrink-0">
-      <span class="text-white text-xs font-bold">A</span>
-    </div>
+    {#if logoUrl}
+      <img src={logoUrl} alt="AmanClaw" class="w-8 h-8 rounded-lg object-cover shrink-0" />
+    {:else}
+      <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shrink-0">
+        <span class="text-white text-xs font-bold">A</span>
+      </div>
+    {/if}
     {#if !collapsed}
       <div>
         <span class="text-sm font-semibold text-fg">AmanClaw</span>

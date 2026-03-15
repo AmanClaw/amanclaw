@@ -85,6 +85,7 @@
         onNavigate={handleNavigate}
         userName="Admin"
         userInitials="AD"
+        logoUrl="/admin/logo.png"
       />
     </div>
     <div class="flex-1 flex flex-col overflow-hidden">
