@@ -23,43 +23,6 @@
 
 ---
 
-## Screenshots
-
-<table>
-  <tr>
-    <td align="center" width="50%">
-      <img src="docs/images/desktop-dashboard.png" alt="Desktop Dashboard" width="100%" />
-      <br><sub><b>Dashboard</b> — Bot status, stats, quick actions</sub>
-    </td>
-    <td align="center" width="50%">
-      <img src="docs/images/desktop-channels.png" alt="Channel Setup Hub" width="100%" />
-      <br><sub><b>Channel Setup Hub</b> — Configure & manage all channels</sub>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="50%">
-      <img src="docs/images/desktop-whatsapp-qr.png" alt="WhatsApp QR Code" width="100%" />
-      <br><sub><b>WhatsApp QR</b> — Scan to connect WhatsApp Web</sub>
-    </td>
-    <td align="center" width="50%">
-      <img src="docs/images/desktop-communities.png" alt="Communities Management" width="100%" />
-      <br><sub><b>Communities</b> — Multi-community management</sub>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="50%">
-      <img src="docs/images/desktop-skills.png" alt="Skills Management" width="100%" />
-      <br><sub><b>Skills</b> — Enable/disable skills per community</sub>
-    </td>
-    <td align="center" width="50%">
-      <img src="docs/images/desktop-logs.png" alt="Live Logs" width="100%" />
-      <br><sub><b>Live Logs</b> — Real-time log streaming with filters</sub>
-    </td>
-  </tr>
-</table>
-
-<!-- To add screenshots: run `cd apps/desktop && cargo tauri dev`, take screenshots, save to docs/images/ -->
-
 ---
 
 ## What Is This?

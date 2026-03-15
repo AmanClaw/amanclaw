@@ -41,5 +41,7 @@ data/
 __pycache__/
 *.pyc
 
-# Superpowers
+# Tooling
+.cargo/
+.claude/
 .superpowers/
