@@ -7,7 +7,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -189,6 +189,7 @@ fn create_jwt(secret: &str, user_id: &str, slug: &str) -> Result<String, StatusC
 #[cfg(test)]
 mod tests {
     use super::*;
+    use jsonwebtoken::{decode, DecodingKey, Validation};
 
     #[test]
     fn test_create_jwt() {
