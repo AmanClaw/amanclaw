@@ -130,6 +130,15 @@ script_plugins:
     command: "python3"
     args: ["plugins/skill_jakim.py"]
     env: {}
+  # Islamic — Finance (Phase 2B)
+  shariah_screen:
+    command: "python3"
+    args: ["plugins/skill_shariah_screen.py"]
+    env: {}
+  murabaha:
+    command: "python3"
+    args: ["plugins/skill_murabaha.py"]
+    env: {}
   # General — Research
   web_search:
     command: "python3"
