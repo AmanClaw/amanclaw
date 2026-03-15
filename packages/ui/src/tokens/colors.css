@@ -29,13 +29,17 @@ html:not(.light) {
   --color-warning: #f59e0b;
   --color-info: #3b82f6;
 
-  /* Text */
+  /* Text — both legacy (--text-*) and Tailwind (--color-fg-*) names */
   --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
   --text-accent: #14b8a6;
+  --color-fg: #f1f5f9;
+  --color-fg-secondary: #94a3b8;
+  --color-fg-muted: #64748b;
+  --color-fg-accent: #14b8a6;
 
-  /* Semi-transparent variants (needed because @theme inline can't do opacity modifiers) */
+  /* Semi-transparent variants */
   --color-primary-500-10: rgb(20 184 166 / 0.1);
   --color-primary-500-15: rgb(20 184 166 / 0.15);
   --color-accent-500-15: rgb(212 165 116 / 0.15);
@@ -50,33 +54,43 @@ html:not(.light) {
 }
 
 html.light {
+  /* Surfaces */
   --color-base: #ffffff;
   --color-surface: #f8fafc;
   --color-elevated: #f1f5f9;
   --color-border: #e2e8f0;
 
+  /* Primary — unchanged */
   --color-primary-900: #0d3d38;
   --color-primary-700: #115e56;
   --color-primary-500: #14b8a6;
   --color-primary-300: #5eead4;
   --color-primary-100: #ccfbf1;
 
+  /* Accent — unchanged */
   --color-accent-900: #78350f;
   --color-accent-700: #a16207;
   --color-accent-500: #d4a574;
   --color-accent-300: #e8c9a0;
   --color-accent-100: #fef3e2;
 
+  /* Semantic — unchanged */
   --color-success: #22c55e;
   --color-error: #ef4444;
   --color-warning: #f59e0b;
   --color-info: #3b82f6;
 
+  /* Text — MUST override --color-fg-* for Tailwind utilities */
   --text-primary: #0f172a;
   --text-secondary: #475569;
   --text-muted: #64748b;
   --text-accent: #0d9488;
+  --color-fg: #0f172a;
+  --color-fg-secondary: #475569;
+  --color-fg-muted: #64748b;
+  --color-fg-accent: #0d9488;
 
+  /* Semi-transparent variants */
   --color-primary-500-10: rgb(20 184 166 / 0.1);
   --color-primary-500-15: rgb(20 184 166 / 0.15);
   --color-accent-500-15: rgb(212 165 116 / 0.15);
