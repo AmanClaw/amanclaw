@@ -119,6 +119,9 @@
         {/if}
       </main>
     </div>
+  </div>
+  <!-- BottomNav outside flex container, hidden on desktop -->
+  <div class="md:hidden">
     <BottomNav items={mobileItems} {moreItems} activePage={currentPage} onNavigate={handleNavigate} />
   </div>
 {/if}

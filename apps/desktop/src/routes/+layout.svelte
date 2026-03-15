@@ -100,6 +100,8 @@
 				{@render children()}
 			</main>
 		</div>
+	</div>
+	<div class="md:hidden">
 		<BottomNav items={mobileItems} {moreItems} activePage={$currentPage} onNavigate={handleNavigate} />
 	</div>
 {/if}
