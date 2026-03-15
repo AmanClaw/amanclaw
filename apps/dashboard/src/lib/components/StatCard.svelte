@@ -8,7 +8,7 @@
   let { label, value, icon = '' }: Props = $props()
 </script>
 
-<div class="bg-surface border border-border rounded-xl p-6">
+<div class="bg-base border border-border rounded-xl p-6">
   <div class="flex items-center justify-between">
     <div>
       <p class="text-sm text-fg-muted">{label}</p>

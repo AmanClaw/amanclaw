@@ -79,7 +79,7 @@
 			<div class="space-y-4">
 				<h2 class="text-sm font-medium text-fg">Step 2: Ready to Launch</h2>
 
-				<div class="bg-surface rounded-lg border border-border p-4 space-y-2">
+				<div class="bg-base rounded-lg border border-border p-4 space-y-2">
 					<div class="flex justify-between text-xs">
 						<span class="text-fg-muted">LLM URL</span>
 						<span class="text-fg font-mono">{baseUrl}</span>

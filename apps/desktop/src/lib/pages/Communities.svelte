@@ -198,7 +198,7 @@
 	{:else}
 		<div class="space-y-2">
 			{#each communities as community}
-				<div class="flex items-center justify-between p-4 bg-surface rounded-xl border border-border hover:border-[var(--color-primary-500-10)] transition-colors">
+				<div class="flex items-center justify-between p-4 bg-base rounded-xl border border-border hover:border-[var(--color-primary-500-10)] transition-colors">
 					<div>
 						<p class="text-[13px] font-medium text-fg">{community.name}</p>
 						<p class="text-xs text-fg-muted mt-0.5">

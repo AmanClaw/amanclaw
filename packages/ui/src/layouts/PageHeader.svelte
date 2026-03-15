@@ -10,14 +10,16 @@
   let { title, subtitle, action }: Props = $props();
 </script>
 
-<div class="flex items-center justify-between mb-6">
+<div class="flex items-start justify-between mb-8">
   <div>
-    <h1 class="text-2xl font-semibold text-fg">{title}</h1>
+    <h1 class="text-3xl font-bold text-fg tracking-tight">{title}</h1>
     {#if subtitle}
-      <p class="text-[13px] text-fg-muted mt-1">{subtitle}</p>
+      <p class="text-sm text-fg-muted mt-1.5">{subtitle}</p>
     {/if}
   </div>
   {#if action}
-    {@render action()}
+    <div class="pt-1">
+      {@render action()}
+    </div>
   {/if}
 </div>

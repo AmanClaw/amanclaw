@@ -204,12 +204,12 @@
   <div class="flex gap-1 mb-6 bg-elevated rounded-lg p-1">
     <button onclick={() => tab = 'installed'}
       class="flex-1 px-4 py-2 text-xs font-medium rounded-md transition-colors
-        {tab === 'installed' ? 'bg-surface text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
+        {tab === 'installed' ? 'bg-base text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
       Installed ({Object.keys(servers).length})
     </button>
     <button onclick={() => { tab = 'catalog'; showForm = false; }}
       class="flex-1 px-4 py-2 text-xs font-medium rounded-md transition-colors
-        {tab === 'catalog' ? 'bg-surface text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
+        {tab === 'catalog' ? 'bg-base text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
       Catalog ({catalog.length})
     </button>
   </div>
@@ -344,7 +344,7 @@
     <!-- Catalog -->
     <div class="mb-5 space-y-3">
       <input type="text" bind:value={catalogSearch} placeholder="Search servers..."
-        class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary-500/50">
+        class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-base text-fg focus:outline-none focus:ring-2 focus:ring-primary-500/50">
       <div class="flex flex-wrap gap-1.5">
         {#each categories as cat}
           <button onclick={() => catalogCategory = cat.id}

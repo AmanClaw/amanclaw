@@ -15,7 +15,8 @@
         "title": "AmanClaw",
         "width": 1000,
         "height": 700,
-        "resizable": true,
+        "resizable": false,
+        "maximizable": false,
         "fullscreen": false
       }
     ],

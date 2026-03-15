@@ -186,12 +186,12 @@
 		{#if loading}
 			<p class="text-sm text-fg-muted">Loading...</p>
 		{:else if skills.length === 0 && pendingServers().length === 0}
-			<div class="text-center py-16 bg-surface rounded-xl border border-border">
+			<div class="text-center py-16 bg-base rounded-xl border border-border">
 				<p class="text-sm text-fg-muted">No skills registered</p>
 				<p class="text-xs text-fg-muted mt-1">Start the engine or install skills from the Marketplace page</p>
 			</div>
 		{:else if filteredSkills().length === 0}
-			<div class="text-center py-12 bg-surface rounded-xl border border-border">
+			<div class="text-center py-12 bg-base rounded-xl border border-border">
 				<p class="text-sm text-fg-muted">No skills match your search</p>
 			</div>
 		{:else}
@@ -201,7 +201,7 @@
 						<h3 class="text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-2">{group} ({groupSkills.length})</h3>
 						<div class="space-y-1">
 							{#each groupSkills as skill}
-								<div class="bg-surface rounded-lg border border-border overflow-hidden">
+								<div class="bg-base rounded-lg border border-border overflow-hidden">
 									<button onclick={() => toggleExpand(skill.name)}
 										class="w-full flex items-center justify-between p-3 hover:from-primary-400 hover:to-primary-600 transition-colors text-left">
 										<div class="flex items-center gap-3 min-w-0">
@@ -222,7 +222,7 @@
 									</button>
 
 									{#if expandedSkill === skill.name}
-										<div class="border-t border-border p-4 bg-surface/50">
+										<div class="border-t border-border p-4 bg-base/50">
 											<div class="grid grid-cols-3 gap-4 text-xs mb-3">
 												<div>
 													<span class="text-fg-muted block">Version</span>
@@ -241,7 +241,7 @@
 											{#if skill.parameters && skill.parameters.properties}
 												<div>
 													<p class="text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-2">Parameters</p>
-													<div class="bg-surface rounded-md border border-border overflow-hidden">
+													<div class="bg-base rounded-md border border-border overflow-hidden">
 														<table class="w-full text-xs">
 															<thead>
 																<tr class="border-b border-border">
@@ -305,7 +305,7 @@
 				</h3>
 				<div class="space-y-1">
 					{#each pendingServers() as { name: serverName, server, failed }}
-						<div class="bg-surface rounded-lg border border-dashed {failed ? 'border-[var(--color-error-20)]' : 'border-[var(--color-warning-20)]'} overflow-hidden">
+						<div class="bg-base rounded-lg border border-dashed {failed ? 'border-[var(--color-error-20)]' : 'border-[var(--color-warning-20)]'} overflow-hidden">
 							<div class="flex items-center justify-between p-3">
 								<div class="flex items-center gap-3 min-w-0">
 									{#if failed}
@@ -350,7 +350,7 @@
 				</h3>
 				<div class="space-y-1">
 					{#each disabledSkills as skillName}
-						<div class="bg-surface rounded-lg border border-border overflow-hidden opacity-60">
+						<div class="bg-base rounded-lg border border-border overflow-hidden opacity-60">
 							<div class="flex items-center justify-between p-3">
 								<div class="flex items-center gap-3 min-w-0">
 									<span class="inline-flex px-1.5 py-0.5 text-[10px] font-medium rounded bg-elevated text-fg-muted">

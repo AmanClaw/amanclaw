@@ -110,7 +110,7 @@
 	<PageHeader title="Sub-Agents" subtitle="Manage sub-agent spawning limits and monitor active instances" />
 
 	<!-- Config Panel (Collapsible) -->
-	<div class="bg-surface rounded-xl border border-border mb-6">
+	<div class="bg-base rounded-xl border border-border mb-6">
 		<button onclick={() => configOpen = !configOpen}
 			class="w-full flex items-center justify-between p-5 text-left hover:from-primary-400 hover:to-primary-600 transition-colors rounded-xl">
 			<h3 class="text-sm font-medium text-fg">Configuration</h3>
@@ -129,7 +129,7 @@
 							<button onclick={() => enabled = !enabled}
 								class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors
 									{enabled ? 'bg-primary-500' : 'bg-border'}">
-								<span class="inline-block h-3.5 w-3.5 rounded-full bg-surface transition-transform
+								<span class="inline-block h-3.5 w-3.5 rounded-full bg-base transition-transform
 									{enabled ? 'translate-x-4' : 'translate-x-0.5'}"></span>
 							</button>
 						</div>
@@ -196,15 +196,15 @@
 
 	<!-- Sub-agents Table -->
 	{#if filteredAgents().length === 0}
-		<div class="text-center py-16 bg-surface rounded-xl border border-border">
+		<div class="text-center py-16 bg-base rounded-xl border border-border">
 			<p class="text-sm text-fg-muted">No active sub-agents</p>
 			<p class="text-xs text-fg-muted mt-1">Sub-agents will appear here when spawned during conversations</p>
 		</div>
 	{:else}
-		<div class="bg-surface rounded-xl border border-border overflow-hidden">
+		<div class="bg-base rounded-xl border border-border overflow-hidden">
 			<table class="w-full text-xs">
 				<thead>
-					<tr class="border-b border-border bg-surface">
+					<tr class="border-b border-border bg-base">
 						<th class="text-left px-4 py-2.5 text-[10px] font-medium text-fg-muted uppercase tracking-wider">ID</th>
 						<th class="text-left px-4 py-2.5 text-[10px] font-medium text-fg-muted uppercase tracking-wider">Agent Profile</th>
 						<th class="text-left px-4 py-2.5 text-[10px] font-medium text-fg-muted uppercase tracking-wider">Prompt</th>

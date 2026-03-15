@@ -37,7 +37,7 @@
 		if (topic.startsWith('message.')) return 'bg-[var(--color-info-15)] border-[var(--color-info-20)]';
 		if (topic.startsWith('security.')) return 'bg-[var(--color-error-15)] border-[var(--color-error-20)]';
 		if (topic.startsWith('engine.')) return 'bg-[var(--color-success-15)] border-[var(--color-success-20)]';
-		return 'bg-surface border-border';
+		return 'bg-base border-border';
 	}
 
 	// --- Config actions ---
@@ -120,7 +120,7 @@
 	{#if loading}
 		<p class="text-sm text-fg-muted">Loading...</p>
 	{:else}
-		<div class="bg-surface rounded-xl border border-border p-5 mb-6">
+		<div class="bg-base rounded-xl border border-border p-5 mb-6">
 			<h3 class="text-sm font-medium text-fg mb-4">Configuration</h3>
 
 			<div class="space-y-4">
@@ -130,7 +130,7 @@
 					<button onclick={() => enabled = !enabled}
 						class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors
 							{enabled ? 'bg-primary-500' : 'bg-border'}">
-						<span class="inline-block h-3.5 w-3.5 rounded-full bg-surface transition-transform
+						<span class="inline-block h-3.5 w-3.5 rounded-full bg-base transition-transform
 							{enabled ? 'translate-x-4' : 'translate-x-0.5'}"></span>
 					</button>
 				</div>
@@ -163,7 +163,7 @@
 		</div>
 
 		<!-- Live Events Panel -->
-		<div class="bg-surface rounded-xl border border-border p-5">
+		<div class="bg-base rounded-xl border border-border p-5">
 			<div class="flex items-center justify-between mb-4">
 				<div class="flex items-center gap-3">
 					<h3 class="text-sm font-medium text-fg">Live Events</h3>
@@ -200,7 +200,7 @@
 			</div>
 
 			{#if filteredEvents().length === 0}
-				<div class="text-center py-12 bg-surface rounded-lg border border-border">
+				<div class="text-center py-12 bg-base rounded-lg border border-border">
 					<p class="text-sm text-fg-muted">
 						{#if !connected}
 							Connect to the WebSocket to see live events
@@ -225,7 +225,7 @@
 								<span class="text-fg-muted ml-auto shrink-0 transition-transform {event.expanded ? 'rotate-90' : ''}">&#9656;</span>
 							</button>
 							{#if event.expanded}
-								<pre class="mt-2 p-2 bg-surface rounded text-[11px] text-fg-secondary overflow-x-auto border border-border">{JSON.stringify(event.payload, null, 2)}</pre>
+								<pre class="mt-2 p-2 bg-base rounded text-[11px] text-fg-secondary overflow-x-auto border border-border">{JSON.stringify(event.payload, null, 2)}</pre>
 							{/if}
 						</div>
 					{/each}

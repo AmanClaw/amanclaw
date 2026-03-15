@@ -450,12 +450,12 @@
 	<div class="flex gap-1 mb-6 bg-elevated rounded-lg p-1">
 		<button onclick={() => tab = 'installed'}
 			class="flex-1 px-4 py-2 text-xs font-medium rounded-md transition-colors
-				{tab === 'installed' ? 'bg-surface text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
+				{tab === 'installed' ? 'bg-base text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
 			Installed ({Object.keys(servers).length})
 		</button>
 		<button onclick={() => { tab = 'catalog'; showForm = false; }}
 			class="flex-1 px-4 py-2 text-xs font-medium rounded-md transition-colors
-				{tab === 'catalog' ? 'bg-surface text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
+				{tab === 'catalog' ? 'bg-base text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
 			Catalog ({catalog.length})
 		</button>
 	</div>
@@ -463,14 +463,14 @@
 	{#if tab === 'installed'}
 		<!-- Add/Edit Form -->
 		{#if showForm}
-			<div class="bg-surface rounded-xl border border-border p-5 mb-6">
+			<div class="bg-base rounded-xl border border-border p-5 mb-6">
 				<h3 class="text-sm font-medium text-fg mb-4">{editingName ? 'Edit' : 'Add'} MCP Server</h3>
 
 				<div class="space-y-4">
 					<div>
 						<label class="block text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-1">Server Name</label>
 						<input type="text" bind:value={name} placeholder="e.g. filesystem, github"
-							class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary-500">
+							class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-base text-fg focus:outline-none focus:ring-2 focus:ring-primary-500">
 					</div>
 
 					<div>
@@ -493,12 +493,12 @@
 						<div>
 							<label class="block text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-1">Command</label>
 							<input type="text" bind:value={command} placeholder="e.g. npx, uvx, node"
-								class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary-500">
+								class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-base text-fg focus:outline-none focus:ring-2 focus:ring-primary-500">
 						</div>
 						<div>
 							<label class="block text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-1">Arguments</label>
 							<input type="text" bind:value={args} placeholder="e.g. -y @modelcontextprotocol/server-filesystem /home/user/docs"
-								class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary-500">
+								class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-base text-fg focus:outline-none focus:ring-2 focus:ring-primary-500">
 						</div>
 						<div>
 							<div class="flex items-center justify-between mb-1">
@@ -508,9 +508,9 @@
 							{#each envPairs as pair, i}
 								<div class="flex gap-2 mb-2">
 									<input type="text" bind:value={pair.key} placeholder="KEY"
-										class="w-1/3 px-2 py-1.5 text-xs border border-border rounded-md bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono">
+										class="w-1/3 px-2 py-1.5 text-xs border border-border rounded-md bg-base text-fg focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono">
 									<input type="text" bind:value={pair.value} placeholder="value"
-										class="flex-1 px-2 py-1.5 text-xs border border-border rounded-md bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono">
+										class="flex-1 px-2 py-1.5 text-xs border border-border rounded-md bg-base text-fg focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono">
 									<button onclick={() => removeEnvPair(i)} class="text-xs text-error hover:text-error px-1">x</button>
 								</div>
 							{/each}
@@ -519,7 +519,7 @@
 						<div>
 							<label class="block text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-1">Server URL</label>
 							<input type="text" bind:value={url} placeholder="e.g. http://localhost:8080/sse"
-								class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary-500">
+								class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-base text-fg focus:outline-none focus:ring-2 focus:ring-primary-500">
 						</div>
 					{/if}
 				</div>
@@ -543,7 +543,7 @@
 		{#if loading}
 			<p class="text-sm text-fg-muted">Loading...</p>
 		{:else if Object.keys(servers).length === 0 && !showForm}
-			<div class="text-center py-16 bg-surface/50 rounded-xl border border-border">
+			<div class="text-center py-16 bg-base/50 rounded-xl border border-border">
 				<p class="text-3xl mb-3">&#x2B21;</p>
 				<p class="text-sm text-fg-muted mb-1">No MCP servers configured</p>
 				<p class="text-xs text-fg-muted mb-4">Browse the catalog to find and install servers</p>
@@ -555,7 +555,7 @@
 		{:else}
 			<div class="space-y-3">
 				{#each Object.entries(servers) as [serverName, server]}
-					<div class="bg-surface rounded-xl border border-border p-4">
+					<div class="bg-base rounded-xl border border-border p-4">
 						<div class="flex items-center justify-between">
 							<div class="flex items-center gap-3">
 								<span class="inline-flex px-2 py-0.5 text-[10px] font-medium rounded-full
@@ -600,7 +600,7 @@
 		<div class="mb-5 space-y-3">
 			<!-- Search -->
 			<input type="text" bind:value={catalogSearch} placeholder="Search servers..."
-				class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary-500">
+				class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-base text-fg focus:outline-none focus:ring-2 focus:ring-primary-500">
 
 			<!-- Category filter -->
 			<div class="flex flex-wrap gap-1.5">
@@ -623,7 +623,7 @@
 		{:else}
 			<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
 				{#each filteredCatalog as entry}
-					<div class="bg-surface rounded-xl border border-border p-4 flex flex-col justify-between">
+					<div class="bg-base rounded-xl border border-border p-4 flex flex-col justify-between">
 						<div>
 							<div class="flex items-start justify-between mb-2">
 								<div class="flex items-center gap-2">

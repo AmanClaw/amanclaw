@@ -129,7 +129,7 @@
 	<PageHeader title="Knowledge Bases" subtitle="Configure embeddings and manage RAG knowledge sources" />
 
 	<!-- Embedding Configuration -->
-	<div class="bg-surface rounded-xl border border-border p-5 mb-6">
+	<div class="bg-base rounded-xl border border-border p-5 mb-6">
 		<div class="flex items-center justify-between mb-4">
 			<h3 class="text-sm font-medium text-fg">Embedding Configuration</h3>
 			<span class="inline-flex items-center gap-1.5 text-[10px] font-medium
@@ -167,7 +167,7 @@
 	</div>
 
 	<!-- Vector Backend Configuration -->
-	<div class="bg-surface rounded-xl border border-border p-5 mb-6">
+	<div class="bg-base rounded-xl border border-border p-5 mb-6">
 		<h3 class="text-sm font-medium text-fg mb-4">Vector Backend</h3>
 
 		<div class="space-y-4">
@@ -217,7 +217,7 @@
 
 	<!-- Add KB Form -->
 	{#if showAddForm}
-		<div class="bg-surface rounded-xl border border-border p-5 mb-4">
+		<div class="bg-base rounded-xl border border-border p-5 mb-4">
 			<h4 class="text-sm font-medium text-fg mb-4">Add Knowledge Base</h4>
 			<div class="space-y-4">
 				<div class="grid grid-cols-2 gap-4">
@@ -258,15 +258,15 @@
 	{#if loading}
 		<p class="text-sm text-fg-muted">Loading...</p>
 	{:else if knowledgeBases.length === 0 && !showAddForm}
-		<div class="text-center py-16 bg-surface rounded-xl border border-border">
+		<div class="text-center py-16 bg-base rounded-xl border border-border">
 			<p class="text-sm text-fg-muted">No knowledge bases configured</p>
 			<p class="text-xs text-fg-muted mt-1">Add document sources for RAG-powered responses</p>
 		</div>
 	{:else if knowledgeBases.length > 0}
-		<div class="bg-surface rounded-xl border border-border overflow-hidden">
+		<div class="bg-base rounded-xl border border-border overflow-hidden">
 			<table class="w-full text-xs">
 				<thead>
-					<tr class="border-b border-border bg-surface">
+					<tr class="border-b border-border bg-base">
 						<th class="text-left px-4 py-2.5 text-[10px] font-medium text-fg-muted uppercase tracking-wider">Name</th>
 						<th class="text-left px-4 py-2.5 text-[10px] font-medium text-fg-muted uppercase tracking-wider">Collection</th>
 						<th class="text-left px-4 py-2.5 text-[10px] font-medium text-fg-muted uppercase tracking-wider">Source</th>

@@ -198,12 +198,12 @@
 	<div class="flex gap-1 mb-6 bg-elevated rounded-lg p-0.5 w-fit">
 		<button onclick={() => tab = 'jobs'}
 			class="px-4 py-1.5 text-xs font-medium rounded-md transition-colors
-				{tab === 'jobs' ? 'bg-surface text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
+				{tab === 'jobs' ? 'bg-base text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
 			Jobs
 		</button>
 		<button onclick={() => { tab = 'history'; loadHistory(); }}
 			class="px-4 py-1.5 text-xs font-medium rounded-md transition-colors
-				{tab === 'history' ? 'bg-surface text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
+				{tab === 'history' ? 'bg-base text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
 			History
 		</button>
 	</div>
@@ -212,7 +212,7 @@
 	{#if tab === 'jobs'}
 		<!-- Inline form -->
 		{#if showForm}
-			<div class="bg-surface rounded-xl border border-border p-5 mb-6">
+			<div class="bg-base rounded-xl border border-border p-5 mb-6">
 				<h3 class="text-sm font-medium text-fg mb-4">{editingId ? 'Edit' : 'Add'} Cron Job</h3>
 
 				<div class="space-y-4">
@@ -329,7 +329,7 @@
 						<button onclick={() => enabled = !enabled}
 							class="relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors cursor-pointer
 								{enabled ? 'bg-primary-500' : 'bg-border'}">
-							<span class="inline-block h-4 w-4 rounded-full bg-surface transition-transform
+							<span class="inline-block h-4 w-4 rounded-full bg-base transition-transform
 								{enabled ? 'translate-x-4' : 'translate-x-0'}"></span>
 						</button>
 						<span class="text-xs text-fg-secondary">{enabled ? 'Enabled' : 'Disabled'}</span>
@@ -353,12 +353,12 @@
 		{#if loading}
 			<p class="text-sm text-fg-muted">Loading...</p>
 		{:else if jobs.length === 0 && !showForm}
-			<div class="text-center py-16 bg-surface rounded-xl border border-border">
+			<div class="text-center py-16 bg-base rounded-xl border border-border">
 				<p class="text-sm text-fg-muted mb-1">No cron jobs configured</p>
 				<p class="text-xs text-fg-muted">Schedule recurring tasks for your bot</p>
 			</div>
 		{:else if jobs.length > 0}
-			<div class="bg-surface rounded-xl border border-border overflow-hidden">
+			<div class="bg-base rounded-xl border border-border overflow-hidden">
 				<table class="w-full text-xs">
 					<thead>
 						<tr class="border-b border-border">
@@ -388,7 +388,7 @@
 									<button onclick={() => toggleJob(job)}
 										class="relative inline-flex h-4 w-7 shrink-0 rounded-full border-2 border-transparent transition-colors cursor-pointer
 											{job.enabled ? 'bg-primary-500' : 'bg-border'}">
-										<span class="inline-block h-3 w-3 rounded-full bg-surface transition-transform
+										<span class="inline-block h-3 w-3 rounded-full bg-base transition-transform
 											{job.enabled ? 'translate-x-3' : 'translate-x-0'}"></span>
 									</button>
 								</td>
@@ -408,12 +408,12 @@
 	<!-- ===================== HISTORY TAB ===================== -->
 	{:else}
 		{#if history.length === 0}
-			<div class="text-center py-16 bg-surface rounded-xl border border-border">
+			<div class="text-center py-16 bg-base rounded-xl border border-border">
 				<p class="text-sm text-fg-muted">No execution history yet</p>
 				<p class="text-xs text-fg-muted mt-1">History will appear here once jobs start running</p>
 			</div>
 		{:else}
-			<div class="bg-surface rounded-xl border border-border overflow-hidden">
+			<div class="bg-base rounded-xl border border-border overflow-hidden">
 				<table class="w-full text-xs">
 					<thead>
 						<tr class="border-b border-border">

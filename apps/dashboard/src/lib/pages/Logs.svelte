@@ -49,7 +49,7 @@
     type="text"
     bind:value={filter}
     placeholder="Filter logs..."
-    class="w-full max-w-md mb-4 px-4 py-2 rounded-lg border border-border bg-surface text-fg outline-none focus:ring-2 focus:ring-primary-500/50"
+    class="w-full max-w-md mb-4 px-4 py-2 rounded-lg border border-border bg-base text-fg outline-none focus:ring-2 focus:ring-primary-500/50"
   />
 
   <div class="flex-1 bg-base rounded-xl p-4 overflow-auto font-mono text-xs text-fg-secondary min-h-[400px] border border-border">

@@ -103,7 +103,7 @@
   )
 </script>
 
-<div class="bg-surface rounded-xl p-6 border {borderColor}">
+<div class="bg-base rounded-xl p-6 border {borderColor}">
   <div class="flex items-center justify-between mb-2">
     <h3 class="font-semibold text-fg">{label}</h3>
     <Badge variant={statusBadge}>

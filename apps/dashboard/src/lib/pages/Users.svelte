@@ -201,19 +201,19 @@
         </div>
       {/if}
     </Card>
-    <div class="bg-surface rounded-xl p-4 border border-purple-500/20">
+    <div class="bg-base rounded-xl p-4 border border-purple-500/20">
       <p class="text-xs text-purple-400 uppercase">Admin</p>
       <p class="text-2xl font-bold text-purple-300 mt-1">{stats.admin ?? 0}</p>
     </div>
-    <div class="bg-surface rounded-xl p-4 border border-amber-500/20">
+    <div class="bg-base rounded-xl p-4 border border-amber-500/20">
       <p class="text-xs text-amber-400 uppercase">Pending</p>
       <p class="text-2xl font-bold text-amber-300 mt-1">{stats.pending ?? 0}</p>
     </div>
-    <div class="bg-surface rounded-xl p-4 border border-green-500/20">
+    <div class="bg-base rounded-xl p-4 border border-green-500/20">
       <p class="text-xs text-green-400 uppercase">Approved</p>
       <p class="text-2xl font-bold text-green-300 mt-1">{stats.approved ?? 0}</p>
     </div>
-    <div class="bg-surface rounded-xl p-4 border border-red-500/20">
+    <div class="bg-base rounded-xl p-4 border border-red-500/20">
       <p class="text-xs text-red-400 uppercase">Blocked</p>
       <p class="text-2xl font-bold text-red-300 mt-1">{stats.blocked ?? 0}</p>
     </div>
@@ -227,12 +227,12 @@
     bind:value={search}
     oninput={loadUsers}
     placeholder="Search users..."
-    class="flex-1 min-w-48 px-4 py-2.5 rounded-lg border border-border bg-surface text-fg outline-none focus:ring-2 focus:ring-primary-500/50"
+    class="flex-1 min-w-48 px-4 py-2.5 rounded-lg border border-border bg-base text-fg outline-none focus:ring-2 focus:ring-primary-500/50"
   />
   <select
     bind:value={platformFilter}
     onchange={loadUsers}
-    class="px-4 py-2.5 rounded-lg border border-border bg-surface text-fg"
+    class="px-4 py-2.5 rounded-lg border border-border bg-base text-fg"
   >
     <option value="">All platforms</option>
     {#each platforms.slice(1) as p}
@@ -242,7 +242,7 @@
   <select
     bind:value={statusFilter}
     onchange={loadUsers}
-    class="px-4 py-2.5 rounded-lg border border-border bg-surface text-fg"
+    class="px-4 py-2.5 rounded-lg border border-border bg-base text-fg"
   >
     <option value="">All statuses</option>
     {#each statuses.slice(1) as s}
@@ -257,7 +257,7 @@
     <span class="text-sm">Loading...</span>
   </div>
 {:else}
-  <div class="bg-surface rounded-xl border border-border overflow-hidden">
+  <div class="bg-base rounded-xl border border-border overflow-hidden">
     <div class="overflow-x-auto">
       <table class="w-full">
         <thead>
@@ -330,7 +330,7 @@
 <!-- User Detail Modal -->
 {#if selectedUser}
   <div class="fixed inset-0 bg-[var(--color-base-80)] backdrop-blur-sm z-50 flex items-start justify-center pt-16 px-4" onclick={closeDetail}>
-    <div class="bg-surface border border-border rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-auto"
+    <div class="bg-base border border-border rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-auto"
          onclick={(e: Event) => e.stopPropagation()}>
       <div class="p-6">
         <!-- Header -->
@@ -446,7 +446,7 @@
 <!-- Add User Modal -->
 {#if showAddModal}
   <div class="fixed inset-0 bg-[var(--color-base-80)] backdrop-blur-sm z-50 flex items-start justify-center pt-16 px-4" onclick={closeAddModal}>
-    <div class="bg-surface border border-border rounded-2xl shadow-xl w-full max-w-md"
+    <div class="bg-base border border-border rounded-2xl shadow-xl w-full max-w-md"
          onclick={(e: Event) => e.stopPropagation()}>
       <div class="p-6">
         <div class="flex justify-between items-center mb-6">

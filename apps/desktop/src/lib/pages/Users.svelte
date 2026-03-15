@@ -178,7 +178,7 @@
 	<!-- Stats -->
 	{#if stats}
 		<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-			<div class="bg-surface rounded-xl border border-border p-4">
+			<div class="bg-base rounded-xl border border-border p-4">
 				<p class="text-[11px] font-medium text-fg-muted uppercase tracking-wider">Total</p>
 				<p class="text-2xl font-semibold text-fg mt-1">{stats.total}</p>
 			</div>
@@ -219,12 +219,12 @@
 			bind:value={search}
 			oninput={onSearchInput}
 			placeholder="Search users..."
-			class="flex-1 min-w-48 px-3 py-2 text-sm rounded-lg border border-border bg-surface text-fg outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+			class="flex-1 min-w-48 px-3 py-2 text-sm rounded-lg border border-border bg-base text-fg outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
 		/>
 		<select
 			bind:value={platformFilter}
 			onchange={loadUsers}
-			class="px-3 py-2 text-sm rounded-lg border border-border bg-surface text-fg-secondary"
+			class="px-3 py-2 text-sm rounded-lg border border-border bg-base text-fg-secondary"
 		>
 			<option value="">All platforms</option>
 			{#each platforms as p}
@@ -234,7 +234,7 @@
 		<select
 			bind:value={statusFilter}
 			onchange={loadUsers}
-			class="px-3 py-2 text-sm rounded-lg border border-border bg-surface text-fg-secondary"
+			class="px-3 py-2 text-sm rounded-lg border border-border bg-base text-fg-secondary"
 		>
 			<option value="">All statuses</option>
 			{#each statuses as s}
@@ -246,11 +246,11 @@
 	{#if loading}
 		<p class="text-sm text-fg-muted">Loading...</p>
 	{:else if users.length === 0}
-		<div class="text-center py-16 bg-surface rounded-xl border border-border">
+		<div class="text-center py-16 bg-base rounded-xl border border-border">
 			<p class="text-sm text-fg-muted">No users found</p>
 		</div>
 	{:else}
-		<div class="bg-surface rounded-xl border border-border overflow-hidden">
+		<div class="bg-base rounded-xl border border-border overflow-hidden">
 			<div class="overflow-x-auto">
 				<table class="w-full text-sm">
 					<thead>
@@ -328,7 +328,7 @@
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<div class="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-12 px-4" onclick={closeDetail}>
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
-		<div class="bg-surface rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-auto"
+		<div class="bg-base rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-auto"
 			onclick={(e) => e.stopPropagation()}>
 			<div class="p-6">
 				<!-- Header -->
@@ -348,19 +348,19 @@
 
 				<!-- Info Grid -->
 				<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-					<div class="bg-surface/50 rounded-lg p-3">
+					<div class="bg-base/50 rounded-lg p-3">
 						<p class="text-[10px] text-fg-muted uppercase">Status</p>
 						<p class="text-sm font-semibold text-fg capitalize">{selectedUser.state}</p>
 					</div>
-					<div class="bg-surface/50 rounded-lg p-3">
+					<div class="bg-base/50 rounded-lg p-3">
 						<p class="text-[10px] text-fg-muted uppercase">Messages</p>
 						<p class="text-sm font-semibold text-fg">{selectedUser.message_count}</p>
 					</div>
-					<div class="bg-surface/50 rounded-lg p-3">
+					<div class="bg-base/50 rounded-lg p-3">
 						<p class="text-[10px] text-fg-muted uppercase">First Seen</p>
 						<p class="text-[11px] font-semibold text-fg">{formatDate(selectedUser.first_seen)}</p>
 					</div>
-					<div class="bg-surface/50 rounded-lg p-3">
+					<div class="bg-base/50 rounded-lg p-3">
 						<p class="text-[10px] text-fg-muted uppercase">Last Seen</p>
 						<p class="text-[11px] font-semibold text-fg">{formatDate(selectedUser.last_seen)}</p>
 					</div>
@@ -370,7 +370,7 @@
 				{#if selectedUser.facts && Object.keys(selectedUser.facts).length > 0}
 					<div class="mb-5">
 						<h4 class="text-xs font-semibold text-fg-secondary mb-2">Learned Facts</h4>
-						<div class="bg-surface/50 rounded-lg p-3">
+						<div class="bg-base/50 rounded-lg p-3">
 							{#each Object.entries(selectedUser.facts) as [key, value]}
 								<div class="flex justify-between py-1 text-xs">
 									<span class="text-fg-muted">{key}</span>
@@ -391,7 +391,7 @@
 					{:else}
 						<div class="space-y-1.5 max-h-56 overflow-auto">
 							{#each userHistory as msg}
-								<div class="text-xs p-2 rounded-lg {msg.role === 'user' ? 'bg-[var(--color-info-15)] text-blue-900' : 'bg-surface/50 text-fg'}">
+								<div class="text-xs p-2 rounded-lg {msg.role === 'user' ? 'bg-[var(--color-info-15)] text-blue-900' : 'bg-base/50 text-fg'}">
 									<span class="text-[10px] font-medium text-fg-muted uppercase">{msg.role}</span>
 									<p class="mt-0.5 whitespace-pre-wrap">{msg.content}</p>
 								</div>
@@ -446,7 +446,7 @@
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<div class="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-16 px-4" onclick={() => showAddModal = false}>
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
-		<div class="bg-surface rounded-xl shadow-xl w-full max-w-md" onclick={(e) => e.stopPropagation()}>
+		<div class="bg-base rounded-xl shadow-xl w-full max-w-md" onclick={(e) => e.stopPropagation()}>
 			<div class="p-6">
 				<div class="flex justify-between items-center mb-5">
 					<h3 class="text-lg font-semibold text-fg">Add User</h3>
@@ -457,7 +457,7 @@
 					<div>
 						<label class="block text-[11px] font-medium text-fg-secondary mb-1">Platform</label>
 						<select bind:value={newPlatform}
-							class="w-full px-3 py-2 text-sm rounded-lg border border-border bg-surface text-fg-secondary">
+							class="w-full px-3 py-2 text-sm rounded-lg border border-border bg-base text-fg-secondary">
 							{#each platforms as p}
 								<option value={p}>{p}</option>
 							{/each}
@@ -466,25 +466,25 @@
 					<div>
 						<label class="block text-[11px] font-medium text-fg-secondary mb-1">User ID <span class="text-error">*</span></label>
 						<input type="text" bind:value={newUserId} placeholder="e.g. 123456789"
-							class="w-full px-3 py-2 text-sm rounded-lg border border-border bg-surface text-fg outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500" />
+							class="w-full px-3 py-2 text-sm rounded-lg border border-border bg-base text-fg outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500" />
 						<p class="text-[10px] text-fg-muted mt-0.5">Telegram: numeric ID | Discord: snowflake | WhatsApp: phone number</p>
 					</div>
 					<div class="grid grid-cols-2 gap-3">
 						<div>
 							<label class="block text-[11px] font-medium text-fg-secondary mb-1">Username</label>
 							<input type="text" bind:value={newUsername} placeholder="Optional"
-								class="w-full px-3 py-2 text-sm rounded-lg border border-border bg-surface text-fg outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500" />
+								class="w-full px-3 py-2 text-sm rounded-lg border border-border bg-base text-fg outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500" />
 						</div>
 						<div>
 							<label class="block text-[11px] font-medium text-fg-secondary mb-1">First Name</label>
 							<input type="text" bind:value={newFirstName} placeholder="Optional"
-								class="w-full px-3 py-2 text-sm rounded-lg border border-border bg-surface text-fg outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500" />
+								class="w-full px-3 py-2 text-sm rounded-lg border border-border bg-base text-fg outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500" />
 						</div>
 					</div>
 					<div>
 						<label class="block text-[11px] font-medium text-fg-secondary mb-1">Initial Status</label>
 						<select bind:value={newStatus}
-							class="w-full px-3 py-2 text-sm rounded-lg border border-border bg-surface text-fg-secondary">
+							class="w-full px-3 py-2 text-sm rounded-lg border border-border bg-base text-fg-secondary">
 							<option value="approved">Approved</option>
 							<option value="pending">Pending</option>
 						</select>

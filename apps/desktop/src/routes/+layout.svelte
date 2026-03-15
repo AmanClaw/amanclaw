@@ -95,8 +95,9 @@
 					{ label: navGroups.find(g => g.items.some(i => i.id === $currentPage))?.label ?? 'Main' },
 					{ label: pageTitles[$currentPage] ?? $currentPage, active: true }
 				]}
+				onSettings={() => handleNavigate('settings')}
 			/>
-			<main class="flex-1 overflow-y-auto p-6">
+			<main class="flex-1 overflow-y-auto px-8 py-8">
 				{@render children()}
 			</main>
 		</div>

@@ -185,7 +185,7 @@
 				{@const meta = channelMeta[id]}
 				{#if meta}
 					<div class={id === 'whatsapp-web' && (showQr || editingChannel === 'whatsapp-web') ? 'col-span-2' : ''}>
-						<div class="bg-surface rounded-xl border {statusColor(ch)} p-5">
+						<div class="bg-base rounded-xl border {statusColor(ch)} p-5">
 							<div class="flex items-center justify-between mb-1">
 								<div class="flex items-center gap-2">
 									<span class="w-2 h-2 rounded-full {statusDot(ch)}"></span>
@@ -279,7 +279,7 @@
 						</div>
 
 						{#if id === 'whatsapp-web' && showQr}
-							<div class="mt-2 bg-surface rounded-xl border border-border p-5">
+							<div class="mt-2 bg-base rounded-xl border border-border p-5">
 								{#if qrStatus === 'loading'}
 									<div class="flex items-center justify-center p-6">
 										<div class="animate-spin w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full"></div>
@@ -302,7 +302,7 @@
 										{#if qrData && qrData.startsWith('data:')}
 											<img src={qrData} alt="WhatsApp QR Code" class="w-56 h-56 rounded-lg" />
 										{:else if qrData}
-											<div class="bg-surface p-4 rounded-lg border border-border">
+											<div class="bg-base p-4 rounded-lg border border-border">
 												<p class="text-xs text-fg-muted font-mono break-all">{qrData}</p>
 											</div>
 										{/if}

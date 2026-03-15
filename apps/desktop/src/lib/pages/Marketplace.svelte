@@ -160,17 +160,17 @@
 	<div class="flex gap-1 mb-6 bg-elevated rounded-lg p-0.5 w-fit">
 		<button onclick={() => tab = 'browse'}
 			class="px-4 py-1.5 text-xs font-medium rounded-md transition-colors
-				{tab === 'browse' ? 'bg-surface text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
+				{tab === 'browse' ? 'bg-base text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
 			Browse
 		</button>
 		<button onclick={() => tab = 'installed'}
 			class="px-4 py-1.5 text-xs font-medium rounded-md transition-colors
-				{tab === 'installed' ? 'bg-surface text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
+				{tab === 'installed' ? 'bg-base text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
 			Installed
 		</button>
 		<button onclick={() => tab = 'publish'}
 			class="px-4 py-1.5 text-xs font-medium rounded-md transition-colors
-				{tab === 'publish' ? 'bg-surface text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
+				{tab === 'publish' ? 'bg-base text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
 			Publish
 		</button>
 	</div>
@@ -184,7 +184,7 @@
 				{#each [['all', 'All'], ['official', '⭐ Official'], ['verified', '✅ Verified'], ['community', '🌱 Community']] as [value, label]}
 					<button onclick={() => browseFilter = value as any}
 						class="px-3 py-1 text-[11px] font-medium rounded-md transition-colors
-							{browseFilter === value ? 'bg-surface text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
+							{browseFilter === value ? 'bg-base text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
 						{label}
 					</button>
 				{/each}
@@ -192,7 +192,7 @@
 
 			<!-- Pack filter dropdown -->
 			<select bind:value={selectedPack}
-				class="px-2.5 py-1 text-xs border border-border rounded-md bg-surface focus:outline-none focus:ring-2 focus:ring-primary-500">
+				class="px-2.5 py-1 text-xs border border-border rounded-md bg-base focus:outline-none focus:ring-2 focus:ring-primary-500">
 				<option value={null}>All Packs</option>
 				{#each Object.keys(browsePacks) as pack}
 					<option value={pack}>{pack} ({browsePacks[pack].length})</option>
@@ -207,7 +207,7 @@
 				<p class="text-sm text-fg-muted">Loading skill index...</p>
 			</div>
 		{:else if filteredBrowse().length === 0}
-			<div class="text-center py-16 bg-surface rounded-xl border border-border">
+			<div class="text-center py-16 bg-base rounded-xl border border-border">
 				<p class="text-sm text-fg-muted">No skills match your filters</p>
 				<button onclick={() => { browseSearch = ''; browseFilter = 'all'; selectedPack = null; }}
 					class="mt-2 text-xs text-fg underline hover:no-underline">Clear filters</button>
@@ -220,7 +220,7 @@
 					<div class="grid grid-cols-3 gap-3">
 						{#each Object.entries(browsePacks) as [packName, packSkills]}
 							<button onclick={() => selectedPack = packName}
-								class="bg-surface rounded-xl border border-border p-4 text-left hover:border-border hover:shadow-sm transition-all">
+								class="bg-base rounded-xl border border-border p-4 text-left hover:border-border hover:shadow-sm transition-all">
 								<p class="text-sm font-medium text-fg capitalize">{packName}</p>
 								<p class="text-xs text-fg-muted mt-1">{packSkills.length} skill{packSkills.length !== 1 ? 's' : ''}</p>
 								<div class="flex flex-wrap gap-1 mt-2">
@@ -251,7 +251,7 @@
 				{#each filteredBrowse() as skill}
 					{@const tier = tierBadge(skill.tier)}
 					{@const isInstalled = installedNames.has(skill.name)}
-					<div class="bg-surface rounded-xl border border-border p-4 hover:border-border hover:shadow-sm transition-all">
+					<div class="bg-base rounded-xl border border-border p-4 hover:border-border hover:shadow-sm transition-all">
 						<div class="flex items-start justify-between gap-4">
 							<div class="min-w-0 flex-1">
 								<div class="flex items-center gap-2 flex-wrap">
@@ -326,7 +326,7 @@
 		{#if loading}
 			<p class="text-sm text-fg-muted">Loading...</p>
 		{:else if filteredInstalled().length === 0}
-			<div class="text-center py-16 bg-surface rounded-xl border border-border">
+			<div class="text-center py-16 bg-base rounded-xl border border-border">
 				<p class="text-sm text-fg-muted">
 					{search.trim() ? 'No plugins match your search' : 'No plugins installed'}
 				</p>
@@ -335,10 +335,10 @@
 				{/if}
 			</div>
 		{:else}
-			<div class="bg-surface rounded-xl border border-border overflow-hidden">
+			<div class="bg-base rounded-xl border border-border overflow-hidden">
 				<table class="w-full text-xs">
 					<thead>
-						<tr class="border-b border-border bg-surface">
+						<tr class="border-b border-border bg-base">
 							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-fg-muted uppercase tracking-wider">Name</th>
 							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-fg-muted uppercase tracking-wider">Version</th>
 							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-fg-muted uppercase tracking-wider">Type</th>
@@ -387,14 +387,14 @@
 
 	<!-- ===================== PUBLISH TAB ===================== -->
 	{:else}
-		<div class="bg-surface rounded-xl border border-border p-6">
+		<div class="bg-base rounded-xl border border-border p-6">
 			<h3 class="text-sm font-medium text-fg mb-2">Publishing Skills</h3>
 			<p class="text-xs text-fg-muted mb-4">
 				Publishing to a remote registry is not yet available. When the AmanClaw Marketplace launches,
 				you will be able to share your skills with the community.
 			</p>
 
-			<div class="bg-surface rounded-lg border border-border p-4">
+			<div class="bg-base rounded-lg border border-border p-4">
 				<p class="text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-3">Example Manifest: amanclaw-skill.toml</p>
 				<pre class="text-xs font-mono text-fg-secondary leading-relaxed">[skill]
 name = "my-custom-skill"

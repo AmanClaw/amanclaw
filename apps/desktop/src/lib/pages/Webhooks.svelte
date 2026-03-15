@@ -223,12 +223,12 @@
 	<div class="flex gap-1 mb-6 bg-elevated rounded-lg p-0.5 w-fit">
 		<button onclick={() => tab = 'endpoints'}
 			class="px-4 py-1.5 text-xs font-medium rounded-md transition-colors
-				{tab === 'endpoints' ? 'bg-surface text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
+				{tab === 'endpoints' ? 'bg-base text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
 			Endpoints
 		</button>
 		<button onclick={() => { tab = 'history'; loadHistory(); }}
 			class="px-4 py-1.5 text-xs font-medium rounded-md transition-colors
-				{tab === 'history' ? 'bg-surface text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
+				{tab === 'history' ? 'bg-base text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
 			History
 		</button>
 	</div>
@@ -238,7 +238,7 @@
 
 		<!-- Add/Edit Form -->
 		{#if showForm}
-			<div class="bg-surface rounded-xl border border-border p-5 mb-6">
+			<div class="bg-base rounded-xl border border-border p-5 mb-6">
 				<h3 class="text-sm font-medium text-fg mb-4">{editingId ? 'Edit' : 'Add'} Webhook Endpoint</h3>
 
 				<div class="space-y-4">
@@ -262,7 +262,7 @@
 							<input type="text" bind:value={path} placeholder="/hooks/my-endpoint"
 								class="w-full px-3 py-2 text-sm font-mono border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
 						{:else}
-							<p class="px-3 py-2 text-sm font-mono bg-surface border border-border rounded-lg text-fg-secondary">{autoPath}</p>
+							<p class="px-3 py-2 text-sm font-mono bg-base border border-border rounded-lg text-fg-secondary">{autoPath}</p>
 						{/if}
 					</div>
 
@@ -270,7 +270,7 @@
 					<div>
 						<label class="block text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-1">Authentication</label>
 						<select bind:value={authType}
-							class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-surface">
+							class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-base">
 							<option value="none">None</option>
 							<option value="hmac_sha256">HMAC SHA-256</option>
 							<option value="bearer">Bearer Token</option>
@@ -297,7 +297,7 @@
 					<div>
 						<label class="block text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-1">Transform</label>
 						<select bind:value={transformType}
-							class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-surface">
+							class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-base">
 							<option value="raw_json">Raw JSON (passthrough)</option>
 							<option value="json_path">JSON Path (extract fields)</option>
 							<option value="template">Handlebars Template</option>
@@ -407,12 +407,12 @@
 		{#if loading}
 			<p class="text-sm text-fg-muted">Loading...</p>
 		{:else if endpoints.length === 0 && !showForm}
-			<div class="text-center py-16 bg-surface rounded-xl border border-border">
+			<div class="text-center py-16 bg-base rounded-xl border border-border">
 				<p class="text-sm text-fg-muted mb-1">No webhook endpoints configured</p>
 				<p class="text-xs text-fg-muted">Add endpoints to receive external events and route them to chat targets</p>
 			</div>
 		{:else if endpoints.length > 0}
-			<div class="bg-surface rounded-xl border border-border overflow-hidden">
+			<div class="bg-base rounded-xl border border-border overflow-hidden">
 				<table class="w-full text-sm">
 					<thead>
 						<tr class="border-b border-border">
@@ -444,7 +444,7 @@
 								<td class="px-4 py-3">
 									<button onclick={() => toggleEnabled(ep)}
 										class="w-8 h-4 rounded-full relative transition-colors {ep.enabled !== false ? 'bg-primary-500' : 'bg-border'}">
-										<span class="absolute top-0.5 w-3 h-3 rounded-full bg-surface transition-transform {ep.enabled !== false ? 'left-4' : 'left-0.5'}"></span>
+										<span class="absolute top-0.5 w-3 h-3 rounded-full bg-base transition-transform {ep.enabled !== false ? 'left-4' : 'left-0.5'}"></span>
 									</button>
 								</td>
 								<td class="px-4 py-3 text-right">
@@ -465,12 +465,12 @@
 	<!-- ===================== HISTORY TAB ===================== -->
 	{:else}
 		{#if history.length === 0}
-			<div class="text-center py-16 bg-surface rounded-xl border border-border">
+			<div class="text-center py-16 bg-base rounded-xl border border-border">
 				<p class="text-sm text-fg-muted mb-1">No webhook deliveries yet</p>
 				<p class="text-xs text-fg-muted">History will appear here when endpoints receive requests</p>
 			</div>
 		{:else}
-			<div class="bg-surface rounded-xl border border-border overflow-hidden">
+			<div class="bg-base rounded-xl border border-border overflow-hidden">
 				<table class="w-full text-sm">
 					<thead>
 						<tr class="border-b border-border">

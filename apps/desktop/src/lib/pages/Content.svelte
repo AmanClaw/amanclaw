@@ -76,7 +76,7 @@
 		{#each ['doa', 'zakat', 'khutbah'] as tab}
 			<button
 				class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors
-					{activeTab === tab ? 'bg-surface text-fg shadow-sm' : 'text-fg-secondary hover:text-fg'}"
+					{activeTab === tab ? 'bg-base text-fg shadow-sm' : 'text-fg-secondary hover:text-fg'}"
 				onclick={() => { activeTab = tab; if (tab === 'zakat' && !zakatRates) loadZakat(); }}
 			>
 				{tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -107,13 +107,13 @@
 		{#if loading}
 			<p class="text-sm text-fg-muted">Loading...</p>
 		{:else if doas.length === 0}
-			<div class="text-center py-12 bg-surface rounded-xl border border-border">
+			<div class="text-center py-12 bg-base rounded-xl border border-border">
 				<p class="text-sm text-fg-muted">No doas found</p>
 			</div>
 		{:else}
 			<div class="space-y-3">
 				{#each doas as doa}
-					<div class="bg-surface rounded-xl border border-border p-5">
+					<div class="bg-base rounded-xl border border-border p-5">
 						<div class="flex items-start justify-between mb-3">
 							<div>
 								<p class="text-sm font-medium text-fg">{doa.title_ms}</p>
@@ -142,10 +142,10 @@
 		{/if}
 
 	{:else if activeTab === 'zakat'}
-		<div class="bg-surface rounded-xl border border-border p-5">
+		<div class="bg-base rounded-xl border border-border p-5">
 			<p class="text-sm font-medium text-fg mb-4">Zakat Fitrah Rates</p>
 			{#if zakatRates}
-				<div class="bg-surface rounded-lg border border-border p-4 mb-3">
+				<div class="bg-base rounded-lg border border-border p-4 mb-3">
 					<div class="grid grid-cols-3 gap-4 text-xs">
 						<div>
 							<span class="text-fg-muted block">Rate</span>
@@ -168,7 +168,7 @@
 		</div>
 
 	{:else if activeTab === 'khutbah'}
-		<div class="bg-surface rounded-xl border border-border p-5">
+		<div class="bg-base rounded-xl border border-border p-5">
 			<div class="flex items-center justify-between mb-4">
 				<p class="text-sm font-medium text-fg">Latest Khutbah</p>
 				<button onclick={fetchKhutbah} disabled={fetchingKhutbah}
@@ -178,7 +178,7 @@
 			</div>
 			{#if khutbah}
 				{#if khutbah.available}
-					<div class="bg-surface rounded-lg border border-border p-4">
+					<div class="bg-base rounded-lg border border-border p-4">
 						<p class="text-sm text-fg">{khutbah.title || 'Untitled'}</p>
 						<p class="text-xs text-fg-muted mt-2">{khutbah.content || ''}</p>
 					</div>

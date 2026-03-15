@@ -48,7 +48,7 @@
 
 {#if showForm}
   <form onsubmit={(e: Event) => { e.preventDefault(); createCommunity() }}
-    class="bg-surface rounded-xl p-6 border border-border mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+    class="bg-base rounded-xl p-6 border border-border mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
     <input bind:value={form.name} placeholder="Community name" required
       class="px-3 py-2 rounded-lg border border-border bg-elevated text-fg outline-none focus:ring-2 focus:ring-primary-500/50" />
     <input bind:value={form.zone} placeholder="Zone (e.g. SGR01)"
@@ -74,7 +74,7 @@
     <span class="text-sm">Loading...</span>
   </div>
 {:else if communities.length === 0}
-  <div class="text-center py-16 bg-surface rounded-xl border border-border">
+  <div class="text-center py-16 bg-base rounded-xl border border-border">
     <p class="text-fg-muted">No communities yet.</p>
   </div>
 {:else}

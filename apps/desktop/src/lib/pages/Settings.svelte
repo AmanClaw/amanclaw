@@ -226,7 +226,7 @@
 		<h3 class="text-sm font-medium text-fg mb-3">Connection Mode</h3>
 		<div class="space-y-2">
 			<label class="flex items-center gap-3 p-3 rounded-lg border border-border cursor-pointer hover:from-primary-400 hover:to-primary-600 transition-colors
-				{mode === 'local' ? 'border-primary-500 bg-surface' : ''}">
+				{mode === 'local' ? 'border-primary-500 bg-base' : ''}">
 				<input type="radio" bind:group={mode} value="local" class="accent-primary-500">
 				<div>
 					<p class="text-sm font-medium text-fg">Local Mode</p>
@@ -234,7 +234,7 @@
 				</div>
 			</label>
 			<label class="flex items-center gap-3 p-3 rounded-lg border border-border cursor-pointer hover:from-primary-400 hover:to-primary-600 transition-colors
-				{mode === 'remote' ? 'border-primary-500 bg-surface' : ''}">
+				{mode === 'remote' ? 'border-primary-500 bg-base' : ''}">
 				<input type="radio" bind:group={mode} value="remote" class="accent-primary-500">
 				<div>
 					<p class="text-sm font-medium text-fg">Remote Mode</p>
@@ -272,7 +272,7 @@
 		<h3 class="text-sm font-medium text-fg mb-4">Feature Overview</h3>
 		<div class="grid grid-cols-2 gap-3">
 			<button onclick={() => goTo('agents')}
-				class="flex items-center justify-between p-3 bg-surface rounded-lg border border-border hover:border-border transition-colors text-left">
+				class="flex items-center justify-between p-3 bg-base rounded-lg border border-border hover:border-border transition-colors text-left">
 				<div>
 					<p class="text-xs font-medium text-fg">Agent Routing</p>
 					<p class="text-[10px] text-fg-muted">Default: {defaultAgent} · {routingRuleCount} rule{routingRuleCount !== 1 ? 's' : ''}</p>
@@ -281,7 +281,7 @@
 			</button>
 
 			<button onclick={() => goTo('cron')}
-				class="flex items-center justify-between p-3 bg-surface rounded-lg border border-border hover:border-border transition-colors text-left">
+				class="flex items-center justify-between p-3 bg-base rounded-lg border border-border hover:border-border transition-colors text-left">
 				<div>
 					<p class="text-xs font-medium text-fg">Cron Jobs</p>
 					<p class="text-[10px] text-fg-muted">Timezone: {cronTimezone || 'UTC'}</p>
@@ -290,7 +290,7 @@
 			</button>
 
 			<button onclick={() => goTo('webhooks')}
-				class="flex items-center justify-between p-3 bg-surface rounded-lg border border-border hover:border-border transition-colors text-left">
+				class="flex items-center justify-between p-3 bg-base rounded-lg border border-border hover:border-border transition-colors text-left">
 				<div>
 					<p class="text-xs font-medium text-fg">Webhooks</p>
 					<p class="text-[10px] text-fg-muted">Base path: /hooks</p>
@@ -299,7 +299,7 @@
 			</button>
 
 			<button onclick={() => goTo('gateway')}
-				class="flex items-center justify-between p-3 bg-surface rounded-lg border border-border hover:border-border transition-colors text-left">
+				class="flex items-center justify-between p-3 bg-base rounded-lg border border-border hover:border-border transition-colors text-left">
 				<div>
 					<p class="text-xs font-medium text-fg">Gateway</p>
 					<p class="text-[10px] text-fg-muted">WebSocket event stream</p>
@@ -310,7 +310,7 @@
 			</button>
 
 			<button onclick={() => goTo('subagents')}
-				class="flex items-center justify-between p-3 bg-surface rounded-lg border border-border hover:border-border transition-colors text-left">
+				class="flex items-center justify-between p-3 bg-base rounded-lg border border-border hover:border-border transition-colors text-left">
 				<div>
 					<p class="text-xs font-medium text-fg">Sub-Agents</p>
 					<p class="text-[10px] text-fg-muted">Task delegation</p>
@@ -321,7 +321,7 @@
 			</button>
 
 			<button onclick={() => goTo('marketplace')}
-				class="flex items-center justify-between p-3 bg-surface rounded-lg border border-border hover:border-border transition-colors text-left">
+				class="flex items-center justify-between p-3 bg-base rounded-lg border border-border hover:border-border transition-colors text-left">
 				<div>
 					<p class="text-xs font-medium text-fg">Marketplace</p>
 					<p class="text-[10px] text-fg-muted">Skill registry</p>
@@ -330,7 +330,7 @@
 			</button>
 
 			<button onclick={() => goTo('knowledgebases')}
-				class="flex items-center justify-between p-3 bg-surface rounded-lg border border-border hover:border-border transition-colors text-left col-span-2">
+				class="flex items-center justify-between p-3 bg-base rounded-lg border border-border hover:border-border transition-colors text-left col-span-2">
 				<div>
 					<p class="text-xs font-medium text-fg">Knowledge Bases</p>
 					<p class="text-[10px] text-fg-muted">{embeddingConfigured ? `Embeddings: ${embeddingModel}` : 'Embeddings not configured'} · {kbCount} KB{kbCount !== 1 ? 's' : ''}</p>
@@ -346,7 +346,7 @@
 	<section class="mt-8 border-t border-border pt-6">
 		<h3 class="text-sm font-medium text-fg mb-2">Data</h3>
 		<p class="text-xs text-fg-muted">Config, database, and plugins stored at:</p>
-		<p class="text-xs text-fg-secondary font-mono mt-1 bg-surface p-2 rounded">{dataDir}</p>
+		<p class="text-xs text-fg-secondary font-mono mt-1 bg-base p-2 rounded">{dataDir}</p>
 	</section>
 
 	<div class="border-t border-border pt-6 mt-6">

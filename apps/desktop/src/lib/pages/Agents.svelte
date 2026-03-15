@@ -258,7 +258,7 @@
 							class="w-full text-left p-3 rounded-lg border transition-colors
 								{selectedId === agent.id && !isNew
 									? 'border-primary-500 bg-[var(--color-primary-500-10)]'
-									: 'border-border bg-surface hover:border-[var(--color-primary-500-10)]'}">
+									: 'border-border bg-base hover:border-[var(--color-primary-500-10)]'}">
 							<p class="text-[13px] font-medium text-fg truncate">{agent.name}</p>
 							<div class="flex items-center gap-2 mt-1.5">
 								{#if agent.soul_file}
@@ -417,7 +417,7 @@
 		{/if}
 
 		<!-- Default agent -->
-		<div class="flex items-center gap-3 mb-4 bg-surface rounded-lg border border-border p-3">
+		<div class="flex items-center gap-3 mb-4 bg-base rounded-lg border border-border p-3">
 			<label class="text-xs text-fg-muted shrink-0">Default Agent:</label>
 			<select bind:value={defaultAgent}
 				class="px-2 py-1 text-xs border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-elevated text-fg">
@@ -429,7 +429,7 @@
 		</div>
 
 		<!-- Rules table -->
-		<div class="bg-surface rounded-lg border border-border overflow-hidden">
+		<div class="bg-base rounded-lg border border-border overflow-hidden">
 			<table class="w-full text-xs">
 				<thead>
 					<tr class="border-b border-border bg-elevated">
@@ -500,23 +500,23 @@
 					<tr class="bg-[var(--color-elevated-50)]">
 						<td class="px-2 py-1.5">
 							<input type="text" bind:value={newRule.platform} placeholder="telegram"
-								class="w-full px-2 py-1 text-xs border border-border rounded bg-surface text-fg focus:outline-none focus:ring-1 focus:ring-primary-500">
+								class="w-full px-2 py-1 text-xs border border-border rounded bg-base text-fg focus:outline-none focus:ring-1 focus:ring-primary-500">
 						</td>
 						<td class="px-2 py-1.5">
 							<input type="text" bind:value={newRule.topic_id} placeholder="*"
-								class="w-full px-2 py-1 text-xs border border-border rounded bg-surface text-fg focus:outline-none focus:ring-1 focus:ring-primary-500">
+								class="w-full px-2 py-1 text-xs border border-border rounded bg-base text-fg focus:outline-none focus:ring-1 focus:ring-primary-500">
 						</td>
 						<td class="px-2 py-1.5">
 							<input type="text" bind:value={newRule.channel_id} placeholder="*"
-								class="w-full px-2 py-1 text-xs border border-border rounded bg-surface text-fg focus:outline-none focus:ring-1 focus:ring-primary-500">
+								class="w-full px-2 py-1 text-xs border border-border rounded bg-base text-fg focus:outline-none focus:ring-1 focus:ring-primary-500">
 						</td>
 						<td class="px-2 py-1.5">
 							<input type="text" bind:value={newRule.group_id} placeholder="*"
-								class="w-full px-2 py-1 text-xs border border-border rounded bg-surface text-fg focus:outline-none focus:ring-1 focus:ring-primary-500">
+								class="w-full px-2 py-1 text-xs border border-border rounded bg-base text-fg focus:outline-none focus:ring-1 focus:ring-primary-500">
 						</td>
 						<td class="px-2 py-1.5">
 							<select bind:value={newRule.agent}
-								class="w-full px-2 py-1 text-xs border border-border rounded bg-surface text-fg focus:outline-none focus:ring-1 focus:ring-primary-500">
+								class="w-full px-2 py-1 text-xs border border-border rounded bg-base text-fg focus:outline-none focus:ring-1 focus:ring-primary-500">
 								<option value="">-- Select --</option>
 								{#each agents as agent}
 									<option value={agent.id}>{agent.name}</option>
