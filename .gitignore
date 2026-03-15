@@ -5,15 +5,15 @@ config.yaml
 !products/**/config.yaml
 
 # Rust
-rust/target/
-desktop/src-tauri/target/
+target/
+**/target/
 
 # Node
 node_modules/
 
 # SvelteKit build artifacts
-desktop/.svelte-kit/
-desktop/build/
+**/.svelte-kit/
+**/build/
 
 # SQLite database
 *.db
