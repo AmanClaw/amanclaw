@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api';
+	import { PageHeader, Button, Card, EmptyState, Badge } from '@amanclaw/ui';
 
 	// --- State ---
 	let tab = $state<'endpoints' | 'history'>('endpoints');
@@ -172,17 +173,17 @@
 	}
 
 	function statusBadgeClass(status: string): string {
-		if (status === 'success' || status === 'ok') return 'bg-green-100 text-green-700';
-		if (status === 'error' || status === 'failed') return 'bg-red-100 text-red-700';
-		if (status === 'rate_limited') return 'bg-yellow-100 text-yellow-700';
-		return 'bg-gray-100 text-gray-700';
+		if (status === 'success' || status === 'ok') return 'bg-[var(--color-success-15)] text-success';
+		if (status === 'error' || status === 'failed') return 'bg-[var(--color-error-15)] text-error';
+		if (status === 'rate_limited') return 'bg-[var(--color-warning-15)] text-warning';
+		return 'bg-elevated text-fg-secondary';
 	}
 
 	function authBadgeClass(type: string): string {
-		if (type === 'hmac_sha256') return 'bg-purple-100 text-purple-700';
-		if (type === 'bearer') return 'bg-blue-100 text-blue-700';
-		if (type === 'header_match') return 'bg-orange-100 text-orange-700';
-		return 'bg-gray-100 text-gray-500';
+		if (type === 'hmac_sha256') return 'bg-[var(--color-accent-500-15)] text-[var(--color-accent-500)]';
+		if (type === 'bearer') return 'bg-[var(--color-info-15)] text-info';
+		if (type === 'header_match') return 'bg-[var(--color-accent-500-15)] text-accent-500';
+		return 'bg-elevated text-fg-muted';
 	}
 
 	function truncate(s: string, len: number): string {
@@ -209,37 +210,25 @@
 	});
 </script>
 
-<div class="p-8 max-w-5xl">
-	<!-- Header -->
-	<div class="flex items-center justify-between mb-6">
-		<div>
-			<h2 class="text-xl font-semibold text-gray-900 tracking-tight">Webhooks</h2>
-			<p class="text-sm text-gray-500 mt-1">
-				{#if tab === 'endpoints'}
-					{endpoints.length} endpoint{endpoints.length !== 1 ? 's' : ''} configured
-				{:else}
-					Incoming webhook delivery history
-				{/if}
-			</p>
-		</div>
-		{#if tab === 'endpoints' && !showForm}
-			<button onclick={() => { resetForm(); showForm = true; }}
-				class="px-3 py-1.5 text-xs font-medium rounded-md bg-gray-900 text-white hover:bg-gray-800 transition-colors">
-				Add Webhook
-			</button>
-		{/if}
-	</div>
+<div class="max-w-5xl">
+	<PageHeader title="Webhooks" subtitle="{#if tab === 'endpoints'}{endpoints.length} endpoint{endpoints.length !== 1 ? 's' : ''} configured{:else}Incoming webhook delivery history{/if}">
+		{#snippet action()}
+			{#if tab === 'endpoints' && !showForm}
+				<Button size="sm" onclick={() => { resetForm(); showForm = true; }}>Add Webhook</Button>
+			{/if}
+		{/snippet}
+	</PageHeader>
 
 	<!-- Tabs -->
-	<div class="flex gap-1 mb-6 bg-gray-100 rounded-lg p-0.5 w-fit">
+	<div class="flex gap-1 mb-6 bg-elevated rounded-lg p-0.5 w-fit">
 		<button onclick={() => tab = 'endpoints'}
 			class="px-4 py-1.5 text-xs font-medium rounded-md transition-colors
-				{tab === 'endpoints' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}">
+				{tab === 'endpoints' ? 'bg-surface text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
 			Endpoints
 		</button>
 		<button onclick={() => { tab = 'history'; loadHistory(); }}
 			class="px-4 py-1.5 text-xs font-medium rounded-md transition-colors
-				{tab === 'history' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}">
+				{tab === 'history' ? 'bg-surface text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
 			History
 		</button>
 	</div>
@@ -249,39 +238,39 @@
 
 		<!-- Add/Edit Form -->
 		{#if showForm}
-			<div class="bg-white rounded-xl border border-gray-200 p-5 mb-6">
-				<h3 class="text-sm font-medium text-gray-900 mb-4">{editingId ? 'Edit' : 'Add'} Webhook Endpoint</h3>
+			<div class="bg-surface rounded-xl border border-border p-5 mb-6">
+				<h3 class="text-sm font-medium text-fg mb-4">{editingId ? 'Edit' : 'Add'} Webhook Endpoint</h3>
 
 				<div class="space-y-4">
 					<!-- Name -->
 					<div>
-						<label class="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">Name</label>
+						<label class="block text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-1">Name</label>
 						<input type="text" bind:value={name} placeholder="e.g. github-deploys"
-							class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900">
+							class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
 					</div>
 
 					<!-- Path -->
 					<div>
 						<div class="flex items-center justify-between mb-1">
-							<label class="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Path</label>
+							<label class="text-[11px] font-medium text-fg-muted uppercase tracking-wider">Path</label>
 							<button onclick={() => pathManual = !pathManual}
-								class="text-[10px] text-gray-400 hover:text-gray-600">
+								class="text-[10px] text-fg-muted hover:text-fg-secondary">
 								{pathManual ? 'Auto-generate' : 'Custom'}
 							</button>
 						</div>
 						{#if pathManual}
 							<input type="text" bind:value={path} placeholder="/hooks/my-endpoint"
-								class="w-full px-3 py-2 text-sm font-mono border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900">
+								class="w-full px-3 py-2 text-sm font-mono border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
 						{:else}
-							<p class="px-3 py-2 text-sm font-mono bg-gray-50 border border-gray-200 rounded-lg text-gray-600">{autoPath}</p>
+							<p class="px-3 py-2 text-sm font-mono bg-surface border border-border rounded-lg text-fg-secondary">{autoPath}</p>
 						{/if}
 					</div>
 
 					<!-- Auth Type -->
 					<div>
-						<label class="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">Authentication</label>
+						<label class="block text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-1">Authentication</label>
 						<select bind:value={authType}
-							class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white">
+							class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-surface">
 							<option value="none">None</option>
 							<option value="hmac_sha256">HMAC SHA-256</option>
 							<option value="bearer">Bearer Token</option>
@@ -290,25 +279,25 @@
 
 						{#if authType === 'hmac_sha256'}
 							<input type="text" bind:value={authSecret} placeholder="HMAC secret"
-								class="w-full mt-2 px-3 py-2 text-sm font-mono border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900">
+								class="w-full mt-2 px-3 py-2 text-sm font-mono border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
 						{:else if authType === 'bearer'}
 							<input type="text" bind:value={authToken} placeholder="Bearer token"
-								class="w-full mt-2 px-3 py-2 text-sm font-mono border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900">
+								class="w-full mt-2 px-3 py-2 text-sm font-mono border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
 						{:else if authType === 'header_match'}
 							<div class="flex gap-2 mt-2">
 								<input type="text" bind:value={authHeaderName} placeholder="Header name"
-									class="flex-1 px-3 py-2 text-sm font-mono border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900">
+									class="flex-1 px-3 py-2 text-sm font-mono border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
 								<input type="text" bind:value={authHeaderValue} placeholder="Expected value"
-									class="flex-1 px-3 py-2 text-sm font-mono border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900">
+									class="flex-1 px-3 py-2 text-sm font-mono border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
 							</div>
 						{/if}
 					</div>
 
 					<!-- Transform Type -->
 					<div>
-						<label class="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">Transform</label>
+						<label class="block text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-1">Transform</label>
 						<select bind:value={transformType}
-							class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white">
+							class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-surface">
 							<option value="raw_json">Raw JSON (passthrough)</option>
 							<option value="json_path">JSON Path (extract fields)</option>
 							<option value="template">Handlebars Template</option>
@@ -319,46 +308,46 @@
 						{#if transformType === 'json_path'}
 							<div class="grid grid-cols-2 gap-2 mt-2">
 								<div>
-									<label class="block text-[10px] text-gray-400 mb-0.5">Message path</label>
+									<label class="block text-[10px] text-fg-muted mb-0.5">Message path</label>
 									<input type="text" bind:value={messagePath} placeholder="$.body.message"
-										class="w-full px-3 py-2 text-sm font-mono border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900">
+										class="w-full px-3 py-2 text-sm font-mono border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
 								</div>
 								<div>
-									<label class="block text-[10px] text-gray-400 mb-0.5">Title path (optional)</label>
+									<label class="block text-[10px] text-fg-muted mb-0.5">Title path (optional)</label>
 									<input type="text" bind:value={titlePath} placeholder="$.body.title"
-										class="w-full px-3 py-2 text-sm font-mono border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900">
+										class="w-full px-3 py-2 text-sm font-mono border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
 								</div>
 							</div>
 						{:else if transformType === 'template'}
 							<div class="mt-2">
-								<label class="block text-[10px] text-gray-400 mb-0.5">Handlebars template</label>
+								<label class="block text-[10px] text-fg-muted mb-0.5">Handlebars template</label>
 								<textarea bind:value={templateBody} rows={4} placeholder="{{event}}: {{message}}"
-									class="w-full px-3 py-2 text-sm font-mono border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"></textarea>
+									class="w-full px-3 py-2 text-sm font-mono border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-y"></textarea>
 							</div>
 						{:else if transformType === 'agent_prompt'}
 							<div class="space-y-2 mt-2">
 								<div>
-									<label class="block text-[10px] text-gray-400 mb-0.5">Prompt template</label>
+									<label class="block text-[10px] text-fg-muted mb-0.5">Prompt template</label>
 									<textarea bind:value={promptTemplate} rows={3} placeholder="Summarize this event: {{payload}}"
-										class="w-full px-3 py-2 text-sm font-mono border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y"></textarea>
+										class="w-full px-3 py-2 text-sm font-mono border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-y"></textarea>
 								</div>
 								<div>
-									<label class="block text-[10px] text-gray-400 mb-0.5">Agent</label>
+									<label class="block text-[10px] text-fg-muted mb-0.5">Agent</label>
 									<input type="text" bind:value={agent} placeholder="default"
-										class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900">
+										class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
 								</div>
 							</div>
 						{:else if transformType === 'skill_invocation'}
 							<div class="grid grid-cols-2 gap-2 mt-2">
 								<div>
-									<label class="block text-[10px] text-gray-400 mb-0.5">Skill name</label>
+									<label class="block text-[10px] text-fg-muted mb-0.5">Skill name</label>
 									<input type="text" bind:value={skill} placeholder="e.g. solat"
-										class="w-full px-3 py-2 text-sm font-mono border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900">
+										class="w-full px-3 py-2 text-sm font-mono border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
 								</div>
 								<div>
-									<label class="block text-[10px] text-gray-400 mb-0.5">Input template</label>
+									<label class="block text-[10px] text-fg-muted mb-0.5">Input template</label>
 									<input type="text" bind:value={inputTemplate} placeholder="input template JSON"
-										class="w-full px-3 py-2 text-sm font-mono border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900">
+										class="w-full px-3 py-2 text-sm font-mono border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
 								</div>
 							</div>
 						{/if}
@@ -367,21 +356,21 @@
 					<!-- Targets -->
 					<div>
 						<div class="flex items-center justify-between mb-1">
-							<label class="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Targets</label>
-							<button onclick={addTarget} class="text-xs text-gray-500 hover:text-gray-900">+ Add</button>
+							<label class="text-[11px] font-medium text-fg-muted uppercase tracking-wider">Targets</label>
+							<button onclick={addTarget} class="text-xs text-fg-muted hover:text-fg">+ Add</button>
 						</div>
 						{#if targets.length === 0}
-							<p class="text-xs text-gray-400 py-2">No targets configured. Add at least one delivery target.</p>
+							<p class="text-xs text-fg-muted py-2">No targets configured. Add at least one delivery target.</p>
 						{/if}
 						{#each targets as target, i}
 							<div class="flex gap-2 mb-2">
 								<input type="text" bind:value={target.platform} placeholder="Platform"
-									class="w-1/4 px-2 py-1.5 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900">
+									class="w-1/4 px-2 py-1.5 text-xs border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
 								<input type="text" bind:value={target.chat_id} placeholder="Chat ID"
-									class="flex-1 px-2 py-1.5 text-xs font-mono border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900">
+									class="flex-1 px-2 py-1.5 text-xs font-mono border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
 								<input type="text" bind:value={target.topic_id} placeholder="Topic (optional)"
-									class="w-1/5 px-2 py-1.5 text-xs font-mono border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900">
-								<button onclick={() => removeTarget(i)} class="text-xs text-red-500 hover:text-red-700 px-1">x</button>
+									class="w-1/5 px-2 py-1.5 text-xs font-mono border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+								<button onclick={() => removeTarget(i)} class="text-xs text-error hover:text-error px-1">x</button>
 							</div>
 						{/each}
 					</div>
@@ -389,25 +378,25 @@
 					<!-- Rate Limit & Enabled -->
 					<div class="flex items-end gap-4">
 						<div class="flex-1">
-							<label class="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">Rate Limit (req/min)</label>
+							<label class="block text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-1">Rate Limit (req/min)</label>
 							<input type="text" bind:value={rateLimit} placeholder="Optional"
-								class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900">
+								class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
 						</div>
 						<label class="flex items-center gap-2 pb-2 cursor-pointer">
 							<input type="checkbox" bind:checked={enabled}
-								class="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900">
-							<span class="text-xs text-gray-600">Enabled</span>
+								class="w-4 h-4 rounded border-border text-fg focus:ring-primary-500">
+							<span class="text-xs text-fg-secondary">Enabled</span>
 						</label>
 					</div>
 				</div>
 
 				<div class="flex gap-2 mt-5">
 					<button onclick={saveEndpoint} disabled={saving || !name.trim()}
-						class="px-4 py-1.5 text-xs font-medium rounded-md bg-gray-900 text-white hover:bg-gray-800 transition-colors disabled:opacity-50">
+						class="px-4 py-1.5 text-xs font-medium rounded-md bg-gradient-to-br from-primary-500 to-primary-700 text-white hover:from-primary-400 hover:to-primary-600 transition-colors disabled:opacity-50">
 						{saving ? 'Saving...' : editingId ? 'Update' : 'Save'}
 					</button>
 					<button onclick={resetForm}
-						class="px-4 py-1.5 text-xs font-medium rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+						class="px-4 py-1.5 text-xs font-medium rounded-md border border-border text-fg-secondary hover:bg-[var(--color-elevated-50)] transition-colors">
 						Cancel
 					</button>
 				</div>
@@ -416,54 +405,54 @@
 
 		<!-- Endpoints List -->
 		{#if loading}
-			<p class="text-sm text-gray-500">Loading...</p>
+			<p class="text-sm text-fg-muted">Loading...</p>
 		{:else if endpoints.length === 0 && !showForm}
-			<div class="text-center py-16 bg-gray-50 rounded-xl border border-gray-200">
-				<p class="text-sm text-gray-500 mb-1">No webhook endpoints configured</p>
-				<p class="text-xs text-gray-400">Add endpoints to receive external events and route them to chat targets</p>
+			<div class="text-center py-16 bg-surface rounded-xl border border-border">
+				<p class="text-sm text-fg-muted mb-1">No webhook endpoints configured</p>
+				<p class="text-xs text-fg-muted">Add endpoints to receive external events and route them to chat targets</p>
 			</div>
 		{:else if endpoints.length > 0}
-			<div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+			<div class="bg-surface rounded-xl border border-border overflow-hidden">
 				<table class="w-full text-sm">
 					<thead>
-						<tr class="border-b border-gray-100">
-							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Name</th>
-							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Path</th>
-							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Auth</th>
-							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Transform</th>
-							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Targets</th>
-							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Enabled</th>
+						<tr class="border-b border-border">
+							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-fg-muted uppercase tracking-wider">Name</th>
+							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-fg-muted uppercase tracking-wider">Path</th>
+							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-fg-muted uppercase tracking-wider">Auth</th>
+							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-fg-muted uppercase tracking-wider">Transform</th>
+							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-fg-muted uppercase tracking-wider">Targets</th>
+							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-fg-muted uppercase tracking-wider">Enabled</th>
 							<th class="px-4 py-2.5"></th>
 						</tr>
 					</thead>
 					<tbody>
 						{#each endpoints as ep}
-							<tr class="border-b border-gray-50 hover:bg-gray-50/50">
-								<td class="px-4 py-3 font-medium text-gray-900">{ep.name}</td>
-								<td class="px-4 py-3 font-mono text-xs text-gray-600">{ep.path || `/hooks/${ep.id}`}</td>
+							<tr class="border-b border-border hover:bg-[var(--color-elevated-50)]">
+								<td class="px-4 py-3 font-medium text-fg">{ep.name}</td>
+								<td class="px-4 py-3 font-mono text-xs text-fg-secondary">{ep.path || `/hooks/${ep.id}`}</td>
 								<td class="px-4 py-3">
 									<span class="inline-flex px-1.5 py-0.5 text-[10px] font-medium rounded {authBadgeClass(ep.auth?.type || 'none')}">
 										{ep.auth?.type || 'none'}
 									</span>
 								</td>
 								<td class="px-4 py-3">
-									<span class="text-xs text-gray-600">{ep.transform?.type || 'raw_json'}</span>
+									<span class="text-xs text-fg-secondary">{ep.transform?.type || 'raw_json'}</span>
 								</td>
 								<td class="px-4 py-3">
-									<span class="text-xs text-gray-600">{(ep.targets || []).length}</span>
+									<span class="text-xs text-fg-secondary">{(ep.targets || []).length}</span>
 								</td>
 								<td class="px-4 py-3">
 									<button onclick={() => toggleEnabled(ep)}
-										class="w-8 h-4 rounded-full relative transition-colors {ep.enabled !== false ? 'bg-gray-900' : 'bg-gray-300'}">
-										<span class="absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform {ep.enabled !== false ? 'left-4' : 'left-0.5'}"></span>
+										class="w-8 h-4 rounded-full relative transition-colors {ep.enabled !== false ? 'bg-primary-500' : 'bg-border'}">
+										<span class="absolute top-0.5 w-3 h-3 rounded-full bg-surface transition-transform {ep.enabled !== false ? 'left-4' : 'left-0.5'}"></span>
 									</button>
 								</td>
 								<td class="px-4 py-3 text-right">
 									<div class="flex gap-2 justify-end">
 										<button onclick={() => editEndpoint(ep)}
-											class="text-xs text-gray-500 hover:text-gray-900 font-medium">Edit</button>
+											class="text-xs text-fg-muted hover:text-fg font-medium">Edit</button>
 										<button onclick={() => deleteEndpoint(ep.id)}
-											class="text-xs text-red-500 hover:text-red-700 font-medium">Delete</button>
+											class="text-xs text-error hover:text-error font-medium">Delete</button>
 									</div>
 								</td>
 							</tr>
@@ -476,50 +465,50 @@
 	<!-- ===================== HISTORY TAB ===================== -->
 	{:else}
 		{#if history.length === 0}
-			<div class="text-center py-16 bg-gray-50 rounded-xl border border-gray-200">
-				<p class="text-sm text-gray-500 mb-1">No webhook deliveries yet</p>
-				<p class="text-xs text-gray-400">History will appear here when endpoints receive requests</p>
+			<div class="text-center py-16 bg-surface rounded-xl border border-border">
+				<p class="text-sm text-fg-muted mb-1">No webhook deliveries yet</p>
+				<p class="text-xs text-fg-muted">History will appear here when endpoints receive requests</p>
 			</div>
 		{:else}
-			<div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+			<div class="bg-surface rounded-xl border border-border overflow-hidden">
 				<table class="w-full text-sm">
 					<thead>
-						<tr class="border-b border-gray-100">
-							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Webhook</th>
-							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Status</th>
-							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Source IP</th>
-							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Payload</th>
-							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Error</th>
-							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Duration</th>
-							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Received</th>
+						<tr class="border-b border-border">
+							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-fg-muted uppercase tracking-wider">Webhook</th>
+							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-fg-muted uppercase tracking-wider">Status</th>
+							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-fg-muted uppercase tracking-wider">Source IP</th>
+							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-fg-muted uppercase tracking-wider">Payload</th>
+							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-fg-muted uppercase tracking-wider">Error</th>
+							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-fg-muted uppercase tracking-wider">Duration</th>
+							<th class="text-left px-4 py-2.5 text-[10px] font-medium text-fg-muted uppercase tracking-wider">Received</th>
 						</tr>
 					</thead>
 					<tbody>
 						{#each history as entry}
-							<tr class="border-b border-gray-50 hover:bg-gray-50/50">
-								<td class="px-4 py-3 text-xs font-mono text-gray-700">{entry.webhook_id}</td>
+							<tr class="border-b border-border hover:bg-[var(--color-elevated-50)]">
+								<td class="px-4 py-3 text-xs font-mono text-fg-secondary">{entry.webhook_id}</td>
 								<td class="px-4 py-3">
 									<span class="inline-flex px-1.5 py-0.5 text-[10px] font-medium rounded {statusBadgeClass(entry.status)}">
 										{entry.status}
 									</span>
 								</td>
-								<td class="px-4 py-3 text-xs text-gray-600 font-mono">{entry.source_ip || '-'}</td>
-								<td class="px-4 py-3 text-xs text-gray-500 font-mono max-w-[200px] truncate" title={entry.payload_preview}>
+								<td class="px-4 py-3 text-xs text-fg-secondary font-mono">{entry.source_ip || '-'}</td>
+								<td class="px-4 py-3 text-xs text-fg-muted font-mono max-w-[200px] truncate" title={entry.payload_preview}>
 									{truncate(entry.payload_preview || '', 60)}
 								</td>
-								<td class="px-4 py-3 text-xs text-red-600 max-w-[150px] truncate" title={entry.error}>
+								<td class="px-4 py-3 text-xs text-error max-w-[150px] truncate" title={entry.error}>
 									{entry.error || '-'}
 								</td>
-								<td class="px-4 py-3 text-xs text-gray-500">
+								<td class="px-4 py-3 text-xs text-fg-muted">
 									{entry.duration_ms != null ? `${entry.duration_ms}ms` : '-'}
 								</td>
-								<td class="px-4 py-3 text-xs text-gray-500">{formatTime(entry.received_at)}</td>
+								<td class="px-4 py-3 text-xs text-fg-muted">{formatTime(entry.received_at)}</td>
 							</tr>
 						{/each}
 					</tbody>
 				</table>
 			</div>
-			<p class="text-[11px] text-gray-400 mt-3">Auto-refreshes every 10 seconds</p>
+			<p class="text-[11px] text-fg-muted mt-3">Auto-refreshes every 10 seconds</p>
 		{/if}
 	{/if}
 </div>

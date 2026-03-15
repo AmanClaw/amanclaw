@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api';
+	import { PageHeader, Button, Card, EmptyState, Badge } from '@amanclaw/ui';
 
 	// --- Config state ---
 	let enabled = $state(false);
@@ -26,17 +27,17 @@
 	});
 
 	function topicColor(topic: string): string {
-		if (topic.startsWith('message.')) return 'text-blue-600';
-		if (topic.startsWith('security.')) return 'text-red-600';
-		if (topic.startsWith('engine.')) return 'text-green-600';
-		return 'text-gray-600';
+		if (topic.startsWith('message.')) return 'text-info';
+		if (topic.startsWith('security.')) return 'text-error';
+		if (topic.startsWith('engine.')) return 'text-success';
+		return 'text-fg-secondary';
 	}
 
 	function topicBg(topic: string): string {
-		if (topic.startsWith('message.')) return 'bg-blue-50 border-blue-200';
-		if (topic.startsWith('security.')) return 'bg-red-50 border-red-200';
-		if (topic.startsWith('engine.')) return 'bg-green-50 border-green-200';
-		return 'bg-gray-50 border-gray-200';
+		if (topic.startsWith('message.')) return 'bg-[var(--color-info-15)] border-[var(--color-info-20)]';
+		if (topic.startsWith('security.')) return 'bg-[var(--color-error-15)] border-[var(--color-error-20)]';
+		if (topic.startsWith('engine.')) return 'bg-[var(--color-success-15)] border-[var(--color-success-20)]';
+		return 'bg-surface border-border';
 	}
 
 	// --- Config actions ---
@@ -112,90 +113,86 @@
 	});
 </script>
 
-<div class="p-8 max-w-4xl">
-	<!-- Header -->
-	<div class="mb-8">
-		<h2 class="text-xl font-semibold text-gray-900 tracking-tight">Gateway</h2>
-		<p class="text-sm text-gray-500 mt-1">WebSocket gateway configuration and live event monitor</p>
-	</div>
+<div class="max-w-4xl">
+	<PageHeader title="Gateway" subtitle="WebSocket gateway configuration and live event monitor" />
 
 	<!-- Configuration Panel -->
 	{#if loading}
-		<p class="text-sm text-gray-500">Loading...</p>
+		<p class="text-sm text-fg-muted">Loading...</p>
 	{:else}
-		<div class="bg-white rounded-xl border border-gray-200 p-5 mb-6">
-			<h3 class="text-sm font-medium text-gray-900 mb-4">Configuration</h3>
+		<div class="bg-surface rounded-xl border border-border p-5 mb-6">
+			<h3 class="text-sm font-medium text-fg mb-4">Configuration</h3>
 
 			<div class="space-y-4">
 				<!-- Enabled toggle -->
 				<div class="flex items-center justify-between">
-					<label class="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Enabled</label>
+					<label class="text-[11px] font-medium text-fg-muted uppercase tracking-wider">Enabled</label>
 					<button onclick={() => enabled = !enabled}
 						class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors
-							{enabled ? 'bg-gray-900' : 'bg-gray-300'}">
-						<span class="inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform
+							{enabled ? 'bg-primary-500' : 'bg-border'}">
+						<span class="inline-block h-3.5 w-3.5 rounded-full bg-surface transition-transform
 							{enabled ? 'translate-x-4' : 'translate-x-0.5'}"></span>
 					</button>
 				</div>
 
 				<div class="grid grid-cols-3 gap-4">
 					<div>
-						<label class="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">Heartbeat Interval (s)</label>
+						<label class="block text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-1">Heartbeat Interval (s)</label>
 						<input type="number" bind:value={heartbeatIntervalSecs} min="1"
-							class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900">
+							class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
 					</div>
 					<div>
-						<label class="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">Max Connections</label>
+						<label class="block text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-1">Max Connections</label>
 						<input type="number" bind:value={maxConnections} min="1"
-							class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900">
+							class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
 					</div>
 					<div>
-						<label class="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">Stale Session Timeout (s)</label>
+						<label class="block text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-1">Stale Session Timeout (s)</label>
 						<input type="number" bind:value={staleSessionTimeoutSecs} min="1"
-							class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900">
+							class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
 					</div>
 				</div>
 			</div>
 
 			<div class="mt-5">
 				<button onclick={saveConfig} disabled={saving}
-					class="px-4 py-1.5 text-xs font-medium rounded-md bg-gray-900 text-white hover:bg-gray-800 transition-colors disabled:opacity-50">
+					class="px-4 py-1.5 text-xs font-medium rounded-md bg-gradient-to-br from-primary-500 to-primary-700 text-white hover:from-primary-400 hover:to-primary-600 transition-colors disabled:opacity-50">
 					{saving ? 'Saving...' : 'Save'}
 				</button>
 			</div>
 		</div>
 
 		<!-- Live Events Panel -->
-		<div class="bg-white rounded-xl border border-gray-200 p-5">
+		<div class="bg-surface rounded-xl border border-border p-5">
 			<div class="flex items-center justify-between mb-4">
 				<div class="flex items-center gap-3">
-					<h3 class="text-sm font-medium text-gray-900">Live Events</h3>
+					<h3 class="text-sm font-medium text-fg">Live Events</h3>
 					<span class="inline-flex items-center gap-1.5 text-[10px] font-medium
-						{connected ? 'text-green-600' : 'text-gray-400'}">
-						<span class="w-1.5 h-1.5 rounded-full {connected ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}"></span>
+						{connected ? 'text-success' : 'text-fg-muted'}">
+						<span class="w-1.5 h-1.5 rounded-full {connected ? 'bg-success animate-pulse' : 'bg-border'}"></span>
 						{connected ? 'Connected' : 'Disconnected'}
 					</span>
 				</div>
 				<div class="flex items-center gap-2">
 					<input type="text" bind:value={topicFilter} placeholder="Filter topics..."
-						class="px-2 py-1 text-xs border border-gray-200 rounded-md w-36 focus:outline-none focus:ring-2 focus:ring-gray-900">
+						class="px-2 py-1 text-xs border border-border rounded-md w-36 focus:outline-none focus:ring-2 focus:ring-primary-500">
 					{#if !connected}
 						<button onclick={connectWs}
-							class="px-3 py-1 text-xs font-medium rounded-md bg-gray-900 text-white hover:bg-gray-800 transition-colors">
+							class="px-3 py-1 text-xs font-medium rounded-md bg-gradient-to-br from-primary-500 to-primary-700 text-white hover:from-primary-400 hover:to-primary-600 transition-colors">
 							Connect
 						</button>
 					{:else}
 						<button onclick={() => paused = !paused}
 							class="px-3 py-1 text-xs font-medium rounded-md border transition-colors
-								{paused ? 'border-yellow-300 text-yellow-700 bg-yellow-50' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}">
+								{paused ? 'border-[var(--color-warning-20)] text-warning bg-[var(--color-warning-15)]' : 'border-border text-fg-secondary hover:bg-[var(--color-elevated-50)]'}">
 							{paused ? 'Resume' : 'Pause'}
 						</button>
 						<button onclick={clearEvents}
-							class="px-3 py-1 text-xs font-medium rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+							class="px-3 py-1 text-xs font-medium rounded-md border border-border text-fg-secondary hover:bg-[var(--color-elevated-50)] transition-colors">
 							Clear
 						</button>
 						<button onclick={disconnectWs}
-							class="px-3 py-1 text-xs font-medium rounded-md border border-red-200 text-red-600 hover:bg-red-50 transition-colors">
+							class="px-3 py-1 text-xs font-medium rounded-md border border-[var(--color-error-20)] text-error hover:bg-[var(--color-error-15)] transition-colors">
 							Disconnect
 						</button>
 					{/if}
@@ -203,8 +200,8 @@
 			</div>
 
 			{#if filteredEvents().length === 0}
-				<div class="text-center py-12 bg-gray-50 rounded-lg border border-gray-200">
-					<p class="text-sm text-gray-500">
+				<div class="text-center py-12 bg-surface rounded-lg border border-border">
+					<p class="text-sm text-fg-muted">
 						{#if !connected}
 							Connect to the WebSocket to see live events
 						{:else}
@@ -212,7 +209,7 @@
 						{/if}
 					</p>
 					{#if !connected}
-						<p class="text-xs text-gray-400 mt-1">ws://127.0.0.1:3000/ws</p>
+						<p class="text-xs text-fg-muted mt-1">ws://127.0.0.1:3000/ws</p>
 					{/if}
 				</div>
 			{:else}
@@ -220,15 +217,15 @@
 					{#each filteredEvents() as event, i}
 						<div class="rounded-md border px-3 py-1.5 {topicBg(event.topic)}">
 							<button onclick={() => toggleExpand(i)} class="w-full flex items-center gap-3 text-left">
-								<span class="text-gray-400 shrink-0">{event.ts}</span>
+								<span class="text-fg-muted shrink-0">{event.ts}</span>
 								<span class="font-medium {topicColor(event.topic)} shrink-0">{event.topic}</span>
 								{#if !event.expanded}
-									<span class="text-gray-400 truncate">{JSON.stringify(event.payload).slice(0, 80)}</span>
+									<span class="text-fg-muted truncate">{JSON.stringify(event.payload).slice(0, 80)}</span>
 								{/if}
-								<span class="text-gray-300 ml-auto shrink-0 transition-transform {event.expanded ? 'rotate-90' : ''}">&#9656;</span>
+								<span class="text-fg-muted ml-auto shrink-0 transition-transform {event.expanded ? 'rotate-90' : ''}">&#9656;</span>
 							</button>
 							{#if event.expanded}
-								<pre class="mt-2 p-2 bg-white rounded text-[11px] text-gray-700 overflow-x-auto border border-gray-100">{JSON.stringify(event.payload, null, 2)}</pre>
+								<pre class="mt-2 p-2 bg-surface rounded text-[11px] text-fg-secondary overflow-x-auto border border-border">{JSON.stringify(event.payload, null, 2)}</pre>
 							{/if}
 						</div>
 					{/each}
@@ -236,7 +233,7 @@
 			{/if}
 
 			{#if events.length > 0}
-				<p class="text-[10px] text-gray-400 mt-3 text-right">{events.length} event{events.length !== 1 ? 's' : ''} (max {MAX_EVENTS})</p>
+				<p class="text-[10px] text-fg-muted mt-3 text-right">{events.length} event{events.length !== 1 ? 's' : ''} (max {MAX_EVENTS})</p>
 			{/if}
 		</div>
 	{/if}

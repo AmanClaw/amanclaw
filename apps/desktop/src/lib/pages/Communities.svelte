@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api';
+	import { PageHeader, Button, Card, EmptyState, Badge } from '@amanclaw/ui';
+	import { Plus, Users, Edit3, Trash2 } from '@amanclaw/ui';
 
 	let communities: any[] = $state([]);
 	let loading = $state(true);
@@ -107,32 +109,30 @@
 	});
 </script>
 
-<div class="p-8 max-w-4xl">
-	<div class="flex items-center justify-between mb-6">
-		<div>
-			<h2 class="text-xl font-semibold text-gray-900 tracking-tight">Communities</h2>
-			<p class="text-sm text-gray-500 mt-1">{communities.length} connected group{communities.length !== 1 ? 's' : ''}</p>
-		</div>
-		<button onclick={() => { resetForm(); showForm = true; }}
-			class="px-3 py-1.5 text-xs font-medium rounded-md bg-gray-900 text-white hover:bg-gray-800 transition-colors">
-			Add Community
-		</button>
-	</div>
+<div class="max-w-4xl">
+	<PageHeader title="Communities" subtitle="{communities.length} connected group{communities.length !== 1 ? 's' : ''}">
+		{#snippet action()}
+			<Button size="sm" onclick={() => { resetForm(); showForm = true; }}>
+				<Plus size={14} />
+				Add Community
+			</Button>
+		{/snippet}
+	</PageHeader>
 
 	{#if showForm}
-		<div class="bg-white rounded-xl border-2 border-gray-900 p-5 mb-6">
-			<h3 class="text-sm font-semibold text-gray-900 mb-4">{editing ? 'Edit' : 'Add'} Community</h3>
+		<Card class="mb-6 !border-2 !border-primary-500">
+			<h3 class="text-sm font-semibold text-fg mb-4">{editing ? 'Edit' : 'Add'} Community</h3>
 			<div class="space-y-3">
 				<div class="grid grid-cols-2 gap-3">
 					<div>
-						<label class="block text-xs font-medium text-gray-700 mb-1">Name</label>
+						<label class="block text-xs font-medium text-fg-secondary mb-1">Name</label>
 						<input type="text" bind:value={formName} placeholder="My Community"
-							class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900">
+							class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-elevated text-fg focus:outline-none focus:ring-2 focus:ring-primary-500">
 					</div>
 					<div>
-						<label class="block text-xs font-medium text-gray-700 mb-1">Platform</label>
+						<label class="block text-xs font-medium text-fg-secondary mb-1">Platform</label>
 						<select bind:value={formPlatform} disabled={!!editing}
-							class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 disabled:opacity-50">
+							class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-elevated text-fg focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50">
 							{#each platforms as p}
 								<option value={p}>{p}</option>
 							{/each}
@@ -141,16 +141,16 @@
 				</div>
 				{#if !editing}
 					<div>
-						<label class="block text-xs font-medium text-gray-700 mb-1">Platform Group ID</label>
+						<label class="block text-xs font-medium text-fg-secondary mb-1">Platform Group ID</label>
 						<input type="text" bind:value={formGroupId} placeholder="-100123456789"
-							class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900">
+							class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-elevated text-fg focus:outline-none focus:ring-2 focus:ring-primary-500">
 					</div>
 				{/if}
 				<div class="grid grid-cols-2 gap-3">
 					<div>
-						<label class="block text-xs font-medium text-gray-700 mb-1">JAKIM Zone</label>
+						<label class="block text-xs font-medium text-fg-secondary mb-1">JAKIM Zone</label>
 						<select bind:value={formZone}
-							class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900">
+							class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-elevated text-fg focus:outline-none focus:ring-2 focus:ring-primary-500">
 							{#each zones as group}
 								<optgroup label={group.group}>
 									{#each group.items as z}
@@ -161,65 +161,62 @@
 						</select>
 					</div>
 					<div>
-						<label class="block text-xs font-medium text-gray-700 mb-1">Language</label>
+						<label class="block text-xs font-medium text-fg-secondary mb-1">Language</label>
 						<div class="flex gap-3 mt-1">
 							{#each languages as lang}
 								<label class="flex items-center gap-1.5 cursor-pointer">
-									<input type="radio" bind:group={formLanguage} value={lang.value} class="accent-gray-900">
-									<span class="text-xs text-gray-700">{lang.label}</span>
+									<input type="radio" bind:group={formLanguage} value={lang.value} class="accent-primary-500">
+									<span class="text-xs text-fg-secondary">{lang.label}</span>
 								</label>
 							{/each}
 						</div>
 					</div>
 				</div>
 				<div>
-					<label class="block text-xs font-medium text-gray-700 mb-1">Enabled Skills (comma-separated)</label>
+					<label class="block text-xs font-medium text-fg-secondary mb-1">Enabled Skills (comma-separated)</label>
 					<input type="text" bind:value={formSkills} placeholder="solat, doa, quran"
-						class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900">
+						class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-elevated text-fg focus:outline-none focus:ring-2 focus:ring-primary-500">
 				</div>
 			</div>
 			<div class="flex gap-2 mt-4">
-				<button onclick={handleSave}
-					class="px-4 py-1.5 text-xs font-medium rounded-md bg-gray-900 text-white hover:bg-gray-800 transition-colors">
+				<Button size="sm" onclick={handleSave}>
 					{editing ? 'Update' : 'Create'}
-				</button>
-				<button onclick={resetForm}
-					class="px-4 py-1.5 text-xs font-medium rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+				</Button>
+				<Button variant="secondary" size="sm" onclick={resetForm}>
 					Cancel
-				</button>
+				</Button>
 			</div>
-		</div>
+		</Card>
 	{/if}
 
 	{#if loading}
-		<p class="text-sm text-gray-500">Loading...</p>
+		<p class="text-sm text-fg-muted">Loading...</p>
 	{:else if communities.length === 0}
-		<div class="text-center py-16 bg-gray-50 rounded-xl border border-gray-200">
-			<p class="text-sm text-gray-500">No communities yet</p>
-			<p class="text-xs text-gray-400 mt-1">Add your first community to get started</p>
-		</div>
+		<Card>
+			<EmptyState icon={Users} title="No communities yet" description="Add your first community to get started" />
+		</Card>
 	{:else}
 		<div class="space-y-2">
 			{#each communities as community}
-				<div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200 hover:border-gray-300 transition-colors">
+				<div class="flex items-center justify-between p-4 bg-surface rounded-xl border border-border hover:border-[var(--color-primary-500-10)] transition-colors">
 					<div>
-						<p class="text-sm font-medium text-gray-900">{community.name}</p>
-						<p class="text-xs text-gray-500 mt-0.5">
+						<p class="text-[13px] font-medium text-fg">{community.name}</p>
+						<p class="text-xs text-fg-muted mt-0.5">
 							{community.platform} · {community.zone} · {community.language}
 						</p>
 					</div>
 					<div class="flex items-center gap-3">
-						<span class="text-xs text-gray-400">{community.enabled_skills?.length || 0} skills</span>
+						<span class="text-xs text-fg-muted">{community.enabled_skills?.length || 0} skills</span>
 						<button onclick={() => startEdit(community)}
-							class="text-xs text-gray-500 hover:text-gray-900 font-medium">Edit</button>
+							class="text-xs text-fg-secondary hover:text-fg font-medium">Edit</button>
 						{#if confirmDelete === community.id}
 							<button onclick={() => handleDelete(community.id)}
-								class="text-xs text-red-600 font-medium">Confirm</button>
+								class="text-xs text-error font-medium">Confirm</button>
 							<button onclick={() => confirmDelete = null}
-								class="text-xs text-gray-400">Cancel</button>
+								class="text-xs text-fg-muted">Cancel</button>
 						{:else}
 							<button onclick={() => confirmDelete = community.id}
-								class="text-xs text-red-400 hover:text-red-600">Delete</button>
+								class="text-xs text-error/70 hover:text-error">Delete</button>
 						{/if}
 					</div>
 				</div>

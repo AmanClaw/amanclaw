@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api';
+	import { PageHeader, Button, Card, EmptyState, Badge } from '@amanclaw/ui';
 
 	let users: any[] = $state([]);
 	let stats: any = $state(null);
@@ -167,48 +168,43 @@
 	});
 </script>
 
-<div class="p-6 md:p-8">
-	<div class="flex items-start justify-between mb-6">
-		<div>
-			<h2 class="text-xl font-semibold text-gray-900 dark:text-white tracking-tight">Users</h2>
-			<p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage bot users and permissions</p>
-		</div>
-		<button onclick={() => showAddModal = true}
-			class="px-3 py-1.5 text-xs font-medium rounded-md bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors">
-			+ Add User
-		</button>
-	</div>
+<div>
+	<PageHeader title="Users" subtitle="Manage bot users and permissions">
+		{#snippet action()}
+			<Button size="sm" onclick={() => showAddModal = true}>+ Add User</Button>
+		{/snippet}
+	</PageHeader>
 
 	<!-- Stats -->
 	{#if stats}
 		<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-			<div class="bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-				<p class="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total</p>
-				<p class="text-2xl font-semibold text-gray-900 dark:text-white mt-1">{stats.total}</p>
+			<div class="bg-surface rounded-xl border border-border p-4">
+				<p class="text-[11px] font-medium text-fg-muted uppercase tracking-wider">Total</p>
+				<p class="text-2xl font-semibold text-fg mt-1">{stats.total}</p>
 			</div>
-			<div class="bg-purple-50 dark:bg-purple-900/20 rounded-xl border border-purple-200 dark:border-purple-800 p-4">
-				<p class="text-[11px] font-medium text-purple-600 dark:text-purple-400 uppercase tracking-wider">Admin</p>
-				<p class="text-2xl font-semibold text-purple-700 dark:text-purple-300 mt-1">{stats.admin ?? 0}</p>
+			<div class="bg-[var(--color-accent-500-15)] rounded-xl border border-[var(--color-accent-500-15)] p-4">
+				<p class="text-[11px] font-medium text-[var(--color-accent-500)] uppercase tracking-wider">Admin</p>
+				<p class="text-2xl font-semibold text-[var(--color-accent-500)] mt-1">{stats.admin ?? 0}</p>
 			</div>
-			<div class="bg-yellow-50 dark:bg-yellow-900/20 rounded-xl border border-yellow-200 dark:border-yellow-800 p-4">
-				<p class="text-[11px] font-medium text-yellow-600 dark:text-yellow-400 uppercase tracking-wider">Pending</p>
-				<p class="text-2xl font-semibold text-yellow-700 dark:text-yellow-300 mt-1">{stats.pending}</p>
+			<div class="bg-[var(--color-warning-15)] rounded-xl border border-[var(--color-warning-20)] p-4">
+				<p class="text-[11px] font-medium text-warning uppercase tracking-wider">Pending</p>
+				<p class="text-2xl font-semibold text-warning mt-1">{stats.pending}</p>
 			</div>
-			<div class="bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-200 dark:border-green-800 p-4">
-				<p class="text-[11px] font-medium text-green-600 dark:text-green-400 uppercase tracking-wider">Approved</p>
-				<p class="text-2xl font-semibold text-green-700 dark:text-green-300 mt-1">{stats.approved}</p>
+			<div class="bg-[var(--color-success-15)] rounded-xl border border-[var(--color-success-20)] p-4">
+				<p class="text-[11px] font-medium text-success uppercase tracking-wider">Approved</p>
+				<p class="text-2xl font-semibold text-success mt-1">{stats.approved}</p>
 			</div>
-			<div class="bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800 p-4">
-				<p class="text-[11px] font-medium text-red-600 dark:text-red-400 uppercase tracking-wider">Blocked</p>
-				<p class="text-2xl font-semibold text-red-700 dark:text-red-300 mt-1">{stats.blocked}</p>
+			<div class="bg-[var(--color-error-15)] rounded-xl border border-[var(--color-error-20)] p-4">
+				<p class="text-[11px] font-medium text-error uppercase tracking-wider">Blocked</p>
+				<p class="text-2xl font-semibold text-error mt-1">{stats.blocked}</p>
 			</div>
 		</div>
 
 		{#if stats.by_platform && Object.keys(stats.by_platform).length > 0}
 			<div class="flex flex-wrap gap-2 mb-6">
 				{#each Object.entries(stats.by_platform) as [plat, count]}
-					<span class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-full">
-						<span class="text-[10px] font-bold text-gray-500 dark:text-gray-400">{platformIcons[plat] || plat}</span>
+					<span class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium bg-elevated text-fg-secondary rounded-full">
+						<span class="text-[10px] font-bold text-fg-muted">{platformIcons[plat] || plat}</span>
 						{plat}: {count}
 					</span>
 				{/each}
@@ -223,12 +219,12 @@
 			bind:value={search}
 			oninput={onSearchInput}
 			placeholder="Search users..."
-			class="flex-1 min-w-48 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none focus:border-gray-400 dark:focus:border-gray-500 focus:ring-1 focus:ring-gray-400"
+			class="flex-1 min-w-48 px-3 py-2 text-sm rounded-lg border border-border bg-surface text-fg outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
 		/>
 		<select
 			bind:value={platformFilter}
 			onchange={loadUsers}
-			class="px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+			class="px-3 py-2 text-sm rounded-lg border border-border bg-surface text-fg-secondary"
 		>
 			<option value="">All platforms</option>
 			{#each platforms as p}
@@ -238,7 +234,7 @@
 		<select
 			bind:value={statusFilter}
 			onchange={loadUsers}
-			class="px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+			class="px-3 py-2 text-sm rounded-lg border border-border bg-surface text-fg-secondary"
 		>
 			<option value="">All statuses</option>
 			{#each statuses as s}
@@ -248,72 +244,72 @@
 	</div>
 
 	{#if loading}
-		<p class="text-sm text-gray-500 dark:text-gray-400">Loading...</p>
+		<p class="text-sm text-fg-muted">Loading...</p>
 	{:else if users.length === 0}
-		<div class="text-center py-16 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-			<p class="text-sm text-gray-500 dark:text-gray-400">No users found</p>
+		<div class="text-center py-16 bg-surface rounded-xl border border-border">
+			<p class="text-sm text-fg-muted">No users found</p>
 		</div>
 	{:else}
-		<div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+		<div class="bg-surface rounded-xl border border-border overflow-hidden">
 			<div class="overflow-x-auto">
 				<table class="w-full text-sm">
 					<thead>
-						<tr class="border-b border-gray-100 dark:border-gray-700">
-							<th class="text-left px-4 py-3 text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Platform</th>
-							<th class="text-left px-4 py-3 text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">User</th>
-							<th class="text-left px-4 py-3 text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-							<th class="text-left px-4 py-3 text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Last Seen</th>
-							<th class="text-right px-4 py-3 text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+						<tr class="border-b border-border">
+							<th class="text-left px-4 py-3 text-[11px] font-medium text-fg-muted uppercase tracking-wider">Platform</th>
+							<th class="text-left px-4 py-3 text-[11px] font-medium text-fg-muted uppercase tracking-wider">User</th>
+							<th class="text-left px-4 py-3 text-[11px] font-medium text-fg-muted uppercase tracking-wider">Status</th>
+							<th class="text-left px-4 py-3 text-[11px] font-medium text-fg-muted uppercase tracking-wider">Last Seen</th>
+							<th class="text-right px-4 py-3 text-[11px] font-medium text-fg-muted uppercase tracking-wider">Actions</th>
 						</tr>
 					</thead>
 					<tbody>
 						{#each users as user}
-							<tr class="border-b border-gray-50 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors cursor-pointer"
+							<tr class="border-b border-border/50 hover:bg-[var(--color-elevated-50)] transition-colors cursor-pointer"
 								onclick={() => showUser(user.user_id, user.platform)}>
 								<td class="px-4 py-3">
 									<span class="inline-flex items-center gap-1.5">
-										<span class="text-[10px] font-bold text-gray-400 dark:text-gray-500">{platformIcons[user.platform] || '??'}</span>
-										<span class="text-gray-500 dark:text-gray-400">{user.platform}</span>
+										<span class="text-[10px] font-bold text-fg-muted">{platformIcons[user.platform] || '??'}</span>
+										<span class="text-fg-muted">{user.platform}</span>
 									</span>
 								</td>
 								<td class="px-4 py-3">
-									<div class="text-gray-900 dark:text-white font-mono text-xs">{user.user_id}</div>
+									<div class="text-fg font-mono text-xs">{user.user_id}</div>
 									{#if user.username || user.first_name}
-										<div class="text-[11px] text-gray-400 dark:text-gray-500">{user.first_name || ''} {user.username ? `@${user.username}` : ''}</div>
+										<div class="text-[11px] text-fg-muted">{user.first_name || ''} {user.username ? `@${user.username}` : ''}</div>
 									{/if}
 								</td>
 								<td class="px-4 py-3">
 									<span class="inline-flex px-2 py-0.5 text-[11px] font-medium rounded-full
-										{user.state === 'admin' ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300' :
-										 user.state === 'approved' ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300' :
-										 user.state === 'pending' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300' :
-										 user.state === 'blocked' ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300' :
-										 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}">
+										{user.state === 'admin' ? 'bg-[var(--color-accent-500-15)] text-[var(--color-accent-500)]' :
+										 user.state === 'approved' ? 'bg-[var(--color-success-15)] text-success' :
+										 user.state === 'pending' ? 'bg-[var(--color-warning-15)] text-warning' :
+										 user.state === 'blocked' ? 'bg-[var(--color-error-15)] text-error' :
+										 'bg-elevated text-fg-secondary'}">
 										{user.state}
 									</span>
 								</td>
-								<td class="px-4 py-3 text-xs text-gray-400 dark:text-gray-500">{formatDate(user.last_seen)}</td>
+								<td class="px-4 py-3 text-xs text-fg-muted">{formatDate(user.last_seen)}</td>
 								<!-- svelte-ignore a11y_click_events_have_key_events -->
 								<td class="px-4 py-3 text-right" onclick={(e) => e.stopPropagation()}>
 									{#if user.state === 'admin'}
 										<button onclick={() => removeAdmin(user.user_id, user.platform)}
-											class="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 font-medium mr-2">Remove Admin</button>
+											class="text-xs text-[var(--color-accent-500)] hover:text-[var(--color-accent-500)] font-medium mr-2">Remove Admin</button>
 									{:else}
 										{#if user.state === 'pending'}
 											<button onclick={() => approve(user.user_id, user.platform)}
-												class="text-xs text-green-600 dark:text-green-400 hover:text-green-800 font-medium mr-2">Approve</button>
+												class="text-xs text-success hover:text-success font-medium mr-2">Approve</button>
 										{/if}
 										{#if user.state === 'blocked'}
 											<button onclick={() => unblock(user.user_id, user.platform)}
-												class="text-xs text-yellow-600 dark:text-yellow-400 hover:text-yellow-800 font-medium mr-2">Unblock</button>
+												class="text-xs text-warning hover:text-warning font-medium mr-2">Unblock</button>
 										{/if}
 										{#if user.state === 'approved'}
 											<button onclick={() => makeAdmin(user.user_id, user.platform)}
-												class="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-800 font-medium mr-2">Make Admin</button>
+												class="text-xs text-[var(--color-accent-500)] hover:text-[var(--color-accent-500)] font-medium mr-2">Make Admin</button>
 										{/if}
 										{#if user.state !== 'blocked'}
 											<button onclick={() => block(user.user_id, user.platform)}
-												class="text-xs text-red-600 dark:text-red-400 hover:text-red-800 font-medium">Block</button>
+												class="text-xs text-error hover:text-error font-medium">Block</button>
 										{/if}
 									{/if}
 								</td>
@@ -323,7 +319,7 @@
 				</table>
 			</div>
 		</div>
-		<p class="text-xs text-gray-400 dark:text-gray-500 mt-2">{users.length} users</p>
+		<p class="text-xs text-fg-muted mt-2">{users.length} users</p>
 	{/if}
 </div>
 
@@ -332,53 +328,53 @@
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<div class="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-12 px-4" onclick={closeDetail}>
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
-		<div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-auto"
+		<div class="bg-surface rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-auto"
 			onclick={(e) => e.stopPropagation()}>
 			<div class="p-6">
 				<!-- Header -->
 				<div class="flex justify-between items-start mb-5">
 					<div>
-						<h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-							<span class="text-[11px] font-bold text-gray-400 dark:text-gray-500 mr-1">{platformIcons[selectedUser.platform] || '??'}</span>
+						<h3 class="text-lg font-semibold text-fg">
+							<span class="text-[11px] font-bold text-fg-muted mr-1">{platformIcons[selectedUser.platform] || '??'}</span>
 							{selectedUser.first_name || selectedUser.user_id}
 						</h3>
-						<p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+						<p class="text-xs text-fg-muted mt-0.5">
 							{selectedUser.platform} &middot; <span class="font-mono">{selectedUser.user_id}</span>
 							{#if selectedUser.username} &middot; @{selectedUser.username}{/if}
 						</p>
 					</div>
-					<button onclick={closeDetail} class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-lg leading-none">&times;</button>
+					<button onclick={closeDetail} class="text-fg-muted hover:text-fg-secondary text-lg leading-none">&times;</button>
 				</div>
 
 				<!-- Info Grid -->
 				<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-					<div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-						<p class="text-[10px] text-gray-500 dark:text-gray-400 uppercase">Status</p>
-						<p class="text-sm font-semibold text-gray-900 dark:text-white capitalize">{selectedUser.state}</p>
+					<div class="bg-surface/50 rounded-lg p-3">
+						<p class="text-[10px] text-fg-muted uppercase">Status</p>
+						<p class="text-sm font-semibold text-fg capitalize">{selectedUser.state}</p>
 					</div>
-					<div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-						<p class="text-[10px] text-gray-500 dark:text-gray-400 uppercase">Messages</p>
-						<p class="text-sm font-semibold text-gray-900 dark:text-white">{selectedUser.message_count}</p>
+					<div class="bg-surface/50 rounded-lg p-3">
+						<p class="text-[10px] text-fg-muted uppercase">Messages</p>
+						<p class="text-sm font-semibold text-fg">{selectedUser.message_count}</p>
 					</div>
-					<div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-						<p class="text-[10px] text-gray-500 dark:text-gray-400 uppercase">First Seen</p>
-						<p class="text-[11px] font-semibold text-gray-900 dark:text-white">{formatDate(selectedUser.first_seen)}</p>
+					<div class="bg-surface/50 rounded-lg p-3">
+						<p class="text-[10px] text-fg-muted uppercase">First Seen</p>
+						<p class="text-[11px] font-semibold text-fg">{formatDate(selectedUser.first_seen)}</p>
 					</div>
-					<div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-						<p class="text-[10px] text-gray-500 dark:text-gray-400 uppercase">Last Seen</p>
-						<p class="text-[11px] font-semibold text-gray-900 dark:text-white">{formatDate(selectedUser.last_seen)}</p>
+					<div class="bg-surface/50 rounded-lg p-3">
+						<p class="text-[10px] text-fg-muted uppercase">Last Seen</p>
+						<p class="text-[11px] font-semibold text-fg">{formatDate(selectedUser.last_seen)}</p>
 					</div>
 				</div>
 
 				<!-- Facts -->
 				{#if selectedUser.facts && Object.keys(selectedUser.facts).length > 0}
 					<div class="mb-5">
-						<h4 class="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Learned Facts</h4>
-						<div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+						<h4 class="text-xs font-semibold text-fg-secondary mb-2">Learned Facts</h4>
+						<div class="bg-surface/50 rounded-lg p-3">
 							{#each Object.entries(selectedUser.facts) as [key, value]}
 								<div class="flex justify-between py-1 text-xs">
-									<span class="text-gray-500 dark:text-gray-400">{key}</span>
-									<span class="text-gray-900 dark:text-white">{value}</span>
+									<span class="text-fg-muted">{key}</span>
+									<span class="text-fg">{value}</span>
 								</div>
 							{/each}
 						</div>
@@ -387,31 +383,31 @@
 
 				<!-- Conversation History -->
 				<div>
-					<h4 class="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+					<h4 class="text-xs font-semibold text-fg-secondary mb-2">
 						Recent Conversations ({historyTotal} total)
 					</h4>
 					{#if historyLoading}
-						<p class="text-gray-400 text-xs">Loading...</p>
+						<p class="text-fg-muted text-xs">Loading...</p>
 					{:else}
 						<div class="space-y-1.5 max-h-56 overflow-auto">
 							{#each userHistory as msg}
-								<div class="text-xs p-2 rounded-lg {msg.role === 'user' ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-900 dark:text-blue-100' : 'bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-white'}">
-									<span class="text-[10px] font-medium text-gray-400 uppercase">{msg.role}</span>
+								<div class="text-xs p-2 rounded-lg {msg.role === 'user' ? 'bg-[var(--color-info-15)] text-blue-900' : 'bg-surface/50 text-fg'}">
+									<span class="text-[10px] font-medium text-fg-muted uppercase">{msg.role}</span>
 									<p class="mt-0.5 whitespace-pre-wrap">{msg.content}</p>
 								</div>
 							{/each}
 							{#if userHistory.length === 0}
-								<p class="text-gray-400 dark:text-gray-500 text-xs">No conversation history</p>
+								<p class="text-fg-muted text-xs">No conversation history</p>
 							{/if}
 						</div>
 					{/if}
 				</div>
 
 				<!-- Actions -->
-				<div class="flex gap-2 mt-5 pt-4 border-t border-gray-100 dark:border-gray-700">
+				<div class="flex gap-2 mt-5 pt-4 border-t border-border">
 					{#if selectedUser.state === 'admin'}
 						<button onclick={() => removeAdmin(selectedUser.user_id, selectedUser.platform)}
-							class="px-3 py-1.5 text-xs font-medium rounded-md bg-purple-600 hover:bg-purple-700 text-white transition-colors">
+							class="px-3 py-1.5 text-xs font-medium rounded-md bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-500)] text-white transition-colors">
 							Remove Admin
 						</button>
 					{:else}
@@ -423,13 +419,13 @@
 						{/if}
 						{#if selectedUser.state === 'approved'}
 							<button onclick={() => makeAdmin(selectedUser.user_id, selectedUser.platform)}
-								class="px-3 py-1.5 text-xs font-medium rounded-md bg-purple-600 hover:bg-purple-700 text-white transition-colors">
+								class="px-3 py-1.5 text-xs font-medium rounded-md bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-500)] text-white transition-colors">
 								Make Admin
 							</button>
 						{/if}
 						{#if selectedUser.state === 'blocked'}
 							<button onclick={() => unblock(selectedUser.user_id, selectedUser.platform)}
-								class="px-3 py-1.5 text-xs font-medium rounded-md bg-yellow-600 hover:bg-yellow-700 text-white transition-colors">
+								class="px-3 py-1.5 text-xs font-medium rounded-md bg-warning hover:bg-warning text-white transition-colors">
 								Unblock
 							</button>
 						{:else if selectedUser.state !== 'blocked'}
@@ -450,45 +446,45 @@
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<div class="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-16 px-4" onclick={() => showAddModal = false}>
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
-		<div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md" onclick={(e) => e.stopPropagation()}>
+		<div class="bg-surface rounded-xl shadow-xl w-full max-w-md" onclick={(e) => e.stopPropagation()}>
 			<div class="p-6">
 				<div class="flex justify-between items-center mb-5">
-					<h3 class="text-lg font-semibold text-gray-900 dark:text-white">Add User</h3>
-					<button onclick={() => showAddModal = false} class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-lg leading-none">&times;</button>
+					<h3 class="text-lg font-semibold text-fg">Add User</h3>
+					<button onclick={() => showAddModal = false} class="text-fg-muted hover:text-fg-secondary text-lg leading-none">&times;</button>
 				</div>
 
 				<div class="space-y-3">
 					<div>
-						<label class="block text-[11px] font-medium text-gray-600 dark:text-gray-400 mb-1">Platform</label>
+						<label class="block text-[11px] font-medium text-fg-secondary mb-1">Platform</label>
 						<select bind:value={newPlatform}
-							class="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+							class="w-full px-3 py-2 text-sm rounded-lg border border-border bg-surface text-fg-secondary">
 							{#each platforms as p}
 								<option value={p}>{p}</option>
 							{/each}
 						</select>
 					</div>
 					<div>
-						<label class="block text-[11px] font-medium text-gray-600 dark:text-gray-400 mb-1">User ID <span class="text-red-500">*</span></label>
+						<label class="block text-[11px] font-medium text-fg-secondary mb-1">User ID <span class="text-error">*</span></label>
 						<input type="text" bind:value={newUserId} placeholder="e.g. 123456789"
-							class="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400" />
-						<p class="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">Telegram: numeric ID | Discord: snowflake | WhatsApp: phone number</p>
+							class="w-full px-3 py-2 text-sm rounded-lg border border-border bg-surface text-fg outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500" />
+						<p class="text-[10px] text-fg-muted mt-0.5">Telegram: numeric ID | Discord: snowflake | WhatsApp: phone number</p>
 					</div>
 					<div class="grid grid-cols-2 gap-3">
 						<div>
-							<label class="block text-[11px] font-medium text-gray-600 dark:text-gray-400 mb-1">Username</label>
+							<label class="block text-[11px] font-medium text-fg-secondary mb-1">Username</label>
 							<input type="text" bind:value={newUsername} placeholder="Optional"
-								class="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400" />
+								class="w-full px-3 py-2 text-sm rounded-lg border border-border bg-surface text-fg outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500" />
 						</div>
 						<div>
-							<label class="block text-[11px] font-medium text-gray-600 dark:text-gray-400 mb-1">First Name</label>
+							<label class="block text-[11px] font-medium text-fg-secondary mb-1">First Name</label>
 							<input type="text" bind:value={newFirstName} placeholder="Optional"
-								class="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400" />
+								class="w-full px-3 py-2 text-sm rounded-lg border border-border bg-surface text-fg outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500" />
 						</div>
 					</div>
 					<div>
-						<label class="block text-[11px] font-medium text-gray-600 dark:text-gray-400 mb-1">Initial Status</label>
+						<label class="block text-[11px] font-medium text-fg-secondary mb-1">Initial Status</label>
 						<select bind:value={newStatus}
-							class="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+							class="w-full px-3 py-2 text-sm rounded-lg border border-border bg-surface text-fg-secondary">
 							<option value="approved">Approved</option>
 							<option value="pending">Pending</option>
 						</select>
@@ -496,16 +492,16 @@
 				</div>
 
 				{#if addError}
-					<div class="mt-3 p-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-xs text-red-700 dark:text-red-300">{addError}</div>
+					<div class="mt-3 p-2 bg-[var(--color-error-15)] rounded-lg text-xs text-error">{addError}</div>
 				{/if}
 
-				<div class="flex gap-2 mt-5 pt-4 border-t border-gray-100 dark:border-gray-700">
+				<div class="flex gap-2 mt-5 pt-4 border-t border-border">
 					<button onclick={addNewUser} disabled={addSaving}
-						class="px-4 py-2 text-xs font-medium rounded-md bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 disabled:opacity-50 transition-colors">
+						class="px-4 py-2 text-xs font-medium rounded-md bg-gradient-to-br from-primary-500 to-primary-700 text-white hover:from-primary-400 hover:to-primary-600 disabled:opacity-50 transition-colors">
 						{addSaving ? 'Adding...' : 'Add User'}
 					</button>
 					<button onclick={() => showAddModal = false}
-						class="px-4 py-2 text-xs font-medium rounded-md border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+						class="px-4 py-2 text-xs font-medium rounded-md border border-border text-fg-secondary hover:bg-[var(--color-elevated-50)] transition-colors">
 						Cancel
 					</button>
 				</div>
