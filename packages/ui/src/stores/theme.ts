@@ -12,9 +12,8 @@ function createThemeStore() {
       ? 'light'
       : 'dark';
 
-  // Always default to dark — AmanClaw's brand is dark-first.
-  // Only use stored preference if explicitly set by user via toggle.
-  const initial: Theme = 'dark';
+  // Default to light mode. User can toggle to dark via the theme button.
+  const initial: Theme = stored ?? 'light';
 
   const { subscribe, set } = writable<Theme>(initial);
 
