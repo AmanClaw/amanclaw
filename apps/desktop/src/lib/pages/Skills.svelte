@@ -163,7 +163,7 @@
 </script>
 
 <div class="max-w-4xl">
-	<PageHeader title="Skills" subtitle="{skills.length} active skill{skills.length !== 1 ? 's' : ''}{#if pendingServers().length > 0}, {pendingServers().length} pending{/if}">
+	<PageHeader title="Skills" subtitle="{skills.length} active skill{skills.length !== 1 ? 's' : ''}{pendingServers().length > 0 ? `, ${pendingServers().length} pending` : ''}">
 		{#snippet action()}
 			<input type="text" bind:value={search} placeholder="Search..."
 				class="px-3 py-1.5 text-xs border border-border rounded-md w-48 bg-elevated text-fg focus:outline-none focus:ring-2 focus:ring-primary-500">

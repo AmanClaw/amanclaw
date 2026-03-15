@@ -186,7 +186,7 @@
 </script>
 
 <div class="max-w-4xl">
-	<PageHeader title="Cron Jobs" subtitle="{#if tab === 'jobs'}{jobCount} job{jobCount !== 1 ? 's' : ''}{#if timezone} - {timezone}{/if}{:else}Execution history{/if}">
+	<PageHeader title="Cron Jobs" subtitle="{tab === 'jobs' ? `${jobCount} job${jobCount !== 1 ? 's' : ''}${timezone ? ` - ${timezone}` : ''}` : 'Execution history'}">
 		{#snippet action()}
 			{#if tab === 'jobs' && !showForm}
 				<Button size="sm" onclick={() => { resetForm(); showForm = true; }}>Add Job</Button>
