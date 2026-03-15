@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="desktop/src-tauri/icons/app-icon.png" width="120" alt="AmanClaw" />
+  <img src="apps/desktop/src-tauri/icons/app-icon.png" width="120" alt="AmanClaw" />
   <br>
   <strong style="font-size:2em">AmanClaw</strong>
   <br>
@@ -58,7 +58,7 @@
   </tr>
 </table>
 
-<!-- To add screenshots: run `cd desktop && cargo tauri dev`, take screenshots, save to docs/images/ -->
+<!-- To add screenshots: run `cd apps/desktop && cargo tauri dev`, take screenshots, save to docs/images/ -->
 
 ---
 
@@ -160,8 +160,8 @@ Managed hosting — sign up, get a bot, chat from your browser. No terminal need
 
 ```bash
 # Operator: setup infrastructure
-./deploy/scripts/setup-k3s.sh          # Install K3s + TLS on Hostinger VPS
-./deploy/scripts/deploy.sh             # Deploy to cloud.amanclaw.my
+./infra/scripts/setup-k3s.sh           # Install K3s + TLS on Hostinger VPS
+./infra/scripts/deploy.sh              # Deploy to cloud.amanclaw.my
 
 # Operator: generate invites
 amanclaw-cloud invite create --email user@example.com
@@ -255,7 +255,7 @@ amanclaw-cloud tenant list/info/suspend # Manage tenants
 
 ```bash
 git clone https://github.com/AmanClaw/amanclaw.git
-cd amanclaw/rust
+cd amanclaw
 cargo build --release
 ```
 
@@ -451,89 +451,61 @@ See [products/communitybot/README.md](products/communitybot/README.md) for full 
 
 ## Architecture
 
-AmanClaw is a Cargo workspace with 28 crates (15 core + 13 plugins) plus a web dashboard and a Tauri desktop app:
+AmanClaw is a Cargo workspace with 30 crates organized by role, plus a web dashboard and a Tauri desktop app:
 
 ```text
-rust/
-├── Cargo.toml                    # Workspace root
-├── crates/
-│   ├── amanclaw-traits/          # Core types, traits, config, EventEmitter
-│   ├── amanclaw-cli/             # Binary entry point
-│   ├── amanclaw-core/            # Engine, pipeline, router, scheduler, webhooks, soul loader, sub-agents
-│   ├── amanclaw-security/        # Auth, rate limiter, sanitizer
-│   ├── amanclaw-memory/          # SQLite conversation, facts, summaries, vector store, FTS5 hybrid search
-│   ├── amanclaw-llm/             # OpenAI-compatible LLM client + tool calling + embeddings
-│   ├── amanclaw-wasm-runtime/    # WASM plugin loader, sandbox, runtime, watcher
-│   ├── amanclaw-plugin-sdk/      # SDK + macro for WASM plugin authors
-│   ├── amanclaw-mcp/             # MCP server + client bridge (stdio + HTTP + SSE), Resources, Prompts
-│   ├── amanclaw-script-runtime/  # Script plugin loader (Python/JS via subprocess)
-│   ├── amanclaw-api/             # REST management API + embedded dashboard (Axum)
-│   ├── amanclaw-gateway/         # WebSocket gateway (JSON-RPC 2.0, session management)
-│   ├── amanclaw-registry/        # Plugin registry for loading and managing skills/channels
-│   ├── amanclaw-prayer-times/    # Pure-Rust prayer time calculator (6 methods: MWL, ISNA, Egyptian, Karachi, Umm al-Qura, JAKIM)
-│   └── amanclaw-skill-index/     # Skill marketplace index, search, curated packs, SHA256 verification
-├── plugins/
-│   ├── skill-sysinfo/            # System info skill (built-in)
-│   ├── skill-shell/              # Whitelisted shell commands (built-in)
-│   ├── skill-solat/              # Prayer times via JAKIM (built-in)
-│   ├── skill-qiblat/             # Qiblat direction (built-in)
-│   ├── skill-hijri/              # Islamic calendar (built-in)
-│   ├── skill-doa/                # Doa & zikir collection (built-in)
-│   ├── skill-quran/              # Quran lookup & search (built-in)
-│   ├── skill-echo-wasm/          # Example WASM plugin (153KB compiled)
-│   ├── channel-telegram/         # Telegram adapter (teloxide)
-│   ├── channel-discord/          # Discord adapter (serenity)
-│   ├── channel-whatsapp/         # WhatsApp Cloud API adapter
-│   ├── channel-whatsapp-web/     # Unofficial WhatsApp via WAHA bridge
-│   └── channel-slack/            # Slack adapter (Socket Mode)
-├── sdks/
-│   ├── assemblyscript/           # AssemblyScript (JS/TS) plugin SDK
-│   └── python/                   # Python plugin SDK
-├── souls/
-│   └── default.md                # Default agent personality (SOUL.md)
-├── wit/
-│   └── skill.wit                 # WASM Interface Types contract
-├── Dockerfile
-└── docker-compose.yml
-cloud/                                # AmanClaw Cloud — managed hosting
-├── src/
-│   ├── main.rs                       # Cloud binary (serve, invite, tenant commands)
-│   ├── db.rs                         # Cloud database (tenants, users, invites CRUD)
-│   ├── router.rs                     # Tenant router (lazy engine start/stop)
-│   ├── api.rs                        # Cloud management API + chat endpoint
-│   ├── tenant.rs                     # Tenant directory provisioning
-│   ├── invite.rs                     # Invite code management
-│   └── chat.html                     # Web chat widget (embedded)
-├── Dockerfile
-└── Cargo.toml
-deploy/                               # K8s deployment
-├── k3s/                              # K3s manifests (namespace, deployment, service, ingress, PVC, secrets, backup)
-└── scripts/                          # setup-k3s.sh, deploy.sh, backup.sh
-dashboard/                         # Svelte 5 + Vite web dashboard (embedded in binary at build time)
-├── src/
-│   └── lib/
-│       ├── components/            # UI components
-│       ├── pages/                 # Login, Users, Channels, Communities, Skills, Content, Logs, Settings
-│       └── stores/                # API store, auth store
-├── package.json
-└── vite.config.ts
-desktop/                           # Tauri 2 desktop admin app
-├── src/                           # Svelte 5 + Tailwind CSS 4 frontend
-│   ├── lib/
-│   │   ├── components/            # Sidebar, UI components
-│   │   ├── pages/                 # Dashboard, Communities, Skills, etc.
-│   │   ├── stores/                # Svelte stores (state management)
-│   │   └── api.ts                 # API client (Tauri IPC / REST)
-│   └── routes/                    # SvelteKit routes
-├── src-tauri/                     # Rust backend (Tauri 2)
-│   └── src/
-│       ├── commands.rs            # IPC commands (Svelte ↔ Rust)
-│       ├── tray.rs                # System tray setup
-│       ├── notifications.rs       # Native notification manager
-│       ├── logs.rs                # Log broadcasting
-│       └── state.rs               # App state (local/remote mode)
-├── package.json
-└── svelte.config.js
+.
+├── Cargo.toml                        # Workspace root
+├── crates/                           # Library crates
+│   ├── amanclaw-traits/              # Core types, traits, config, EventEmitter
+│   ├── amanclaw-core/                # Engine, pipeline, router, scheduler, webhooks, soul loader, sub-agents
+│   ├── amanclaw-security/            # Auth, rate limiter, sanitizer
+│   ├── amanclaw-memory/              # SQLite conversation, facts, summaries, vector store, FTS5 hybrid search
+│   ├── amanclaw-llm/                 # OpenAI-compatible LLM client + tool calling + embeddings
+│   ├── amanclaw-islamic-db/          # Islamic knowledge database (Quran, Hadith, Fiqh)
+│   ├── amanclaw-wasm-runtime/        # WASM plugin loader, sandbox, runtime, watcher
+│   ├── amanclaw-plugin-sdk/          # SDK + macro for WASM plugin authors
+│   ├── amanclaw-mcp/                 # MCP server + client bridge (stdio + HTTP + SSE), Resources, Prompts
+│   ├── amanclaw-script-runtime/      # Script plugin loader (Python/JS via subprocess)
+│   ├── amanclaw-api/                 # REST management API + embedded dashboard (Axum)
+│   ├── amanclaw-gateway/             # WebSocket gateway (JSON-RPC 2.0, session management)
+│   ├── amanclaw-registry/            # Plugin registry for loading and managing skills/channels
+│   ├── amanclaw-prayer-times/        # Pure-Rust prayer time calculator (6 methods)
+│   └── amanclaw-skill-index/         # Skill marketplace index, search, curated packs, SHA256 verification
+├── apps/                             # Application binaries
+│   ├── cli/                          # CLI entry point (amanclaw binary)
+│   ├── cloud/                        # AmanClaw Cloud — multi-tenant managed hosting
+│   ├── dashboard/                    # Svelte 5 + Vite web dashboard
+│   └── desktop/                      # Tauri 2 desktop admin app (macOS, Windows, Linux)
+├── skills/                           # Built-in Rust skills
+│   ├── skill-solat/                  # Prayer times via JAKIM
+│   ├── skill-quran/                  # Quran lookup & search with tafsir
+│   ├── skill-qiblat/                 # Qiblat direction
+│   ├── skill-hijri/                  # Islamic calendar
+│   ├── skill-doa/                    # Doa & zikir collection
+│   ├── skill-hadith-rs/              # Hadith with isnad grading
+│   ├── skill-fiqh/                   # Multi-madhab fiqh resolver
+│   ├── skill-sysinfo/                # System info
+│   ├── skill-shell/                  # Whitelisted shell commands
+│   └── skill-echo-wasm/              # Example WASM plugin
+├── channels/                         # Chat platform adapters
+│   ├── channel-telegram/             # Telegram adapter (teloxide)
+│   ├── channel-discord/              # Discord adapter (serenity)
+│   ├── channel-whatsapp/             # WhatsApp Cloud API adapter
+│   ├── channel-whatsapp-web/         # Unofficial WhatsApp via WAHA bridge
+│   └── channel-slack/                # Slack adapter (Socket Mode)
+├── plugins/                          # Python script plugins (23 skills)
+├── sdks/                             # Plugin SDKs
+│   ├── assemblyscript/               # AssemblyScript (JS/TS) plugin SDK
+│   └── python/                       # Python plugin SDK
+├── souls/                            # SOUL.md agent personality files
+├── infra/                            # Infrastructure
+│   ├── docker/                       # Dockerfile, docker-compose.yml
+│   ├── k3s/                          # K3s manifests (namespace, deployment, service, ingress, PVC, secrets, backup)
+│   └── scripts/                      # setup-k3s.sh, deploy.sh, backup.sh
+├── products/                         # Pre-configured bot distributions
+├── wit/                              # WASM Interface Types contract
+└── docs/                             # Design specs, plans, images
 ```
 
 ### How It Works
@@ -939,7 +911,7 @@ Cross-platform desktop app for managing AmanClaw bot instances. Built with Tauri
 
 ```bash
 # Development
-cd desktop
+cd apps/desktop
 npm install
 cargo tauri dev
 
@@ -1413,7 +1385,7 @@ This is the easiest way to use providers that don't natively support the OpenAI 
 ### Docker (recommended)
 
 ```bash
-cd rust
+cd infra/docker
 docker compose up -d
 
 # View logs
@@ -1464,12 +1436,11 @@ sudo systemctl enable --now amanclaw
 
 ```bash
 # Using Docker for cross-compilation
-cd rust
 docker run --rm -v "$(pwd)":/app -w /app rust:1.85-slim bash -c "
   apt-get update -qq && apt-get install -y -qq gcc-aarch64-linux-gnu
   rustup target add aarch64-unknown-linux-gnu
   CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
-    cargo build --release --target aarch64-unknown-linux-gnu -p amanclaw-cli
+    cargo build --release --target aarch64-unknown-linux-gnu -p cli
 "
 
 # Copy to Pi
@@ -1511,7 +1482,6 @@ scp target/aarch64-unknown-linux-gnu/release/amanclaw user@pi:~/amanclaw/
 ### Build and test
 
 ```bash
-cd rust
 cargo build
 cargo test --workspace
 ```
@@ -1520,13 +1490,13 @@ cargo test --workspace
 
 ```bash
 rustup target add wasm32-unknown-unknown
-cargo build --target wasm32-unknown-unknown --release -p amanclaw-skill-echo-wasm
+cargo build --target wasm32-unknown-unknown --release -p skill-echo-wasm
 ```
 
 ### Run with debug logging
 
 ```bash
-RUST_LOG=amanclaw=debug cargo run -p amanclaw-cli
+RUST_LOG=amanclaw=debug cargo run -p cli
 ```
 
 ### Test coverage
@@ -1573,7 +1543,7 @@ Contributions are welcome! Here's how to get started:
 ```bash
 # Fork and clone
 git clone https://github.com/YOUR_USERNAME/amanclaw.git
-cd amanclaw/rust
+cd amanclaw
 
 # Build and verify tests pass
 cargo build
