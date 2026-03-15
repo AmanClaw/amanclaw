@@ -196,6 +196,7 @@ dependencies = [
  "amanclaw-script-runtime",
  "amanclaw-security",
  "amanclaw-skill-doa",
+ "amanclaw-skill-fiqh",
  "amanclaw-skill-hadith",
  "amanclaw-skill-hijri",
  "amanclaw-skill-qiblat",
@@ -397,6 +398,21 @@ version = "0.1.0"
 dependencies = [
  "amanclaw-plugin-sdk",
  "serde_json",
+]
+
+[[package]]
+name = "amanclaw-skill-fiqh"
+version = "0.1.0"
+dependencies = [
+ "amanclaw-islamic-db",
+ "amanclaw-traits",
+ "anyhow",
+ "async-trait",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
