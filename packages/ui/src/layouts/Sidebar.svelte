@@ -33,7 +33,7 @@
   }: Props = $props();
 
   // Accordion — only one group open at a time (first group open by default)
-  let activeGroup = $state(groups[0]?.label ?? '');
+  let activeGroup = $state('Main');
 
   function toggleGroup(label: string) {
     activeGroup = activeGroup === label ? '' : label;
