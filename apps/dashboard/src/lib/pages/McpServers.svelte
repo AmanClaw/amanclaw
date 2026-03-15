@@ -1,23 +1,25 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte'
   import { apiFetch } from '../stores/api'
+  import { PageHeader, Button, Card, Badge, EmptyState } from '@amanclaw/ui'
+  import { Plus, ExternalLink, Server, Loader2 } from '@amanclaw/ui'
 
-  let servers: Record<string, any> = {}
-  let loading = true
-  let showForm = false
-  let tab: 'installed' | 'catalog' = 'installed'
-  let catalogSearch = ''
-  let catalogCategory = 'all'
+  let servers: Record<string, any> = $state({})
+  let loading = $state(true)
+  let showForm = $state(false)
+  let tab: 'installed' | 'catalog' = $state('installed')
+  let catalogSearch = $state('')
+  let catalogCategory = $state('all')
 
   // Form fields
-  let name = ''
-  let transport: 'stdio' | 'http' = 'stdio'
-  let command = ''
-  let args = ''
-  let url = ''
-  let envPairs: { key: string; value: string }[] = []
-  let editingName: string | null = null
-  let saving = false
+  let name = $state('')
+  let transport: 'stdio' | 'http' = $state('stdio')
+  let command = $state('')
+  let args = $state('')
+  let url = $state('')
+  let envPairs: { key: string; value: string }[] = $state([])
+  let editingName: string | null = $state(null)
+  let saving = $state(false)
 
   interface CatalogEntry {
     name: string
@@ -71,15 +73,15 @@
     { id: 'files', label: 'Files' },
   ]
 
-  $: filteredCatalog = catalog.filter(entry => {
+  let filteredCatalog = $derived(catalog.filter(entry => {
     const matchCategory = catalogCategory === 'all' || entry.category === catalogCategory
     const matchSearch = !catalogSearch ||
       entry.name.toLowerCase().includes(catalogSearch.toLowerCase()) ||
       entry.description.toLowerCase().includes(catalogSearch.toLowerCase())
     return matchCategory && matchSearch
-  })
+  }))
 
-  $: installedNames = new Set(Object.keys(servers))
+  let installedNames = $derived(new Set(Object.keys(servers)))
 
   function installFromCatalog(entry: CatalogEntry) {
     editingName = null
@@ -187,132 +189,127 @@
   onMount(() => { loadServers() })
 </script>
 
-<div class="p-6 md:p-8 max-w-5xl">
-  <div class="flex items-center justify-between mb-6">
-    <div>
-      <h2 class="text-xl font-semibold text-gray-900 dark:text-white">MCP Servers</h2>
-      <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Connect external tool servers via Model Context Protocol</p>
-    </div>
-    {#if tab === 'installed' && !showForm}
-      <button on:click={() => { resetForm(); showForm = true; }}
-        class="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors">
-        Add Server
-      </button>
-    {/if}
-  </div>
+<div class="max-w-5xl">
+  <PageHeader title="MCP Servers" subtitle="Connect external tool servers via Model Context Protocol">
+    {#snippet action()}
+      {#if tab === 'installed' && !showForm}
+        <Button size="sm" onclick={() => { resetForm(); showForm = true; }}>
+          <Plus size={14} /> Add Server
+        </Button>
+      {/if}
+    {/snippet}
+  </PageHeader>
 
   <!-- Tabs -->
-  <div class="flex gap-1 mb-6 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
-    <button on:click={() => tab = 'installed'}
+  <div class="flex gap-1 mb-6 bg-elevated rounded-lg p-1">
+    <button onclick={() => tab = 'installed'}
       class="flex-1 px-4 py-2 text-xs font-medium rounded-md transition-colors
-        {tab === 'installed' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}">
+        {tab === 'installed' ? 'bg-surface text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
       Installed ({Object.keys(servers).length})
     </button>
-    <button on:click={() => { tab = 'catalog'; showForm = false; }}
+    <button onclick={() => { tab = 'catalog'; showForm = false; }}
       class="flex-1 px-4 py-2 text-xs font-medium rounded-md transition-colors
-        {tab === 'catalog' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}">
+        {tab === 'catalog' ? 'bg-surface text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
       Catalog ({catalog.length})
     </button>
   </div>
 
   {#if tab === 'installed'}
     {#if showForm}
-      <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 mb-6">
-        <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-4">{editingName ? 'Edit' : 'Add'} MCP Server</h3>
+      <Card class="mb-6">
+        <h3 class="text-sm font-medium text-fg mb-4">{editingName ? 'Edit' : 'Add'} MCP Server</h3>
         <div class="space-y-4">
           <div>
-            <label class="block text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Server Name</label>
+            <label class="block text-[13px] font-medium text-fg-muted uppercase tracking-wider mb-1">Server Name</label>
             <input type="text" bind:value={name} placeholder="e.g. filesystem, github"
-              class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+              class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-elevated text-fg focus:outline-none focus:ring-2 focus:ring-primary-500/50">
           </div>
           <div>
-            <label class="block text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Transport</label>
+            <label class="block text-[13px] font-medium text-fg-muted uppercase tracking-wider mb-2">Transport</label>
             <div class="flex gap-2">
-              <button on:click={() => transport = 'stdio'}
+              <button onclick={() => transport = 'stdio'}
                 class="px-3 py-1.5 text-xs font-medium rounded-md border transition-colors
-                  {transport === 'stdio' ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}">
+                  {transport === 'stdio' ? 'bg-primary-600 text-white border-primary-600' : 'border-border text-fg-secondary hover:bg-[var(--color-elevated-50)]'}">
                 Stdio (Local)
               </button>
-              <button on:click={() => transport = 'http'}
+              <button onclick={() => transport = 'http'}
                 class="px-3 py-1.5 text-xs font-medium rounded-md border transition-colors
-                  {transport === 'http' ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}">
+                  {transport === 'http' ? 'bg-primary-600 text-white border-primary-600' : 'border-border text-fg-secondary hover:bg-[var(--color-elevated-50)]'}">
                 HTTP (Remote)
               </button>
             </div>
           </div>
           {#if transport === 'stdio'}
             <div>
-              <label class="block text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Command</label>
+              <label class="block text-[13px] font-medium text-fg-muted uppercase tracking-wider mb-1">Command</label>
               <input type="text" bind:value={command} placeholder="e.g. npx, uvx, node"
-                class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-elevated text-fg focus:outline-none focus:ring-2 focus:ring-primary-500/50">
             </div>
             <div>
-              <label class="block text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Arguments</label>
+              <label class="block text-[13px] font-medium text-fg-muted uppercase tracking-wider mb-1">Arguments</label>
               <input type="text" bind:value={args} placeholder="e.g. -y @modelcontextprotocol/server-filesystem /home/user/docs"
-                class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-elevated text-fg focus:outline-none focus:ring-2 focus:ring-primary-500/50">
             </div>
             <div>
               <div class="flex items-center justify-between mb-1">
-                <label class="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Environment Variables</label>
-                <button on:click={addEnvPair} class="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400">+ Add</button>
+                <label class="text-[13px] font-medium text-fg-muted uppercase tracking-wider">Environment Variables</label>
+                <button onclick={addEnvPair} class="text-xs text-primary-500 hover:text-primary-400">+ Add</button>
               </div>
               {#each envPairs as pair, i}
                 <div class="flex gap-2 mb-2">
                   <input type="text" bind:value={pair.key} placeholder="KEY"
-                    class="w-1/3 px-2 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono">
+                    class="w-1/3 px-2 py-1.5 text-xs border border-border rounded-md bg-elevated text-fg focus:outline-none focus:ring-2 focus:ring-primary-500/50 font-mono">
                   <input type="text" bind:value={pair.value} placeholder="value"
-                    class="flex-1 px-2 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono">
-                  <button on:click={() => removeEnvPair(i)} class="text-xs text-red-500 hover:text-red-700 px-1">x</button>
+                    class="flex-1 px-2 py-1.5 text-xs border border-border rounded-md bg-elevated text-fg focus:outline-none focus:ring-2 focus:ring-primary-500/50 font-mono">
+                  <button onclick={() => removeEnvPair(i)} class="text-xs text-red-400 hover:text-red-300 px-1">x</button>
                 </div>
               {/each}
             </div>
           {:else}
             <div>
-              <label class="block text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Server URL</label>
+              <label class="block text-[13px] font-medium text-fg-muted uppercase tracking-wider mb-1">Server URL</label>
               <input type="text" bind:value={url} placeholder="e.g. http://localhost:8080/sse"
-                class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-elevated text-fg focus:outline-none focus:ring-2 focus:ring-primary-500/50">
             </div>
           {/if}
         </div>
         <div class="flex gap-2 mt-5">
-          <button on:click={saveServer} disabled={saving || !name.trim()}
-            class="px-4 py-1.5 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50">
+          <Button size="sm" onclick={saveServer} disabled={saving || !name.trim()}>
             {saving ? 'Saving...' : editingName ? 'Update' : 'Save'}
-          </button>
-          <button on:click={resetForm}
-            class="px-4 py-1.5 text-xs font-medium rounded-md border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-            Cancel
-          </button>
+          </Button>
+          <Button variant="secondary" size="sm" onclick={resetForm}>Cancel</Button>
         </div>
-        <p class="text-[11px] text-gray-400 mt-3">Restart the engine after adding/removing servers for changes to take effect.</p>
-      </div>
+        <p class="text-[13px] text-fg-muted mt-3">Restart the engine after adding/removing servers for changes to take effect.</p>
+      </Card>
     {/if}
 
     {#if loading}
-      <p class="text-sm text-gray-500 dark:text-gray-400">Loading...</p>
-    {:else if Object.keys(servers).length === 0 && !showForm}
-      <div class="text-center py-16 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
-        <p class="text-3xl mb-3">&#x2B21;</p>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">No MCP servers configured</p>
-        <p class="text-xs text-gray-400 dark:text-gray-500 mb-4">Browse the catalog to find and install servers</p>
-        <button on:click={() => tab = 'catalog'}
-          class="px-4 py-2 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors">
-          Browse Catalog
-        </button>
+      <div class="flex items-center gap-2 text-fg-muted">
+        <Loader2 size={16} class="animate-spin" />
+        <span class="text-sm">Loading...</span>
       </div>
+    {:else if Object.keys(servers).length === 0 && !showForm}
+      <EmptyState
+        icon={Server}
+        title="No MCP servers configured"
+        description="Browse the catalog to find and install servers"
+      >
+        {#snippet action()}
+          <Button size="sm" onclick={() => tab = 'catalog'}>Browse Catalog</Button>
+        {/snippet}
+      </EmptyState>
     {:else}
       <div class="space-y-3">
         {#each Object.entries(servers) as [serverName, server]}
-          <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+          <Card>
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-3">
-                <span class="inline-flex px-2 py-0.5 text-[10px] font-medium rounded-full
-                  {server.transport === 'http' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400'}">
+                <Badge variant={server.transport === 'http' ? 'info' : 'accent'}>
                   {server.transport === 'http' ? 'HTTP' : 'STDIO'}
-                </span>
+                </Badge>
                 <div>
-                  <p class="text-sm font-medium text-gray-900 dark:text-white">{serverName}</p>
-                  <p class="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5">
+                  <p class="text-sm font-medium text-fg">{serverName}</p>
+                  <p class="text-xs text-fg-muted font-mono mt-0.5">
                     {#if server.transport === 'http'}
                       {server.url}
                     {:else}
@@ -322,23 +319,23 @@
                 </div>
               </div>
               <div class="flex gap-2">
-                <button on:click={() => editServer(serverName)}
-                  class="text-xs text-gray-500 hover:text-gray-900 dark:hover:text-white font-medium">Edit</button>
-                <button on:click={() => deleteServer(serverName)}
-                  class="text-xs text-red-500 hover:text-red-700 font-medium">Remove</button>
+                <button onclick={() => editServer(serverName)}
+                  class="text-xs text-fg-muted hover:text-fg font-medium">Edit</button>
+                <button onclick={() => deleteServer(serverName)}
+                  class="text-xs text-red-400 hover:text-red-300 font-medium">Remove</button>
               </div>
             </div>
             {#if server.env && Object.keys(server.env).length > 0}
-              <div class="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
-                <p class="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Env</p>
+              <div class="mt-2 pt-2 border-t border-border">
+                <p class="text-xs text-fg-muted uppercase tracking-wider mb-1">Env</p>
                 <div class="flex flex-wrap gap-1">
                   {#each Object.keys(server.env) as key}
-                    <span class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-[10px] font-mono text-gray-600 dark:text-gray-400">{key}</span>
+                    <span class="px-1.5 py-0.5 bg-elevated rounded text-xs font-mono text-fg-secondary">{key}</span>
                   {/each}
                 </div>
               </div>
             {/if}
-          </div>
+          </Card>
         {/each}
       </div>
     {/if}
@@ -347,14 +344,14 @@
     <!-- Catalog -->
     <div class="mb-5 space-y-3">
       <input type="text" bind:value={catalogSearch} placeholder="Search servers..."
-        class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+        class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary-500/50">
       <div class="flex flex-wrap gap-1.5">
         {#each categories as cat}
-          <button on:click={() => catalogCategory = cat.id}
-            class="px-2.5 py-1 text-[11px] font-medium rounded-full border transition-colors
+          <button onclick={() => catalogCategory = cat.id}
+            class="px-2.5 py-1 text-[13px] font-medium rounded-full border transition-colors
               {catalogCategory === cat.id
-                ? 'bg-blue-600 text-white border-blue-600'
-                : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}">
+                ? 'bg-primary-600 text-white border-primary-600'
+                : 'border-border text-fg-muted hover:bg-[var(--color-elevated-50)]'}">
             {cat.label}
           </button>
         {/each}
@@ -363,60 +360,59 @@
 
     {#if filteredCatalog.length === 0}
       <div class="text-center py-12">
-        <p class="text-sm text-gray-500 dark:text-gray-400">No servers found matching your search</p>
+        <p class="text-sm text-fg-muted">No servers found matching your search</p>
       </div>
     {:else}
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {#each filteredCatalog as entry}
-          <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 flex flex-col justify-between">
-            <div>
-              <div class="flex items-start justify-between mb-2">
-                <div class="flex items-center gap-2">
-                  <h4 class="text-sm font-medium text-gray-900 dark:text-white">{entry.name}</h4>
-                  {#if installedNames.has(entry.name)}
-                    <span class="px-1.5 py-0.5 text-[9px] font-medium rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">Installed</span>
+          <Card>
+            <div class="flex flex-col justify-between h-full">
+              <div>
+                <div class="flex items-start justify-between mb-2">
+                  <div class="flex items-center gap-2">
+                    <h4 class="text-sm font-medium text-fg">{entry.name}</h4>
+                    {#if installedNames.has(entry.name)}
+                      <Badge variant="success">Installed</Badge>
+                    {/if}
+                  </div>
+                  <Badge variant={entry.source === 'Anthropic' ? 'warning' : 'muted'}>
+                    {entry.source}
+                  </Badge>
+                </div>
+                <p class="text-xs text-fg-muted mb-3 leading-relaxed">{entry.description}</p>
+                <div class="flex flex-wrap gap-1 mb-3">
+                  <span class="px-1.5 py-0.5 bg-elevated rounded text-xs font-mono text-fg-muted">
+                    {entry.command} {entry.args[entry.args.length - 1]}
+                  </span>
+                  {#if entry.env && entry.env.length > 0}
+                    <Badge variant="warning">
+                      {entry.env.length} key{entry.env.length > 1 ? 's' : ''} required
+                    </Badge>
                   {/if}
                 </div>
-                <span class="px-1.5 py-0.5 text-[9px] font-medium rounded-full
-                  {entry.source === 'Anthropic' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}">
-                  {entry.source}
-                </span>
               </div>
-              <p class="text-xs text-gray-500 dark:text-gray-400 mb-3 leading-relaxed">{entry.description}</p>
-              <div class="flex flex-wrap gap-1 mb-3">
-                <span class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-[10px] font-mono text-gray-500 dark:text-gray-400">
-                  {entry.command} {entry.args[entry.args.length - 1]}
-                </span>
-                {#if entry.env && entry.env.length > 0}
-                  <span class="px-1.5 py-0.5 bg-yellow-50 dark:bg-yellow-900/20 rounded text-[10px] text-yellow-700 dark:text-yellow-400">
-                    {entry.env.length} key{entry.env.length > 1 ? 's' : ''} required
-                  </span>
+              <div class="flex gap-2">
+                {#if installedNames.has(entry.name)}
+                  <button disabled
+                    class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md bg-elevated text-fg-muted cursor-not-allowed">
+                    Already Installed
+                  </button>
+                {:else if entry.env && entry.env.length > 0}
+                  <Button size="sm" onclick={() => installFromCatalog(entry)} disabled={saving} class="flex-1">
+                    Configure & Install
+                  </Button>
+                {:else}
+                  <Button size="sm" onclick={() => quickInstall(entry)} disabled={saving} class="flex-1">
+                    {saving ? 'Installing...' : 'Install'}
+                  </Button>
                 {/if}
+                <a href={entry.repo} target="_blank" rel="noopener noreferrer"
+                  class="px-3 py-1.5 text-xs font-medium rounded-md border border-border text-fg-muted hover:bg-[var(--color-elevated-50)] transition-colors inline-flex items-center gap-1">
+                  <ExternalLink size={12} /> Repo
+                </a>
               </div>
             </div>
-            <div class="flex gap-2">
-              {#if installedNames.has(entry.name)}
-                <button disabled
-                  class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed">
-                  Already Installed
-                </button>
-              {:else if entry.env && entry.env.length > 0}
-                <button on:click={() => installFromCatalog(entry)} disabled={saving}
-                  class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50">
-                  Configure & Install
-                </button>
-              {:else}
-                <button on:click={() => quickInstall(entry)} disabled={saving}
-                  class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50">
-                  {saving ? 'Installing...' : 'Install'}
-                </button>
-              {/if}
-              <a href={entry.repo} target="_blank" rel="noopener noreferrer"
-                class="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                Repo
-              </a>
-            </div>
-          </div>
+          </Card>
         {/each}
       </div>
     {/if}

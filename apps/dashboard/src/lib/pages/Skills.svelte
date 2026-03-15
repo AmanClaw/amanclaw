@@ -1,9 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { apiFetch } from '../stores/api'
+  import { PageHeader, Card, Badge } from '@amanclaw/ui'
+  import { Zap, Loader2 } from '@amanclaw/ui'
 
-  let skills: any[] = []
-  let loading = true
+  let skills: any[] = $state([])
+  let loading = $state(true)
 
   onMount(async () => {
     try {
@@ -17,23 +19,33 @@
   })
 </script>
 
-<div class="p-6 md:p-8">
-  <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Skills</h2>
+<PageHeader title="Skills" subtitle="{skills.length} skills registered" />
 
-  {#if loading}
-    <p class="text-gray-500">Loading...</p>
-  {:else}
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {#each skills as skill}
-        <div class="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
-          <div class="flex items-center justify-between mb-2">
-            <h3 class="font-semibold text-gray-900 dark:text-white">{skill.name}</h3>
-            <span class="w-2 h-2 rounded-full bg-green-500"></span>
+{#if loading}
+  <div class="flex items-center gap-2 text-fg-muted">
+    <Loader2 size={16} class="animate-spin" />
+    <span class="text-sm">Loading...</span>
+  </div>
+{:else}
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    {#each skills as skill}
+      <Card>
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-lg bg-[var(--color-primary-500-10)] flex items-center justify-center">
+              <Zap size={14} class="text-primary-500" />
+            </div>
+            <h3 class="font-semibold text-fg">{skill.name}</h3>
           </div>
-          <p class="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{skill.description}</p>
+          <Badge variant="success">
+            <span class="flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span>
+              Active
+            </span>
+          </Badge>
         </div>
-      {/each}
-    </div>
-    <p class="text-sm text-gray-500 mt-4">{skills.length} skills registered</p>
-  {/if}
-</div>
+        <p class="text-[13px] text-fg-muted line-clamp-2">{skill.description}</p>
+      </Card>
+    {/each}
+  </div>
+{/if}

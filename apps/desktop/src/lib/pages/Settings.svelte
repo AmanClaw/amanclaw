@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api';
+	import { PageHeader, Button, Card, EmptyState, Badge } from '@amanclaw/ui';
 	import { currentPage } from '$lib/stores/app';
 
 	let mode = $state('local');
@@ -141,120 +142,117 @@
 	}
 </script>
 
-<div class="p-8 max-w-2xl">
-	<div class="mb-8">
-		<h2 class="text-xl font-semibold text-gray-900 tracking-tight">Settings</h2>
-		<p class="text-sm text-gray-500 mt-1">Configure your AmanClaw instance</p>
-	</div>
+<div class="max-w-2xl">
+	<PageHeader title="Settings" subtitle="Configure your AmanClaw instance" />
 
 	<!-- LLM Config -->
 	<section class="mb-8">
-		<h3 class="text-sm font-medium text-gray-900 mb-3">LLM Configuration</h3>
+		<h3 class="text-sm font-medium text-fg mb-3">LLM Configuration</h3>
 		<div class="space-y-3">
 			<div>
-				<label for="s-base-url" class="block text-xs font-medium text-gray-700 mb-1">Base URL</label>
+				<label for="s-base-url" class="block text-xs font-medium text-fg-secondary mb-1">Base URL</label>
 				<input id="s-base-url" type="text" bind:value={llmBaseUrl} placeholder="http://localhost:11434/v1"
-					class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
+					class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
 			</div>
 			<div class="grid grid-cols-2 gap-3">
 				<div>
-					<label for="s-model" class="block text-xs font-medium text-gray-700 mb-1">Model</label>
+					<label for="s-model" class="block text-xs font-medium text-fg-secondary mb-1">Model</label>
 					<input id="s-model" type="text" bind:value={llmModel} placeholder="qwen3:8b"
-						class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
+						class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
 				</div>
 				<div>
-					<label for="s-api-key" class="block text-xs font-medium text-gray-700 mb-1">API Key</label>
+					<label for="s-api-key" class="block text-xs font-medium text-fg-secondary mb-1">API Key</label>
 					<input id="s-api-key" type="password" bind:value={llmApiKey} placeholder="Optional"
-						class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
+						class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
 				</div>
 			</div>
 			<div class="grid grid-cols-2 gap-3">
 				<div>
-					<label for="s-max-tokens" class="block text-xs font-medium text-gray-700 mb-1">Max Tokens</label>
+					<label for="s-max-tokens" class="block text-xs font-medium text-fg-secondary mb-1">Max Tokens</label>
 					<input id="s-max-tokens" type="number" bind:value={maxTokens}
-						class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
+						class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
 				</div>
 				<div>
-					<label for="s-temperature" class="block text-xs font-medium text-gray-700 mb-1">Temperature</label>
+					<label for="s-temperature" class="block text-xs font-medium text-fg-secondary mb-1">Temperature</label>
 					<input id="s-temperature" type="number" step="0.1" min="0" max="2" bind:value={temperature}
-						class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
+						class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
 				</div>
 			</div>
 		</div>
 	</section>
 
 	<!-- Channels -->
-	<section class="mb-8 border-t border-gray-200 pt-6">
-		<h3 class="text-sm font-medium text-gray-900 mb-3">Channel Tokens</h3>
-		<p class="text-xs text-gray-500 mb-3">Leave empty to disable a channel. Restart engine after changes.</p>
+	<section class="mb-8 border-t border-border pt-6">
+		<h3 class="text-sm font-medium text-fg mb-3">Channel Tokens</h3>
+		<p class="text-xs text-fg-muted mb-3">Leave empty to disable a channel. Restart engine after changes.</p>
 		<div class="space-y-3">
 			<div>
-				<label for="s-telegram" class="block text-xs font-medium text-gray-700 mb-1">Telegram Bot Token</label>
+				<label for="s-telegram" class="block text-xs font-medium text-fg-secondary mb-1">Telegram Bot Token</label>
 				<input id="s-telegram" type="password" bind:value={telegramToken} placeholder="123456:ABC-DEF..."
-					class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
+					class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
 			</div>
 			<div>
-				<label for="s-discord" class="block text-xs font-medium text-gray-700 mb-1">Discord Bot Token</label>
+				<label for="s-discord" class="block text-xs font-medium text-fg-secondary mb-1">Discord Bot Token</label>
 				<input id="s-discord" type="password" bind:value={discordToken} placeholder="MTIz..."
-					class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
+					class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
 			</div>
 			<div class="grid grid-cols-2 gap-3">
 				<div>
-					<label for="s-slack-bot" class="block text-xs font-medium text-gray-700 mb-1">Slack Bot Token</label>
+					<label for="s-slack-bot" class="block text-xs font-medium text-fg-secondary mb-1">Slack Bot Token</label>
 					<input id="s-slack-bot" type="password" bind:value={slackBotToken} placeholder="xoxb-..."
-						class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
+						class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
 				</div>
 				<div>
-					<label for="s-slack-app" class="block text-xs font-medium text-gray-700 mb-1">Slack App Token</label>
+					<label for="s-slack-app" class="block text-xs font-medium text-fg-secondary mb-1">Slack App Token</label>
 					<input id="s-slack-app" type="password" bind:value={slackAppToken} placeholder="xapp-..."
-						class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
+						class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
 				</div>
 			</div>
 		</div>
 	</section>
 
 	<!-- Engine -->
-	<section class="mb-8 border-t border-gray-200 pt-6">
-		<h3 class="text-sm font-medium text-gray-900 mb-3">Engine</h3>
+	<section class="mb-8 border-t border-border pt-6">
+		<h3 class="text-sm font-medium text-fg mb-3">Engine</h3>
 		<div>
-			<label for="s-rate-limit" class="block text-xs font-medium text-gray-700 mb-1">Rate Limit (per minute per user)</label>
+			<label for="s-rate-limit" class="block text-xs font-medium text-fg-secondary mb-1">Rate Limit (per minute per user)</label>
 			<input id="s-rate-limit" type="number" bind:value={rateLimit} min="1" max="100"
-				class="w-40 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
+				class="w-40 px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
 		</div>
 	</section>
 
 	<!-- Connection Mode -->
-	<section class="mb-8 border-t border-gray-200 pt-6">
-		<h3 class="text-sm font-medium text-gray-900 mb-3">Connection Mode</h3>
+	<section class="mb-8 border-t border-border pt-6">
+		<h3 class="text-sm font-medium text-fg mb-3">Connection Mode</h3>
 		<div class="space-y-2">
-			<label class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors
-				{mode === 'local' ? 'border-gray-900 bg-gray-50' : ''}">
-				<input type="radio" bind:group={mode} value="local" class="accent-gray-900">
+			<label class="flex items-center gap-3 p-3 rounded-lg border border-border cursor-pointer hover:from-primary-400 hover:to-primary-600 transition-colors
+				{mode === 'local' ? 'border-primary-500 bg-surface' : ''}">
+				<input type="radio" bind:group={mode} value="local" class="accent-primary-500">
 				<div>
-					<p class="text-sm font-medium text-gray-900">Local Mode</p>
-					<p class="text-xs text-gray-500">Bot engine runs in this app</p>
+					<p class="text-sm font-medium text-fg">Local Mode</p>
+					<p class="text-xs text-fg-muted">Bot engine runs in this app</p>
 				</div>
 			</label>
-			<label class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors
-				{mode === 'remote' ? 'border-gray-900 bg-gray-50' : ''}">
-				<input type="radio" bind:group={mode} value="remote" class="accent-gray-900">
+			<label class="flex items-center gap-3 p-3 rounded-lg border border-border cursor-pointer hover:from-primary-400 hover:to-primary-600 transition-colors
+				{mode === 'remote' ? 'border-primary-500 bg-surface' : ''}">
+				<input type="radio" bind:group={mode} value="remote" class="accent-primary-500">
 				<div>
-					<p class="text-sm font-medium text-gray-900">Remote Mode</p>
-					<p class="text-xs text-gray-500">Connect to a remote AmanClaw server</p>
+					<p class="text-sm font-medium text-fg">Remote Mode</p>
+					<p class="text-xs text-fg-muted">Connect to a remote AmanClaw server</p>
 				</div>
 			</label>
 		</div>
 		{#if mode === 'remote'}
 			<div class="mt-4 space-y-3">
 				<div>
-					<label for="s-remote-url" class="block text-xs font-medium text-gray-700 mb-1">Server URL</label>
+					<label for="s-remote-url" class="block text-xs font-medium text-fg-secondary mb-1">Server URL</label>
 					<input id="s-remote-url" type="text" bind:value={remoteUrl} placeholder="https://your-server.com"
-						class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
+						class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
 				</div>
 				<div>
-					<label for="s-remote-token" class="block text-xs font-medium text-gray-700 mb-1">API Token</label>
+					<label for="s-remote-token" class="block text-xs font-medium text-fg-secondary mb-1">API Token</label>
 					<input id="s-remote-token" type="password" bind:value={remoteToken} placeholder="Bearer token"
-						class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
+						class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
 				</div>
 			</div>
 		{/if}
@@ -263,81 +261,81 @@
 	<!-- Save -->
 	<div class="flex items-center gap-3">
 		<button onclick={saveAll} disabled={saving}
-			class="px-4 py-2 text-xs font-medium rounded-md bg-gray-900 text-white hover:bg-gray-800 transition-colors disabled:opacity-50">
+			class="px-4 py-2 text-xs font-medium rounded-md bg-gradient-to-br from-primary-500 to-primary-700 text-white hover:from-primary-400 hover:to-primary-600 transition-colors disabled:opacity-50">
 			{saving ? 'Saving...' : saved ? 'Saved!' : 'Save Settings'}
 		</button>
-		<p class="text-xs text-gray-400">Restart engine after changing LLM or channel settings</p>
+		<p class="text-xs text-fg-muted">Restart engine after changing LLM or channel settings</p>
 	</div>
 
 	<!-- Feature Summaries -->
-	<section class="mt-8 border-t border-gray-200 pt-6">
-		<h3 class="text-sm font-medium text-gray-900 mb-4">Feature Overview</h3>
+	<section class="mt-8 border-t border-border pt-6">
+		<h3 class="text-sm font-medium text-fg mb-4">Feature Overview</h3>
 		<div class="grid grid-cols-2 gap-3">
 			<button onclick={() => goTo('agents')}
-				class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors text-left">
+				class="flex items-center justify-between p-3 bg-surface rounded-lg border border-border hover:border-border transition-colors text-left">
 				<div>
-					<p class="text-xs font-medium text-gray-900">Agent Routing</p>
-					<p class="text-[10px] text-gray-500">Default: {defaultAgent} · {routingRuleCount} rule{routingRuleCount !== 1 ? 's' : ''}</p>
+					<p class="text-xs font-medium text-fg">Agent Routing</p>
+					<p class="text-[10px] text-fg-muted">Default: {defaultAgent} · {routingRuleCount} rule{routingRuleCount !== 1 ? 's' : ''}</p>
 				</div>
-				<span class="text-xs text-gray-400">{agentCount} agent{agentCount !== 1 ? 's' : ''}</span>
+				<span class="text-xs text-fg-muted">{agentCount} agent{agentCount !== 1 ? 's' : ''}</span>
 			</button>
 
 			<button onclick={() => goTo('cron')}
-				class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors text-left">
+				class="flex items-center justify-between p-3 bg-surface rounded-lg border border-border hover:border-border transition-colors text-left">
 				<div>
-					<p class="text-xs font-medium text-gray-900">Cron Jobs</p>
-					<p class="text-[10px] text-gray-500">Timezone: {cronTimezone || 'UTC'}</p>
+					<p class="text-xs font-medium text-fg">Cron Jobs</p>
+					<p class="text-[10px] text-fg-muted">Timezone: {cronTimezone || 'UTC'}</p>
 				</div>
-				<span class="text-xs text-gray-400">{cronJobCount} job{cronJobCount !== 1 ? 's' : ''}</span>
+				<span class="text-xs text-fg-muted">{cronJobCount} job{cronJobCount !== 1 ? 's' : ''}</span>
 			</button>
 
 			<button onclick={() => goTo('webhooks')}
-				class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors text-left">
+				class="flex items-center justify-between p-3 bg-surface rounded-lg border border-border hover:border-border transition-colors text-left">
 				<div>
-					<p class="text-xs font-medium text-gray-900">Webhooks</p>
-					<p class="text-[10px] text-gray-500">Base path: /hooks</p>
+					<p class="text-xs font-medium text-fg">Webhooks</p>
+					<p class="text-[10px] text-fg-muted">Base path: /hooks</p>
 				</div>
-				<span class="text-xs text-gray-400">{webhookCount} endpoint{webhookCount !== 1 ? 's' : ''}</span>
+				<span class="text-xs text-fg-muted">{webhookCount} endpoint{webhookCount !== 1 ? 's' : ''}</span>
 			</button>
 
 			<button onclick={() => goTo('gateway')}
-				class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors text-left">
+				class="flex items-center justify-between p-3 bg-surface rounded-lg border border-border hover:border-border transition-colors text-left">
 				<div>
-					<p class="text-xs font-medium text-gray-900">Gateway</p>
-					<p class="text-[10px] text-gray-500">WebSocket event stream</p>
+					<p class="text-xs font-medium text-fg">Gateway</p>
+					<p class="text-[10px] text-fg-muted">WebSocket event stream</p>
 				</div>
-				<span class="text-[10px] font-medium px-1.5 py-0.5 rounded {gatewayEnabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">
+				<span class="text-[10px] font-medium px-1.5 py-0.5 rounded {gatewayEnabled ? 'bg-[var(--color-success-15)] text-success' : 'bg-elevated text-fg-muted'}">
 					{gatewayEnabled ? 'Enabled' : 'Disabled'}
 				</span>
 			</button>
 
 			<button onclick={() => goTo('subagents')}
-				class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors text-left">
+				class="flex items-center justify-between p-3 bg-surface rounded-lg border border-border hover:border-border transition-colors text-left">
 				<div>
-					<p class="text-xs font-medium text-gray-900">Sub-Agents</p>
-					<p class="text-[10px] text-gray-500">Task delegation</p>
+					<p class="text-xs font-medium text-fg">Sub-Agents</p>
+					<p class="text-[10px] text-fg-muted">Task delegation</p>
 				</div>
-				<span class="text-[10px] font-medium px-1.5 py-0.5 rounded {subagentsEnabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">
+				<span class="text-[10px] font-medium px-1.5 py-0.5 rounded {subagentsEnabled ? 'bg-[var(--color-success-15)] text-success' : 'bg-elevated text-fg-muted'}">
 					{subagentsEnabled ? 'Enabled' : 'Disabled'}
 				</span>
 			</button>
 
 			<button onclick={() => goTo('marketplace')}
-				class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors text-left">
+				class="flex items-center justify-between p-3 bg-surface rounded-lg border border-border hover:border-border transition-colors text-left">
 				<div>
-					<p class="text-xs font-medium text-gray-900">Marketplace</p>
-					<p class="text-[10px] text-gray-500">Skill registry</p>
+					<p class="text-xs font-medium text-fg">Marketplace</p>
+					<p class="text-[10px] text-fg-muted">Skill registry</p>
 				</div>
-				<span class="text-xs text-gray-400">{installedSkillCount} installed</span>
+				<span class="text-xs text-fg-muted">{installedSkillCount} installed</span>
 			</button>
 
 			<button onclick={() => goTo('knowledgebases')}
-				class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors text-left col-span-2">
+				class="flex items-center justify-between p-3 bg-surface rounded-lg border border-border hover:border-border transition-colors text-left col-span-2">
 				<div>
-					<p class="text-xs font-medium text-gray-900">Knowledge Bases</p>
-					<p class="text-[10px] text-gray-500">{embeddingConfigured ? `Embeddings: ${embeddingModel}` : 'Embeddings not configured'} · {kbCount} KB{kbCount !== 1 ? 's' : ''}</p>
+					<p class="text-xs font-medium text-fg">Knowledge Bases</p>
+					<p class="text-[10px] text-fg-muted">{embeddingConfigured ? `Embeddings: ${embeddingModel}` : 'Embeddings not configured'} · {kbCount} KB{kbCount !== 1 ? 's' : ''}</p>
 				</div>
-				<span class="text-[10px] font-medium px-1.5 py-0.5 rounded {embeddingConfigured ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}">
+				<span class="text-[10px] font-medium px-1.5 py-0.5 rounded {embeddingConfigured ? 'bg-[var(--color-success-15)] text-success' : 'bg-[var(--color-warning-15)] text-warning'}">
 					{embeddingConfigured ? 'Configured' : 'Not configured'}
 				</span>
 			</button>
@@ -345,13 +343,13 @@
 	</section>
 
 	<!-- Data Dir -->
-	<section class="mt-8 border-t border-gray-200 pt-6">
-		<h3 class="text-sm font-medium text-gray-900 mb-2">Data</h3>
-		<p class="text-xs text-gray-500">Config, database, and plugins stored at:</p>
-		<p class="text-xs text-gray-700 font-mono mt-1 bg-gray-50 p-2 rounded">{dataDir}</p>
+	<section class="mt-8 border-t border-border pt-6">
+		<h3 class="text-sm font-medium text-fg mb-2">Data</h3>
+		<p class="text-xs text-fg-muted">Config, database, and plugins stored at:</p>
+		<p class="text-xs text-fg-secondary font-mono mt-1 bg-surface p-2 rounded">{dataDir}</p>
 	</section>
 
-	<div class="border-t border-gray-200 pt-6 mt-6">
-		<p class="text-xs text-gray-500">AmanClaw Desktop v0.1.0 · Built in Malaysia</p>
+	<div class="border-t border-border pt-6 mt-6">
+		<p class="text-xs text-fg-muted">AmanClaw Desktop v0.1.0 · Built in Malaysia</p>
 	</div>
 </div>

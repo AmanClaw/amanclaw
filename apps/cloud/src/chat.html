@@ -5,45 +5,27 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{TENANT_NAME}} — AmanClaw Chat</title>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
   :root {
-    --bg: #ffffff;
-    --bg-secondary: #f3f4f6;
-    --bg-input: #ffffff;
-    --text: #111827;
-    --text-secondary: #6b7280;
-    --border: #e5e7eb;
-    --user-bg: #2563eb;
+    --bg: #0a0f1a;
+    --bg-secondary: #0f172a;
+    --bg-input: #1e293b;
+    --text: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --border: #334155;
+    --user-bg: #14b8a6;
     --user-text: #ffffff;
-    --bot-bg: #f3f4f6;
-    --bot-text: #111827;
-    --accent: #2563eb;
-    --shadow: rgba(0,0,0,0.08);
-    --code-bg: #f1f5f9;
+    --bot-bg: #1e293b;
+    --bot-text: #f1f5f9;
+    --accent: #14b8a6;
+    --shadow: rgba(0,0,0,0.3);
+    --code-bg: #0f172a;
     --status-ok: #22c55e;
     --status-err: #ef4444;
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #0f172a;
-      --bg-secondary: #1e293b;
-      --bg-input: #1e293b;
-      --text: #f1f5f9;
-      --text-secondary: #94a3b8;
-      --border: #334155;
-      --user-bg: #3b82f6;
-      --user-text: #ffffff;
-      --bot-bg: #1e293b;
-      --bot-text: #f1f5f9;
-      --accent: #3b82f6;
-      --shadow: rgba(0,0,0,0.3);
-      --code-bg: #0f172a;
-      --status-ok: #22c55e;
-      --status-err: #ef4444;
-    }
-  }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Inter', system-ui, sans-serif;
     background: var(--bg);
     color: var(--text);
     height: 100vh;
@@ -116,6 +98,7 @@
     background: var(--code-bg);
     padding: 1px 5px;
     border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 13px;
   }
   .msg.bot pre {
@@ -124,6 +107,7 @@
     border-radius: 8px;
     overflow-x: auto;
     margin: 6px 0;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 13px;
   }
   .msg.bot pre code {

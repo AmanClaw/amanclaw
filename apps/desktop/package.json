@@ -1,5 +1,5 @@
 {
-  "name": "amanclaw-desktop",
+  "name": "@amanclaw/desktop",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -23,6 +23,7 @@
     "vite": "^6.0.0"
   },
   "dependencies": {
+    "@amanclaw/ui": "workspace:*",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-notification": "^2.0.0",
     "@tauri-apps/plugin-shell": "^2.0.0"

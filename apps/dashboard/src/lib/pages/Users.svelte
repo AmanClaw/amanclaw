@@ -1,26 +1,27 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte'
   import { apiFetch, addUser, makeAdmin, removeAdmin, getUserStats } from '../stores/api'
-  import StatusBadge from '../components/StatusBadge.svelte'
+  import { PageHeader, Badge, Button, Card } from '@amanclaw/ui'
+  import { Plus, X, Loader2 } from '@amanclaw/ui'
 
-  let users: any[] = []
-  let loading = true
-  let search = ''
-  let platformFilter = ''
-  let statusFilter = ''
-  let selectedUser: any = null
-  let userHistory: any[] = []
-  let historyLoading = false
-  let historyTotal = 0
+  let users: any[] = $state([])
+  let loading = $state(true)
+  let search = $state('')
+  let platformFilter = $state('')
+  let statusFilter = $state('')
+  let selectedUser: any = $state(null)
+  let userHistory: any[] = $state([])
+  let historyLoading = $state(false)
+  let historyTotal = $state(0)
 
   // Stats
-  let stats: any = null
+  let stats: any = $state(null)
 
   // Add User modal
-  let showAddModal = false
-  let addForm = { platform: 'telegram', user_id: '', username: '', first_name: '', state: 'approved' }
-  let addError = ''
-  let addLoading = false
+  let showAddModal = $state(false)
+  let addForm = $state({ platform: 'telegram', user_id: '', username: '', first_name: '', state: 'approved' })
+  let addError = $state('')
+  let addLoading = $state(false)
 
   // Polling
   let pollInterval: ReturnType<typeof setInterval> | null = null
@@ -168,227 +169,215 @@
     return new Date(d).toLocaleString()
   }
 
-  function statusBadgeStatus(state: string): 'online' | 'offline' | 'warning' {
-    if (state === 'approved') return 'online'
-    if (state === 'blocked') return 'offline'
+  function statusVariant(state: string): 'success' | 'warning' | 'error' | 'accent' | 'muted' {
+    if (state === 'approved') return 'success'
+    if (state === 'blocked') return 'error'
+    if (state === 'admin') return 'accent'
     return 'warning'
   }
 </script>
 
-<div class="p-6 md:p-8">
-  <!-- Header with Add User button -->
-  <div class="flex items-center justify-between mb-6">
-    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Users</h2>
-    <button
-      on:click={() => (showAddModal = true)}
-      class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center gap-1.5"
-    >
-      + Add User
-    </button>
-  </div>
+<PageHeader title="Users">
+  {#snippet action()}
+    <Button onclick={() => (showAddModal = true)} size="sm">
+      <Plus size={14} /> Add User
+    </Button>
+  {/snippet}
+</PageHeader>
 
-  <!-- Stats Cards -->
-  {#if stats}
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
-      <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
-        <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">Total</p>
-        <p class="text-2xl font-bold text-gray-900 dark:text-white mt-1">{stats.total ?? 0}</p>
-        {#if stats.by_platform && Object.keys(stats.by_platform).length > 0}
-          <div class="flex flex-wrap gap-1 mt-2">
-            {#each Object.entries(stats.by_platform) as [p, count]}
-              <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                {platformIcons[p] || ''} {p}: {count}
-              </span>
-            {/each}
-          </div>
-        {/if}
-      </div>
-      <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-purple-200 dark:border-purple-800">
-        <p class="text-xs text-purple-600 dark:text-purple-400 uppercase">Admin</p>
-        <p class="text-2xl font-bold text-purple-700 dark:text-purple-300 mt-1">{stats.admin ?? 0}</p>
-      </div>
-      <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-yellow-200 dark:border-yellow-800">
-        <p class="text-xs text-yellow-600 dark:text-yellow-400 uppercase">Pending</p>
-        <p class="text-2xl font-bold text-yellow-700 dark:text-yellow-300 mt-1">{stats.pending ?? 0}</p>
-      </div>
-      <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-green-200 dark:border-green-800">
-        <p class="text-xs text-green-600 dark:text-green-400 uppercase">Approved</p>
-        <p class="text-2xl font-bold text-green-700 dark:text-green-300 mt-1">{stats.approved ?? 0}</p>
-      </div>
-      <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-red-200 dark:border-red-800">
-        <p class="text-xs text-red-600 dark:text-red-400 uppercase">Blocked</p>
-        <p class="text-2xl font-bold text-red-700 dark:text-red-300 mt-1">{stats.blocked ?? 0}</p>
-      </div>
+<!-- Stats Cards -->
+{#if stats}
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+    <Card>
+      <p class="text-xs text-fg-muted uppercase">Total</p>
+      <p class="text-2xl font-bold text-fg mt-1">{stats.total ?? 0}</p>
+      {#if stats.by_platform && Object.keys(stats.by_platform).length > 0}
+        <div class="flex flex-wrap gap-1 mt-2">
+          {#each Object.entries(stats.by_platform) as [p, count]}
+            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-elevated text-fg-secondary">
+              {platformIcons[p] || ''} {p}: {count}
+            </span>
+          {/each}
+        </div>
+      {/if}
+    </Card>
+    <div class="bg-surface rounded-xl p-4 border border-purple-500/20">
+      <p class="text-xs text-purple-400 uppercase">Admin</p>
+      <p class="text-2xl font-bold text-purple-300 mt-1">{stats.admin ?? 0}</p>
     </div>
-  {/if}
-
-  <!-- Filters -->
-  <div class="flex flex-wrap gap-3 mb-6">
-    <input
-      type="text"
-      bind:value={search}
-      on:input={loadUsers}
-      placeholder="Search users..."
-      class="flex-1 min-w-48 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
-    />
-    <select
-      bind:value={platformFilter}
-      on:change={loadUsers}
-      class="px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-    >
-      <option value="">All platforms</option>
-      {#each platforms.slice(1) as p}
-        <option value={p}>{p}</option>
-      {/each}
-    </select>
-    <select
-      bind:value={statusFilter}
-      on:change={loadUsers}
-      class="px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-    >
-      <option value="">All statuses</option>
-      {#each statuses.slice(1) as s}
-        <option value={s}>{s}</option>
-      {/each}
-    </select>
-  </div>
-
-  {#if loading}
-    <p class="text-gray-500">Loading...</p>
-  {:else}
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-      <div class="overflow-x-auto">
-        <table class="w-full">
-          <thead>
-            <tr class="border-b border-gray-200 dark:border-gray-700">
-              <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Platform</th>
-              <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">User</th>
-              <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Status</th>
-              <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Last Seen</th>
-              <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each users as user}
-              <tr class="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer"
-                  on:click={() => showUser(user.platform, user.user_id)}>
-                <td class="px-4 py-3 text-sm">
-                  <span class="mr-1">{platformIcons[user.platform] || ''}</span>
-                  <span class="text-gray-600 dark:text-gray-300">{user.platform}</span>
-                </td>
-                <td class="px-4 py-3 text-sm">
-                  <div class="text-gray-900 dark:text-white font-mono">{user.user_id}</div>
-                  {#if user.username || user.first_name}
-                    <div class="text-xs text-gray-500">{user.first_name || ''} {user.username ? `@${user.username}` : ''}</div>
-                  {/if}
-                </td>
-                <td class="px-4 py-3">
-                  {#if user.state === 'admin'}
-                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
-                      <span class="w-2 h-2 rounded-full bg-purple-500"></span>
-                      admin
-                    </span>
-                  {:else}
-                    <StatusBadge
-                      status={statusBadgeStatus(user.state)}
-                      label={user.state}
-                    />
-                  {/if}
-                </td>
-                <td class="px-4 py-3 text-sm text-gray-500">{formatDate(user.last_seen)}</td>
-                <!-- svelte-ignore a11y_click_events_have_key_events -->
-                <td class="px-4 py-3 text-right space-x-2" on:click|stopPropagation>
-                  {#if user.state === 'admin'}
-                    <button on:click={() => doRemoveAdmin(user.platform, user.user_id)}
-                      class="text-xs px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg">
-                      Remove Admin
-                    </button>
-                  {:else if user.state === 'approved'}
-                    <button on:click={() => doMakeAdmin(user.platform, user.user_id)}
-                      class="text-xs px-3 py-1.5 text-purple-600 dark:text-purple-400 border border-purple-300 dark:border-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg">
-                      Make Admin
-                    </button>
-                    <button on:click={() => blockUser(user.platform, user.user_id)}
-                      class="text-xs px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg">
-                      Block
-                    </button>
-                  {:else if user.state === 'pending'}
-                    <button on:click={() => approveUser(user.platform, user.user_id)}
-                      class="text-xs px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg">
-                      Approve
-                    </button>
-                    <button on:click={() => blockUser(user.platform, user.user_id)}
-                      class="text-xs px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg">
-                      Block
-                    </button>
-                  {:else if user.state === 'blocked'}
-                    <button on:click={() => unblockUser(user.platform, user.user_id)}
-                      class="text-xs px-3 py-1.5 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg">
-                      Unblock
-                    </button>
-                  {/if}
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
+    <div class="bg-surface rounded-xl p-4 border border-amber-500/20">
+      <p class="text-xs text-amber-400 uppercase">Pending</p>
+      <p class="text-2xl font-bold text-amber-300 mt-1">{stats.pending ?? 0}</p>
     </div>
-    <p class="text-sm text-gray-500 mt-3">{users.length} users</p>
-  {/if}
+    <div class="bg-surface rounded-xl p-4 border border-green-500/20">
+      <p class="text-xs text-green-400 uppercase">Approved</p>
+      <p class="text-2xl font-bold text-green-300 mt-1">{stats.approved ?? 0}</p>
+    </div>
+    <div class="bg-surface rounded-xl p-4 border border-red-500/20">
+      <p class="text-xs text-red-400 uppercase">Blocked</p>
+      <p class="text-2xl font-bold text-red-300 mt-1">{stats.blocked ?? 0}</p>
+    </div>
+  </div>
+{/if}
+
+<!-- Filters -->
+<div class="flex flex-wrap gap-3 mb-6">
+  <input
+    type="text"
+    bind:value={search}
+    oninput={loadUsers}
+    placeholder="Search users..."
+    class="flex-1 min-w-48 px-4 py-2.5 rounded-lg border border-border bg-surface text-fg outline-none focus:ring-2 focus:ring-primary-500/50"
+  />
+  <select
+    bind:value={platformFilter}
+    onchange={loadUsers}
+    class="px-4 py-2.5 rounded-lg border border-border bg-surface text-fg"
+  >
+    <option value="">All platforms</option>
+    {#each platforms.slice(1) as p}
+      <option value={p}>{p}</option>
+    {/each}
+  </select>
+  <select
+    bind:value={statusFilter}
+    onchange={loadUsers}
+    class="px-4 py-2.5 rounded-lg border border-border bg-surface text-fg"
+  >
+    <option value="">All statuses</option>
+    {#each statuses.slice(1) as s}
+      <option value={s}>{s}</option>
+    {/each}
+  </select>
 </div>
+
+{#if loading}
+  <div class="flex items-center gap-2 text-fg-muted">
+    <Loader2 size={16} class="animate-spin" />
+    <span class="text-sm">Loading...</span>
+  </div>
+{:else}
+  <div class="bg-surface rounded-xl border border-border overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full">
+        <thead>
+          <tr class="border-b border-border">
+            <th class="text-left px-4 py-3 text-xs font-medium text-fg-muted uppercase">Platform</th>
+            <th class="text-left px-4 py-3 text-xs font-medium text-fg-muted uppercase">User</th>
+            <th class="text-left px-4 py-3 text-xs font-medium text-fg-muted uppercase">Status</th>
+            <th class="text-left px-4 py-3 text-xs font-medium text-fg-muted uppercase">Last Seen</th>
+            <th class="text-right px-4 py-3 text-xs font-medium text-fg-muted uppercase">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each users as user}
+            <tr class="border-b border-border/50 hover:bg-[var(--color-elevated-50)] cursor-pointer"
+                onclick={() => showUser(user.platform, user.user_id)}>
+              <td class="px-4 py-3 text-sm">
+                <span class="mr-1">{platformIcons[user.platform] || ''}</span>
+                <span class="text-fg-secondary">{user.platform}</span>
+              </td>
+              <td class="px-4 py-3 text-sm">
+                <div class="text-fg font-mono">{user.user_id}</div>
+                {#if user.username || user.first_name}
+                  <div class="text-xs text-fg-muted">{user.first_name || ''} {user.username ? `@${user.username}` : ''}</div>
+                {/if}
+              </td>
+              <td class="px-4 py-3">
+                <Badge variant={statusVariant(user.state)}>{user.state}</Badge>
+              </td>
+              <td class="px-4 py-3 text-sm text-fg-muted">{formatDate(user.last_seen)}</td>
+              <td class="px-4 py-3 text-right space-x-2" onclick={(e: Event) => e.stopPropagation()}>
+                {#if user.state === 'admin'}
+                  <button onclick={() => doRemoveAdmin(user.platform, user.user_id)}
+                    class="text-xs px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg">
+                    Remove Admin
+                  </button>
+                {:else if user.state === 'approved'}
+                  <button onclick={() => doMakeAdmin(user.platform, user.user_id)}
+                    class="text-xs px-3 py-1.5 text-purple-400 border border-purple-500/30 hover:bg-purple-500/10 rounded-lg">
+                    Make Admin
+                  </button>
+                  <button onclick={() => blockUser(user.platform, user.user_id)}
+                    class="text-xs px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg">
+                    Block
+                  </button>
+                {:else if user.state === 'pending'}
+                  <button onclick={() => approveUser(user.platform, user.user_id)}
+                    class="text-xs px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg">
+                    Approve
+                  </button>
+                  <button onclick={() => blockUser(user.platform, user.user_id)}
+                    class="text-xs px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg">
+                    Block
+                  </button>
+                {:else if user.state === 'blocked'}
+                  <button onclick={() => unblockUser(user.platform, user.user_id)}
+                    class="text-xs px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg">
+                    Unblock
+                  </button>
+                {/if}
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <p class="text-sm text-fg-muted mt-3">{users.length} users</p>
+{/if}
 
 <!-- User Detail Modal -->
 {#if selectedUser}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <div class="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-16 px-4" on:click={closeDetail}>
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-auto"
-         on:click|stopPropagation>
+  <div class="fixed inset-0 bg-[var(--color-base-80)] backdrop-blur-sm z-50 flex items-start justify-center pt-16 px-4" onclick={closeDetail}>
+    <div class="bg-surface border border-border rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-auto"
+         onclick={(e: Event) => e.stopPropagation()}>
       <div class="p-6">
         <!-- Header -->
         <div class="flex justify-between items-start mb-6">
           <div>
-            <h3 class="text-xl font-bold text-gray-900 dark:text-white">
+            <h3 class="text-xl font-bold text-fg">
               {platformIcons[selectedUser.platform] || ''} {selectedUser.first_name || selectedUser.user_id}
             </h3>
-            <p class="text-sm text-gray-500">
+            <p class="text-sm text-fg-muted">
               {selectedUser.platform} &middot; <span class="font-mono">{selectedUser.user_id}</span>
               {#if selectedUser.username} &middot; @{selectedUser.username}{/if}
             </p>
           </div>
-          <button on:click={closeDetail} class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+          <button onclick={closeDetail} class="text-fg-muted hover:text-fg transition-colors p-1">
+            <X size={18} />
+          </button>
         </div>
 
         <!-- Info Grid -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-            <p class="text-xs text-gray-500 uppercase">Status</p>
-            <p class="font-semibold capitalize {selectedUser.state === 'admin' ? 'text-purple-700 dark:text-purple-400' : 'text-gray-900 dark:text-white'}">{selectedUser.state}</p>
+          <div class="bg-elevated rounded-lg p-3">
+            <p class="text-xs text-fg-muted uppercase">Status</p>
+            <p class="font-semibold capitalize {selectedUser.state === 'admin' ? 'text-purple-400' : 'text-fg'}">{selectedUser.state}</p>
           </div>
-          <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-            <p class="text-xs text-gray-500 uppercase">Messages</p>
-            <p class="font-semibold text-gray-900 dark:text-white">{selectedUser.message_count}</p>
+          <div class="bg-elevated rounded-lg p-3">
+            <p class="text-xs text-fg-muted uppercase">Messages</p>
+            <p class="font-semibold text-fg">{selectedUser.message_count}</p>
           </div>
-          <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-            <p class="text-xs text-gray-500 uppercase">First Seen</p>
-            <p class="font-semibold text-gray-900 dark:text-white text-xs">{formatDate(selectedUser.first_seen)}</p>
+          <div class="bg-elevated rounded-lg p-3">
+            <p class="text-xs text-fg-muted uppercase">First Seen</p>
+            <p class="font-semibold text-fg text-xs">{formatDate(selectedUser.first_seen)}</p>
           </div>
-          <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-            <p class="text-xs text-gray-500 uppercase">Last Seen</p>
-            <p class="font-semibold text-gray-900 dark:text-white text-xs">{formatDate(selectedUser.last_seen)}</p>
+          <div class="bg-elevated rounded-lg p-3">
+            <p class="text-xs text-fg-muted uppercase">Last Seen</p>
+            <p class="font-semibold text-fg text-xs">{formatDate(selectedUser.last_seen)}</p>
           </div>
         </div>
 
         <!-- Facts -->
         {#if selectedUser.facts && Object.keys(selectedUser.facts).length > 0}
           <div class="mb-6">
-            <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Learned Facts</h4>
-            <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+            <h4 class="text-sm font-semibold text-fg-secondary mb-2">Learned Facts</h4>
+            <div class="bg-elevated rounded-lg p-3">
               {#each Object.entries(selectedUser.facts) as [key, value]}
                 <div class="flex justify-between py-1 text-sm">
-                  <span class="text-gray-500">{key}</span>
-                  <span class="text-gray-900 dark:text-white">{value}</span>
+                  <span class="text-fg-muted">{key}</span>
+                  <span class="text-fg">{value}</span>
                 </div>
               {/each}
             </div>
@@ -397,54 +386,54 @@
 
         <!-- Conversation History -->
         <div>
-          <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+          <h4 class="text-sm font-semibold text-fg-secondary mb-2">
             Recent Conversations ({historyTotal} total)
           </h4>
           {#if historyLoading}
-            <p class="text-gray-500 text-sm">Loading...</p>
+            <p class="text-fg-muted text-sm">Loading...</p>
           {:else}
             <div class="space-y-2 max-h-60 overflow-auto">
               {#each userHistory as msg}
-                <div class="text-sm p-2 rounded-lg {msg.role === 'user' ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-900 dark:text-blue-100' : 'bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-white'}">
-                  <span class="text-xs font-medium text-gray-500 uppercase">{msg.role}</span>
+                <div class="text-sm p-2 rounded-lg {msg.role === 'user' ? 'bg-[var(--color-primary-500-10)] text-fg' : 'bg-elevated text-fg'}">
+                  <span class="text-xs font-medium text-fg-muted uppercase">{msg.role}</span>
                   <p class="mt-0.5 whitespace-pre-wrap">{msg.content}</p>
                 </div>
               {/each}
               {#if userHistory.length === 0}
-                <p class="text-gray-500 text-sm">No conversation history</p>
+                <p class="text-fg-muted text-sm">No conversation history</p>
               {/if}
             </div>
           {/if}
         </div>
 
         <!-- Actions -->
-        <div class="flex gap-2 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <div class="flex gap-2 mt-6 pt-4 border-t border-border">
           {#if selectedUser.state === 'admin'}
-            <button on:click={() => doRemoveAdmin(selectedUser.platform, selectedUser.user_id)}
+            <button onclick={() => doRemoveAdmin(selectedUser.platform, selectedUser.user_id)}
               class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm">
               Remove Admin
             </button>
           {:else if selectedUser.state === 'approved'}
-            <button on:click={() => doMakeAdmin(selectedUser.platform, selectedUser.user_id)}
-              class="px-4 py-2 text-purple-600 dark:text-purple-400 border border-purple-300 dark:border-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg text-sm">
+            <button onclick={() => doMakeAdmin(selectedUser.platform, selectedUser.user_id)}
+              class="px-4 py-2 text-purple-400 border border-purple-500/30 hover:bg-purple-500/10 rounded-lg text-sm">
               Make Admin
             </button>
-            <button on:click={() => blockUser(selectedUser.platform, selectedUser.user_id)}
+            <button onclick={() => blockUser(selectedUser.platform, selectedUser.user_id)}
               class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm">
               Block
             </button>
           {:else if selectedUser.state === 'pending'}
-            <button on:click={() => approveUser(selectedUser.platform, selectedUser.user_id)}
+            <button onclick={() => approveUser(selectedUser.platform, selectedUser.user_id)}
               class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm">
               Approve
             </button>
-            <button on:click={() => blockUser(selectedUser.platform, selectedUser.user_id)}
+            <button onclick={() => blockUser(selectedUser.platform, selectedUser.user_id)}
               class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm">
               Block
             </button>
           {:else if selectedUser.state === 'blocked'}
-            <button on:click={() => unblockUser(selectedUser.platform, selectedUser.user_id)}
-              class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm">
+            <button onclick={() => unblockUser(selectedUser.platform, selectedUser.user_id)}
+              class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm">
               Unblock
             </button>
           {/if}
@@ -456,29 +445,29 @@
 
 <!-- Add User Modal -->
 {#if showAddModal}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <div class="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-16 px-4" on:click={closeAddModal}>
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md"
-         on:click|stopPropagation>
+  <div class="fixed inset-0 bg-[var(--color-base-80)] backdrop-blur-sm z-50 flex items-start justify-center pt-16 px-4" onclick={closeAddModal}>
+    <div class="bg-surface border border-border rounded-2xl shadow-xl w-full max-w-md"
+         onclick={(e: Event) => e.stopPropagation()}>
       <div class="p-6">
         <div class="flex justify-between items-center mb-6">
-          <h3 class="text-lg font-bold text-gray-900 dark:text-white">Add User</h3>
-          <button on:click={closeAddModal} class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+          <h3 class="text-lg font-bold text-fg">Add User</h3>
+          <button onclick={closeAddModal} class="text-fg-muted hover:text-fg transition-colors p-1">
+            <X size={18} />
+          </button>
         </div>
 
         {#if addError}
-          <div class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
+          <div class="mb-4 p-3 bg-[var(--color-error-15)] border border-[var(--color-error-20)] rounded-lg text-sm text-red-400">
             {addError}
           </div>
         {/if}
 
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Platform</label>
+            <label class="block text-sm font-medium text-fg-secondary mb-1">Platform</label>
             <select
               bind:value={addForm.platform}
-              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              class="w-full px-4 py-2.5 rounded-lg border border-border bg-elevated text-fg"
             >
               {#each platforms.slice(1) as p}
                 <option value={p}>{p}</option>
@@ -486,37 +475,37 @@
             </select>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">User ID <span class="text-red-500">*</span></label>
+            <label class="block text-sm font-medium text-fg-secondary mb-1">User ID <span class="text-red-400">*</span></label>
             <input
               type="text"
               bind:value={addForm.user_id}
               placeholder="e.g. 123456789"
-              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-full px-4 py-2.5 rounded-lg border border-border bg-elevated text-fg outline-none focus:ring-2 focus:ring-primary-500/50"
             />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username <span class="text-gray-400">(optional)</span></label>
+            <label class="block text-sm font-medium text-fg-secondary mb-1">Username <span class="text-fg-muted">(optional)</span></label>
             <input
               type="text"
               bind:value={addForm.username}
               placeholder="e.g. johndoe"
-              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-full px-4 py-2.5 rounded-lg border border-border bg-elevated text-fg outline-none focus:ring-2 focus:ring-primary-500/50"
             />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First Name <span class="text-gray-400">(optional)</span></label>
+            <label class="block text-sm font-medium text-fg-secondary mb-1">First Name <span class="text-fg-muted">(optional)</span></label>
             <input
               type="text"
               bind:value={addForm.first_name}
               placeholder="e.g. John"
-              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-full px-4 py-2.5 rounded-lg border border-border bg-elevated text-fg outline-none focus:ring-2 focus:ring-primary-500/50"
             />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Initial Status</label>
+            <label class="block text-sm font-medium text-fg-secondary mb-1">Initial Status</label>
             <select
               bind:value={addForm.state}
-              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              class="w-full px-4 py-2.5 rounded-lg border border-border bg-elevated text-fg"
             >
               <option value="approved">Approved</option>
               <option value="pending">Pending</option>
@@ -524,16 +513,11 @@
           </div>
         </div>
 
-        <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-          <button on:click={closeAddModal}
-            class="px-4 py-2 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg text-sm">
-            Cancel
-          </button>
-          <button on:click={submitAddUser}
-            disabled={addLoading}
-            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm">
+        <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-border">
+          <Button variant="secondary" size="sm" onclick={closeAddModal}>Cancel</Button>
+          <Button size="sm" onclick={submitAddUser} disabled={addLoading}>
             {addLoading ? 'Adding...' : 'Add User'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

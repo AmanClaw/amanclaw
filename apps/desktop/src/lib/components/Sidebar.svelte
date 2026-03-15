@@ -1,26 +1,31 @@
 <script lang="ts">
 	import { currentPage, botStatus } from '$lib/stores/app';
+	import {
+		LayoutDashboard, Users, Hash, Bot, Zap, Globe, Clock,
+		Webhook, Radio, GitBranch, BookOpen, FileText,
+		User, Server, ScrollText, Settings
+	} from '@amanclaw/ui';
 
 	const pages = [
-		{ id: 'dashboard', label: 'Dashboard', icon: '⊞' },
-		{ id: 'communities', label: 'Communities', icon: '⊡' },
-		{ id: 'channels', label: 'Channels', icon: '⇌' },
-		{ id: 'agents', label: 'Agents', icon: '◉' },
-		{ id: 'skills', label: 'Skills', icon: '⚡' },
-		{ id: 'marketplace', label: 'Marketplace', icon: '◈' },
-		{ id: 'cron', label: 'Cron Jobs', icon: '⏱' },
-		{ id: 'webhooks', label: 'Webhooks', icon: '⇌' },
-		{ id: 'gateway', label: 'Gateway', icon: '⚡' },
-		{ id: 'subagents', label: 'Sub-Agents', icon: '⊛' },
-		{ id: 'knowledgebases', label: 'Knowledge Bases', icon: '▦' },
-		{ id: 'content', label: 'Content', icon: '☰' },
-		{ id: 'users', label: 'Users', icon: '⊙' },
-		{ id: 'mcp', label: 'MCP Servers', icon: '⬡' },
-		{ id: 'logs', label: 'Logs', icon: '▤' },
+		{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+		{ id: 'communities', label: 'Communities', icon: Users },
+		{ id: 'channels', label: 'Channels', icon: Hash },
+		{ id: 'agents', label: 'Agents', icon: Bot },
+		{ id: 'skills', label: 'Skills', icon: Zap },
+		{ id: 'marketplace', label: 'Marketplace', icon: Globe },
+		{ id: 'cron', label: 'Cron Jobs', icon: Clock },
+		{ id: 'webhooks', label: 'Webhooks', icon: Webhook },
+		{ id: 'gateway', label: 'Gateway', icon: Radio },
+		{ id: 'subagents', label: 'Sub-Agents', icon: GitBranch },
+		{ id: 'knowledgebases', label: 'Knowledge Bases', icon: BookOpen },
+		{ id: 'content', label: 'Content', icon: FileText },
+		{ id: 'users', label: 'Users', icon: User },
+		{ id: 'mcp', label: 'MCP Servers', icon: Server },
+		{ id: 'logs', label: 'Logs', icon: ScrollText },
 	];
 
 	const bottomPages = [
-		{ id: 'settings', label: 'Settings', icon: '⚙' },
+		{ id: 'settings', label: 'Settings', icon: Settings },
 	];
 
 	const statusColor = $derived(
@@ -52,7 +57,7 @@
 							: 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-white'}"
 					onclick={() => currentPage.set(page.id)}
 				>
-					<span class="text-base leading-none">{page.icon}</span>
+					<page.icon size={16} class="shrink-0" />
 					{page.label}
 				</button>
 			{/each}
@@ -66,7 +71,7 @@
 					class="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-md text-[13px] text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-white transition-colors"
 					onclick={() => currentPage.set(page.id)}
 				>
-					<span class="text-base leading-none">{page.icon}</span>
+					<page.icon size={16} class="shrink-0" />
 					{page.label}
 				</button>
 			{/each}

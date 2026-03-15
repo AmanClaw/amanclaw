@@ -2,9 +2,11 @@
   import { onMount } from 'svelte'
   import { isLoggedIn } from '../stores/auth'
   import { apiFetch } from '../stores/api'
+  import { PageHeader, Card, Button } from '@amanclaw/ui'
+  import { RefreshCw, LogOut, Info, Database, Loader2 } from '@amanclaw/ui'
 
-  let islamicStatus: any[] | null = null
-  let syncing = false
+  let islamicStatus: any[] | null = $state(null)
+  let syncing = $state(false)
 
   async function loadIslamicStatus() {
     try {
@@ -37,51 +39,59 @@
   onMount(loadIslamicStatus)
 </script>
 
-<div class="p-6 md:p-8">
-  <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Settings</h2>
+<PageHeader title="Settings" />
 
-  <div class="space-y-4 max-w-lg">
-    <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-      <h3 class="font-semibold text-gray-900 dark:text-white mb-4">Islamic Knowledge Data</h3>
+<div class="space-y-4 max-w-lg">
+  <Card>
+    <div class="flex items-center gap-2 mb-4">
+      <Database size={16} class="text-primary-500" />
+      <h3 class="font-semibold text-fg">Islamic Knowledge Data</h3>
+    </div>
 
-      {#if islamicStatus && islamicStatus.length > 0}
-        <div class="space-y-2 mb-4">
-          {#each islamicStatus as dataset}
-            <div class="flex items-center justify-between text-sm">
-              <span class="text-gray-700 dark:text-gray-300">{dataset.dataset}</span>
-              <span class="text-gray-500">{dataset.record_count} records</span>
-              <span class="text-gray-400 text-xs">{dataset.last_synced ? dataset.last_synced.slice(0, 19) : 'never'}</span>
-            </div>
-          {/each}
-        </div>
-      {:else}
-        <p class="text-sm text-gray-500 mb-4">No Islamic data synced yet.</p>
-      {/if}
-
-      <div class="flex gap-2">
-        <button on:click={syncIslamic} disabled={syncing}
-          class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-sm">
-          {syncing ? 'Syncing...' : 'Sync All Data'}
-        </button>
-        <button on:click={loadIslamicStatus}
-          class="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm">
-          Refresh
-        </button>
+    {#if islamicStatus && islamicStatus.length > 0}
+      <div class="space-y-2 mb-4">
+        {#each islamicStatus as dataset}
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-fg-secondary">{dataset.dataset}</span>
+            <span class="text-fg-muted">{dataset.record_count} records</span>
+            <span class="text-fg-muted text-xs">{dataset.last_synced ? dataset.last_synced.slice(0, 19) : 'never'}</span>
+          </div>
+        {/each}
       </div>
-    </div>
+    {:else}
+      <p class="text-sm text-fg-muted mb-4">No Islamic data synced yet.</p>
+    {/if}
 
-    <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-      <h3 class="font-semibold text-gray-900 dark:text-white mb-4">Account</h3>
-      <button on:click={logout}
-        class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm">
-        Logout
-      </button>
+    <div class="flex gap-2">
+      <Button onclick={syncIslamic} disabled={syncing}>
+        {#if syncing}
+          <Loader2 size={14} class="animate-spin" /> Syncing...
+        {:else}
+          <RefreshCw size={14} /> Sync All Data
+        {/if}
+      </Button>
+      <Button variant="secondary" onclick={loadIslamicStatus}>
+        <RefreshCw size={14} /> Refresh
+      </Button>
     </div>
+  </Card>
 
-    <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-      <h3 class="font-semibold text-gray-900 dark:text-white mb-2">About</h3>
-      <p class="text-sm text-gray-500">AmanClaw Management Dashboard</p>
-      <p class="text-xs text-gray-400 mt-1">LLM config, bot settings, and advanced options coming in a future update.</p>
+  <Card>
+    <div class="flex items-center gap-2 mb-4">
+      <LogOut size={16} class="text-red-400" />
+      <h3 class="font-semibold text-fg">Account</h3>
     </div>
-  </div>
+    <Button variant="destructive" onclick={logout}>
+      <LogOut size={14} /> Logout
+    </Button>
+  </Card>
+
+  <Card>
+    <div class="flex items-center gap-2 mb-2">
+      <Info size={16} class="text-primary-500" />
+      <h3 class="font-semibold text-fg">About</h3>
+    </div>
+    <p class="text-[13px] text-fg-muted">AmanClaw Management Dashboard</p>
+    <p class="text-xs text-fg-muted mt-1">LLM config, bot settings, and advanced options coming in a future update.</p>
+  </Card>
 </div>

@@ -1,0 +1,20 @@
+{
+  "name": "@amanclaw/ui",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "svelte": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tokens/*.css": "./src/tokens/*.css"
+  },
+  "dependencies": {
+    "@fontsource/inter": "^5.2.8",
+    "@fontsource/jetbrains-mono": "^5.2.8",
+    "bits-ui": "^1.0.0",
+    "lucide-svelte": "^0.470.0"
+  },
+  "peerDependencies": {
+    "svelte": "^5.0.0"
+  }
+}

@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte'
   import { apiFetch } from '../stores/api'
+  import { PageHeader } from '@amanclaw/ui'
+  import { Loader2 } from '@amanclaw/ui'
   import ChannelCard from '../components/ChannelCard.svelte'
   import QrCodeDisplay from '../components/QrCodeDisplay.svelte'
 
@@ -139,43 +141,41 @@
   const channelOrder = ['telegram', 'whatsapp-web', 'whatsapp-cloud', 'discord', 'slack']
 </script>
 
-<div class="p-6 md:p-8">
-  <div class="mb-6">
-    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Channels</h2>
-    <p class="text-sm text-gray-500 mt-1">Configure, start, and monitor your messaging channels</p>
-  </div>
+<PageHeader title="Channels" subtitle="Configure, start, and monitor your messaging channels" />
 
-  {#if loading}
-    <p class="text-gray-500">Loading channels...</p>
-  {:else}
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      {#each channelOrder as id}
-        {@const meta = channelMeta[id]}
-        {@const ch = getChannel(id)}
-        {#if meta}
-          <div class={id === 'whatsapp-web' && showQr ? 'sm:col-span-2' : ''}>
-            <ChannelCard
-              channel={ch}
-              label={meta.label}
-              description={meta.description}
-              fields={meta.fields}
-              configValues={id === 'whatsapp-web' ? { waha_url: wahaUrl, waha_api_key: wahaApiKey, session: wahaSession, webhook_port: wahaPort } : {}}
-              onSave={id === 'whatsapp-web' ? saveWhatsAppWeb : async (values) => {
-                console.log('Save not yet implemented for', id, values)
-              }}
-              onStart={() => startChannel(id)}
-              onStop={() => stopChannel(id)}
+{#if loading}
+  <div class="flex items-center gap-2 text-fg-muted">
+    <Loader2 size={16} class="animate-spin" />
+    <span class="text-sm">Loading channels...</span>
+  </div>
+{:else}
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    {#each channelOrder as id}
+      {@const meta = channelMeta[id]}
+      {@const ch = getChannel(id)}
+      {#if meta}
+        <div class={id === 'whatsapp-web' && showQr ? 'sm:col-span-2' : ''}>
+          <ChannelCard
+            channel={ch}
+            label={meta.label}
+            description={meta.description}
+            fields={meta.fields}
+            configValues={id === 'whatsapp-web' ? { waha_url: wahaUrl, waha_api_key: wahaApiKey, session: wahaSession, webhook_port: wahaPort } : {}}
+            onSave={id === 'whatsapp-web' ? saveWhatsAppWeb : async (values) => {
+              console.log('Save not yet implemented for', id, values)
+            }}
+            onStart={() => startChannel(id)}
+            onStop={() => stopChannel(id)}
+          />
+          {#if id === 'whatsapp-web' && showQr && ch.configured}
+            <QrCodeDisplay
+              {fetchQr}
+              {fetchSession}
+              onConnected={onWhatsAppConnected}
             />
-            {#if id === 'whatsapp-web' && showQr && ch.configured}
-              <QrCodeDisplay
-                {fetchQr}
-                {fetchSession}
-                onConnected={onWhatsAppConnected}
-              />
-            {/if}
-          </div>
-        {/if}
-      {/each}
-    </div>
-  {/if}
-</div>
+          {/if}
+        </div>
+      {/if}
+    {/each}
+  </div>
+{/if}

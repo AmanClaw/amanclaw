@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api';
+	import { PageHeader, Button, Card, EmptyState, Badge } from '@amanclaw/ui';
+	import { Plus, Bot, Trash2 } from '@amanclaw/ui';
 
 	// --- Types ---
 	interface Agent {
@@ -228,55 +230,46 @@
 	});
 </script>
 
-<div class="p-8 max-w-6xl">
-	<!-- Header -->
-	<div class="mb-6">
-		<h2 class="text-xl font-semibold text-gray-900 tracking-tight">Agents</h2>
-		<p class="text-sm text-gray-500 mt-1">
-			{agents.length} agent{agents.length !== 1 ? 's' : ''} configured
-		</p>
-	</div>
+<div class="max-w-6xl">
+	<PageHeader title="Agents" subtitle="{agents.length} agent{agents.length !== 1 ? 's' : ''} configured" />
 
 	<!-- Split view -->
 	<div class="flex gap-6">
 		<!-- Left Panel: Agent List (1/3) -->
 		<div class="w-1/3 shrink-0">
 			<div class="flex items-center justify-between mb-3">
-				<h3 class="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Agent Profiles</h3>
-				<button onclick={startNewAgent}
-					class="px-3 py-1 text-xs font-medium rounded-md bg-gray-900 text-white hover:bg-gray-800 transition-colors">
+				<h3 class="text-[11px] font-medium text-fg-muted uppercase tracking-wider">Agent Profiles</h3>
+				<Button size="sm" onclick={startNewAgent}>
+					<Plus size={12} />
 					Add Agent
-				</button>
+				</Button>
 			</div>
 
 			{#if loading}
-				<p class="text-sm text-gray-500">Loading...</p>
+				<p class="text-sm text-fg-muted">Loading...</p>
 			{:else if agents.length === 0 && !isNew}
-				<div class="text-center py-12 bg-gray-50 rounded-xl border border-gray-200">
-					<p class="text-sm text-gray-500">No agents configured</p>
-					<p class="text-xs text-gray-400 mt-1">Create your first agent profile</p>
-				</div>
+				<Card>
+					<EmptyState icon={Bot} title="No agents configured" description="Create your first agent profile" />
+				</Card>
 			{:else}
 				<div class="space-y-1">
 					{#each agents as agent}
 						<button onclick={() => selectAgent(agent)}
 							class="w-full text-left p-3 rounded-lg border transition-colors
 								{selectedId === agent.id && !isNew
-									? 'border-gray-900 bg-gray-50'
-									: 'border-gray-200 bg-white hover:border-gray-300'}">
-							<p class="text-sm font-medium text-gray-900 truncate">{agent.name}</p>
+									? 'border-primary-500 bg-[var(--color-primary-500-10)]'
+									: 'border-border bg-surface hover:border-[var(--color-primary-500-10)]'}">
+							<p class="text-[13px] font-medium text-fg truncate">{agent.name}</p>
 							<div class="flex items-center gap-2 mt-1.5">
 								{#if agent.soul_file}
-									<span class="inline-flex px-1.5 py-0.5 text-[10px] font-medium rounded bg-blue-100 text-blue-700 truncate max-w-[120px]">
-										{agent.soul_file}
-									</span>
+									<Badge variant="info">{agent.soul_file}</Badge>
 								{/if}
-								<span class="text-[10px] text-gray-400">
+								<span class="text-[10px] text-fg-muted">
 									{agent.allowed_skills.length} skill{agent.allowed_skills.length !== 1 ? 's' : ''}
 								</span>
 							</div>
 							{#if agent.memory_namespace}
-								<p class="text-[10px] text-gray-400 mt-1 font-mono truncate">{agent.memory_namespace}</p>
+								<p class="text-[10px] text-fg-muted mt-1 font-mono truncate">{agent.memory_namespace}</p>
 							{/if}
 						</button>
 					{/each}
@@ -287,14 +280,14 @@
 		<!-- Right Panel: Agent Editor (2/3) -->
 		<div class="flex-1 min-w-0">
 			{#if isNew || selectedId}
-				<div class="bg-white rounded-xl border border-gray-200 p-5">
+				<Card>
 					<div class="flex items-center justify-between mb-4">
-						<h3 class="text-sm font-semibold text-gray-900">
+						<h3 class="text-sm font-semibold text-fg">
 							{isNew ? 'New Agent' : 'Edit Agent'}
 						</h3>
 						{#if !isNew && selectedId}
 							<button onclick={deleteAgent} disabled={deleting}
-								class="text-xs text-red-500 hover:text-red-700 font-medium disabled:opacity-50">
+								class="text-xs text-error hover:text-error/80 font-medium disabled:opacity-50">
 								{deleting ? 'Deleting...' : 'Delete'}
 							</button>
 						{/if}
@@ -303,112 +296,107 @@
 					<!-- Profile Fields -->
 					<div class="space-y-3">
 						<div>
-							<label class="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">ID</label>
+							<label class="block text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-1">ID</label>
 							<input type="text" value={editId} readonly
-								class="w-full px-3 py-1.5 text-xs font-mono border border-gray-200 rounded-md bg-gray-50 text-gray-500">
+								class="w-full px-3 py-1.5 text-xs font-mono border border-border rounded-md bg-elevated text-fg-muted">
 						</div>
 
 						<div>
-							<label class="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">Name</label>
+							<label class="block text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-1">Name</label>
 							<input type="text" bind:value={editName} placeholder="Agent name..."
-								class="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900">
+								class="w-full px-3 py-1.5 text-xs border border-border rounded-md bg-elevated text-fg focus:outline-none focus:ring-2 focus:ring-primary-500">
 						</div>
 
 						<div>
-							<label class="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">Memory Namespace</label>
+							<label class="block text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-1">Memory Namespace</label>
 							<input type="text" bind:value={editMemoryNamespace} placeholder="e.g. default, community-a..."
-								class="w-full px-3 py-1.5 text-xs font-mono border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900">
+								class="w-full px-3 py-1.5 text-xs font-mono border border-border rounded-md bg-elevated text-fg focus:outline-none focus:ring-2 focus:ring-primary-500">
 						</div>
 
 						<div>
-							<label class="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">Allowed Skills
-								<span class="normal-case text-gray-400">(comma-separated)</span>
+							<label class="block text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-1">Allowed Skills
+								<span class="normal-case text-fg-muted">(comma-separated)</span>
 							</label>
 							<input type="text" bind:value={editAllowedSkills} placeholder="solat, qiblat, hijri..."
-								class="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900">
+								class="w-full px-3 py-1.5 text-xs border border-border rounded-md bg-elevated text-fg focus:outline-none focus:ring-2 focus:ring-primary-500">
 						</div>
 
 						<!-- System Prompt -->
 						<div>
-							<label class="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">
+							<label class="block text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-1">
 								System Prompt
-								<span class="normal-case text-gray-400">(used when no soul file is set)</span>
+								<span class="normal-case text-fg-muted">(used when no soul file is set)</span>
 							</label>
 							<textarea bind:value={editSystemPrompt} rows={4} placeholder="You are a helpful assistant..."
-								class="w-full px-3 py-2 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y font-mono"></textarea>
+								class="w-full px-3 py-2 text-xs border border-border rounded-md bg-elevated text-fg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-y font-mono"></textarea>
 						</div>
 
 						<!-- Soul File Section -->
-						<div class="border-t border-gray-100 pt-3">
-							<label class="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-2">Soul File (SOUL.md)</label>
+						<div class="border-t border-border pt-3">
+							<label class="block text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-2">Soul File (SOUL.md)</label>
 
 							<div class="flex gap-2 mb-2">
 								<input type="text" bind:value={editSoulFile} placeholder="filename.md"
-									class="flex-1 px-3 py-1.5 text-xs font-mono border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900">
-								<button onclick={loadSoulFile} disabled={soulLoading || !editSoulFile.trim()}
-									class="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50">
+									class="flex-1 px-3 py-1.5 text-xs font-mono border border-border rounded-md bg-elevated text-fg focus:outline-none focus:ring-2 focus:ring-primary-500">
+								<Button variant="secondary" size="sm" onclick={loadSoulFile} disabled={soulLoading || !editSoulFile.trim()}>
 									{soulLoading ? 'Loading...' : 'Load'}
-								</button>
-								<button onclick={previewSoul} disabled={previewLoading || !editSoulFile.trim()}
-									class="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50">
+								</Button>
+								<Button variant="secondary" size="sm" onclick={previewSoul} disabled={previewLoading || !editSoulFile.trim()}>
 									{previewLoading ? '...' : 'Preview'}
-								</button>
+								</Button>
 							</div>
 
 							{#if editSoulContent || editSoulFile.trim()}
 								<textarea bind:value={editSoulContent} rows={8} placeholder="Soul file content..."
-									class="w-full px-3 py-2 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900 resize-y font-mono mb-2"></textarea>
-								<button onclick={saveSoulFile} disabled={soulSaving || !editSoulFile.trim() || !editSoulContent.trim()}
-									class="px-3 py-1.5 text-xs font-medium rounded-md bg-gray-700 text-white hover:bg-gray-600 transition-colors disabled:opacity-50">
+									class="w-full px-3 py-2 text-xs border border-border rounded-md bg-elevated text-fg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-y font-mono mb-2"></textarea>
+								<Button variant="secondary" size="sm" onclick={saveSoulFile} disabled={soulSaving || !editSoulFile.trim() || !editSoulContent.trim()}>
 									{soulSaving ? 'Saving Soul...' : 'Save Soul File'}
-								</button>
+								</Button>
 							{/if}
 
 							{#if soulPreview}
-								<div class="mt-3 bg-gray-50 rounded-md border border-gray-200 p-3">
-									<p class="text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-2">Preview</p>
+								<div class="mt-3 bg-elevated rounded-md border border-border p-3">
+									<p class="text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-2">Preview</p>
 									{#if soulPreview.variables.length > 0}
 										<div class="mb-2">
-											<span class="text-[10px] text-gray-400">Variables:</span>
+											<span class="text-[10px] text-fg-muted">Variables:</span>
 											<div class="flex gap-1 flex-wrap mt-0.5">
 												{#each soulPreview.variables as v}
-													<span class="px-1.5 py-0.5 bg-blue-50 rounded text-[10px] text-blue-600 font-mono">{v}</span>
+													<span class="px-1.5 py-0.5 bg-[var(--color-info-15)] rounded text-[10px] text-info font-mono">{v}</span>
 												{/each}
 											</div>
 										</div>
 									{/if}
 									{#if soulPreview.tags.length > 0}
 										<div class="mb-2">
-											<span class="text-[10px] text-gray-400">Tags:</span>
+											<span class="text-[10px] text-fg-muted">Tags:</span>
 											<div class="flex gap-1 flex-wrap mt-0.5">
 												{#each soulPreview.tags as t}
-													<span class="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] text-gray-600">{t}</span>
+													<span class="px-1.5 py-0.5 bg-elevated rounded text-[10px] text-fg-secondary">{t}</span>
 												{/each}
 											</div>
 										</div>
 									{/if}
-									<pre class="text-[10px] text-gray-600 whitespace-pre-wrap mt-2 max-h-48 overflow-y-auto">{soulPreview.prompt}</pre>
+									<pre class="text-[10px] text-fg-secondary whitespace-pre-wrap mt-2 max-h-48 overflow-y-auto">{soulPreview.prompt}</pre>
 								</div>
 							{/if}
 						</div>
 					</div>
 
 					<!-- Save button -->
-					<div class="mt-4 pt-4 border-t border-gray-100">
+					<div class="mt-4 pt-4 border-t border-border">
 						{#if error}
-							<div class="mb-3 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">{error}</div>
+							<div class="mb-3 p-2 bg-[var(--color-error-15)] border border-[var(--color-error-20)] rounded text-xs text-error">{error}</div>
 						{/if}
-						<button onclick={saveAgent} disabled={saving || !editName.trim()}
-							class="px-4 py-1.5 text-xs font-medium rounded-md bg-gray-900 text-white hover:bg-gray-800 transition-colors disabled:opacity-50">
+						<Button size="sm" onclick={saveAgent} disabled={saving || !editName.trim()}>
 							{saving ? 'Saving...' : isNew ? 'Create Agent' : 'Save Changes'}
-						</button>
+						</Button>
 					</div>
-				</div>
+				</Card>
 			{:else}
-				<div class="text-center py-16 bg-gray-50 rounded-xl border border-gray-200">
-					<p class="text-sm text-gray-500">Select an agent to edit</p>
-					<p class="text-xs text-gray-400 mt-1">Or create a new agent profile</p>
-				</div>
+				<Card>
+					<EmptyState icon={Bot} title="Select an agent to edit" description="Or create a new agent profile" />
+				</Card>
 			{/if}
 		</div>
 	</div>
@@ -417,23 +405,22 @@
 	<div class="mt-8">
 		<div class="flex items-center justify-between mb-3">
 			<div>
-				<h3 class="text-sm font-semibold text-gray-900">Routing Rules</h3>
-				<p class="text-xs text-gray-500 mt-0.5">Map platforms, topics, and channels to specific agents</p>
+				<h3 class="text-sm font-semibold text-fg">Routing Rules</h3>
+				<p class="text-xs text-fg-muted mt-0.5">Map platforms, topics, and channels to specific agents</p>
 			</div>
-			<button onclick={saveRouting} disabled={routingSaving}
-				class="px-3 py-1.5 text-xs font-medium rounded-md bg-gray-900 text-white hover:bg-gray-800 transition-colors disabled:opacity-50">
+			<Button size="sm" onclick={saveRouting} disabled={routingSaving}>
 				{routingSaving ? 'Saving...' : 'Save Rules'}
-			</button>
+			</Button>
 		</div>
 		{#if routingError}
-			<div class="mb-3 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">{routingError}</div>
+			<div class="mb-3 p-2 bg-[var(--color-error-15)] border border-[var(--color-error-20)] rounded text-xs text-error">{routingError}</div>
 		{/if}
 
 		<!-- Default agent -->
-		<div class="flex items-center gap-3 mb-4 bg-white rounded-lg border border-gray-200 p-3">
-			<label class="text-xs text-gray-500 shrink-0">Default Agent:</label>
+		<div class="flex items-center gap-3 mb-4 bg-surface rounded-lg border border-border p-3">
+			<label class="text-xs text-fg-muted shrink-0">Default Agent:</label>
 			<select bind:value={defaultAgent}
-				class="px-2 py-1 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white">
+				class="px-2 py-1 text-xs border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-elevated text-fg">
 				<option value="">-- None --</option>
 				{#each agents as agent}
 					<option value={agent.id}>{agent.name}</option>
@@ -442,41 +429,41 @@
 		</div>
 
 		<!-- Rules table -->
-		<div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+		<div class="bg-surface rounded-lg border border-border overflow-hidden">
 			<table class="w-full text-xs">
 				<thead>
-					<tr class="border-b border-gray-100 bg-gray-50">
-						<th class="text-left px-3 py-2 text-[10px] font-medium text-gray-400 uppercase">Platform</th>
-						<th class="text-left px-3 py-2 text-[10px] font-medium text-gray-400 uppercase">Topic ID</th>
-						<th class="text-left px-3 py-2 text-[10px] font-medium text-gray-400 uppercase">Channel ID</th>
-						<th class="text-left px-3 py-2 text-[10px] font-medium text-gray-400 uppercase">Group ID</th>
-						<th class="text-left px-3 py-2 text-[10px] font-medium text-gray-400 uppercase">Agent</th>
+					<tr class="border-b border-border bg-elevated">
+						<th class="text-left px-3 py-2 text-[10px] font-medium text-fg-muted uppercase">Platform</th>
+						<th class="text-left px-3 py-2 text-[10px] font-medium text-fg-muted uppercase">Topic ID</th>
+						<th class="text-left px-3 py-2 text-[10px] font-medium text-fg-muted uppercase">Channel ID</th>
+						<th class="text-left px-3 py-2 text-[10px] font-medium text-fg-muted uppercase">Group ID</th>
+						<th class="text-left px-3 py-2 text-[10px] font-medium text-fg-muted uppercase">Agent</th>
 						<th class="px-3 py-2 w-20"></th>
 					</tr>
 				</thead>
 				<tbody>
 					{#each routingRules as rule, i}
 						{#if editingRuleIndex === i}
-							<tr class="border-b border-gray-50 bg-blue-50/30">
+							<tr class="border-b border-border bg-[var(--color-primary-500-10)]">
 								<td class="px-2 py-1.5">
 									<input type="text" bind:value={rule.platform} placeholder="telegram"
-										class="w-full px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-900">
+										class="w-full px-2 py-1 text-xs border border-border rounded bg-elevated text-fg focus:outline-none focus:ring-1 focus:ring-primary-500">
 								</td>
 								<td class="px-2 py-1.5">
 									<input type="text" bind:value={rule.topic_id} placeholder="*"
-										class="w-full px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-900">
+										class="w-full px-2 py-1 text-xs border border-border rounded bg-elevated text-fg focus:outline-none focus:ring-1 focus:ring-primary-500">
 								</td>
 								<td class="px-2 py-1.5">
 									<input type="text" bind:value={rule.channel_id} placeholder="*"
-										class="w-full px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-900">
+										class="w-full px-2 py-1 text-xs border border-border rounded bg-elevated text-fg focus:outline-none focus:ring-1 focus:ring-primary-500">
 								</td>
 								<td class="px-2 py-1.5">
 									<input type="text" bind:value={rule.group_id} placeholder="*"
-										class="w-full px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-900">
+										class="w-full px-2 py-1 text-xs border border-border rounded bg-elevated text-fg focus:outline-none focus:ring-1 focus:ring-primary-500">
 								</td>
 								<td class="px-2 py-1.5">
 									<select bind:value={rule.agent}
-										class="w-full px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-900 bg-white">
+										class="w-full px-2 py-1 text-xs border border-border rounded bg-elevated text-fg focus:outline-none focus:ring-1 focus:ring-primary-500">
 										<option value="">-- Select --</option>
 										{#each agents as agent}
 											<option value={agent.id}>{agent.name}</option>
@@ -485,24 +472,24 @@
 								</td>
 								<td class="px-2 py-1.5 text-center">
 									<button onclick={() => finishEditRule()}
-										class="text-[10px] text-green-600 hover:text-green-800 font-medium">Done</button>
+										class="text-[10px] text-success hover:text-success/80 font-medium">Done</button>
 								</td>
 							</tr>
 						{:else}
-							<tr class="border-b border-gray-50 hover:bg-gray-50/50">
-								<td class="px-3 py-2 text-gray-700 font-mono">{rule.platform || '*'}</td>
-								<td class="px-3 py-2 text-gray-500 font-mono">{rule.topic_id || '*'}</td>
-								<td class="px-3 py-2 text-gray-500 font-mono">{rule.channel_id || '*'}</td>
-								<td class="px-3 py-2 text-gray-500 font-mono">{rule.group_id || '*'}</td>
-								<td class="px-3 py-2 text-gray-700">
+							<tr class="border-b border-border hover:bg-[var(--color-elevated-50)]">
+								<td class="px-3 py-2 text-fg-secondary font-mono">{rule.platform || '*'}</td>
+								<td class="px-3 py-2 text-fg-muted font-mono">{rule.topic_id || '*'}</td>
+								<td class="px-3 py-2 text-fg-muted font-mono">{rule.channel_id || '*'}</td>
+								<td class="px-3 py-2 text-fg-muted font-mono">{rule.group_id || '*'}</td>
+								<td class="px-3 py-2 text-fg-secondary">
 									{agents.find(a => a.id === rule.agent)?.name || rule.agent}
 								</td>
 								<td class="px-2 py-2 text-center">
 									<div class="flex gap-2 justify-center">
 										<button onclick={() => startEditRule(i)}
-											class="text-[10px] text-gray-400 hover:text-gray-700 font-medium">Edit</button>
+											class="text-[10px] text-fg-muted hover:text-fg font-medium">Edit</button>
 										<button onclick={() => removeRule(i)}
-											class="text-[10px] text-red-400 hover:text-red-600 font-medium">Del</button>
+											class="text-[10px] text-error/70 hover:text-error font-medium">Del</button>
 									</div>
 								</td>
 							</tr>
@@ -510,26 +497,26 @@
 					{/each}
 
 					<!-- Add new rule row -->
-					<tr class="bg-gray-50/50">
+					<tr class="bg-[var(--color-elevated-50)]">
 						<td class="px-2 py-1.5">
 							<input type="text" bind:value={newRule.platform} placeholder="telegram"
-								class="w-full px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-900 bg-white">
+								class="w-full px-2 py-1 text-xs border border-border rounded bg-surface text-fg focus:outline-none focus:ring-1 focus:ring-primary-500">
 						</td>
 						<td class="px-2 py-1.5">
 							<input type="text" bind:value={newRule.topic_id} placeholder="*"
-								class="w-full px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-900 bg-white">
+								class="w-full px-2 py-1 text-xs border border-border rounded bg-surface text-fg focus:outline-none focus:ring-1 focus:ring-primary-500">
 						</td>
 						<td class="px-2 py-1.5">
 							<input type="text" bind:value={newRule.channel_id} placeholder="*"
-								class="w-full px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-900 bg-white">
+								class="w-full px-2 py-1 text-xs border border-border rounded bg-surface text-fg focus:outline-none focus:ring-1 focus:ring-primary-500">
 						</td>
 						<td class="px-2 py-1.5">
 							<input type="text" bind:value={newRule.group_id} placeholder="*"
-								class="w-full px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-900 bg-white">
+								class="w-full px-2 py-1 text-xs border border-border rounded bg-surface text-fg focus:outline-none focus:ring-1 focus:ring-primary-500">
 						</td>
 						<td class="px-2 py-1.5">
 							<select bind:value={newRule.agent}
-								class="w-full px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-gray-900 bg-white">
+								class="w-full px-2 py-1 text-xs border border-border rounded bg-surface text-fg focus:outline-none focus:ring-1 focus:ring-primary-500">
 								<option value="">-- Select --</option>
 								{#each agents as agent}
 									<option value={agent.id}>{agent.name}</option>
@@ -538,7 +525,7 @@
 						</td>
 						<td class="px-2 py-1.5 text-center">
 							<button onclick={addRule} disabled={!newRule.agent}
-								class="text-[10px] text-gray-900 hover:text-gray-700 font-medium disabled:opacity-30">
+								class="text-[10px] text-fg hover:text-fg-secondary font-medium disabled:opacity-30">
 								Add
 							</button>
 						</td>
@@ -547,8 +534,8 @@
 			</table>
 
 			{#if routingRules.length === 0}
-				<div class="text-center py-6 border-t border-gray-100">
-					<p class="text-xs text-gray-400">No routing rules. All messages go to the default agent.</p>
+				<div class="text-center py-6 border-t border-border">
+					<p class="text-xs text-fg-muted">No routing rules. All messages go to the default agent.</p>
 				</div>
 			{/if}
 		</div>

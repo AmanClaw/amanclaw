@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api';
+	import { PageHeader, Button, Card, EmptyState, Badge } from '@amanclaw/ui';
 
 	let servers: Record<string, any> = $state({});
 	let loading = $state(true);
@@ -436,30 +437,25 @@
 	onMount(() => { loadServers(); });
 </script>
 
-<div class="p-8 max-w-4xl">
-	<div class="flex items-center justify-between mb-6">
-		<div>
-			<h2 class="text-xl font-semibold text-gray-900 dark:text-white tracking-tight">MCP Servers</h2>
-			<p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Connect external tool servers via Model Context Protocol</p>
-		</div>
-		{#if tab === 'installed' && !showForm}
-			<button onclick={() => { resetForm(); showForm = true; }}
-				class="px-3 py-1.5 text-xs font-medium rounded-md bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors">
-				Add Server
-			</button>
-		{/if}
-	</div>
+<div class="max-w-4xl">
+	<PageHeader title="MCP Servers" subtitle="Connect external tool servers via Model Context Protocol">
+		{#snippet action()}
+			{#if tab === 'installed' && !showForm}
+				<Button size="sm" onclick={() => { resetForm(); showForm = true; }}>Add Server</Button>
+			{/if}
+		{/snippet}
+	</PageHeader>
 
 	<!-- Tabs -->
-	<div class="flex gap-1 mb-6 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+	<div class="flex gap-1 mb-6 bg-elevated rounded-lg p-1">
 		<button onclick={() => tab = 'installed'}
 			class="flex-1 px-4 py-2 text-xs font-medium rounded-md transition-colors
-				{tab === 'installed' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}">
+				{tab === 'installed' ? 'bg-surface text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
 			Installed ({Object.keys(servers).length})
 		</button>
 		<button onclick={() => { tab = 'catalog'; showForm = false; }}
 			class="flex-1 px-4 py-2 text-xs font-medium rounded-md transition-colors
-				{tab === 'catalog' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}">
+				{tab === 'catalog' ? 'bg-surface text-fg shadow-sm' : 'text-fg-muted hover:text-fg-secondary'}">
 			Catalog ({catalog.length})
 		</button>
 	</div>
@@ -467,27 +463,27 @@
 	{#if tab === 'installed'}
 		<!-- Add/Edit Form -->
 		{#if showForm}
-			<div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 mb-6">
-				<h3 class="text-sm font-medium text-gray-900 dark:text-white mb-4">{editingName ? 'Edit' : 'Add'} MCP Server</h3>
+			<div class="bg-surface rounded-xl border border-border p-5 mb-6">
+				<h3 class="text-sm font-medium text-fg mb-4">{editingName ? 'Edit' : 'Add'} MCP Server</h3>
 
 				<div class="space-y-4">
 					<div>
-						<label class="block text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Server Name</label>
+						<label class="block text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-1">Server Name</label>
 						<input type="text" bind:value={name} placeholder="e.g. filesystem, github"
-							class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400">
+							class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary-500">
 					</div>
 
 					<div>
-						<label class="block text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Transport</label>
+						<label class="block text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-2">Transport</label>
 						<div class="flex gap-2">
 							<button onclick={() => transport = 'stdio'}
 								class="px-3 py-1.5 text-xs font-medium rounded-md border transition-colors
-									{transport === 'stdio' ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-gray-900 dark:border-white' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}">
+									{transport === 'stdio' ? 'bg-gradient-to-br from-primary-500 to-primary-700 text-white border-primary-500' : 'border-border text-fg-secondary hover:bg-[var(--color-elevated-50)]'}">
 								Stdio (Local)
 							</button>
 							<button onclick={() => transport = 'http'}
 								class="px-3 py-1.5 text-xs font-medium rounded-md border transition-colors
-									{transport === 'http' ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-gray-900 dark:border-white' : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}">
+									{transport === 'http' ? 'bg-gradient-to-br from-primary-500 to-primary-700 text-white border-primary-500' : 'border-border text-fg-secondary hover:bg-[var(--color-elevated-50)]'}">
 								HTTP (Remote)
 							</button>
 						</div>
@@ -495,80 +491,80 @@
 
 					{#if transport === 'stdio'}
 						<div>
-							<label class="block text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Command</label>
+							<label class="block text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-1">Command</label>
 							<input type="text" bind:value={command} placeholder="e.g. npx, uvx, node"
-								class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400">
+								class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary-500">
 						</div>
 						<div>
-							<label class="block text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Arguments</label>
+							<label class="block text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-1">Arguments</label>
 							<input type="text" bind:value={args} placeholder="e.g. -y @modelcontextprotocol/server-filesystem /home/user/docs"
-								class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400">
+								class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary-500">
 						</div>
 						<div>
 							<div class="flex items-center justify-between mb-1">
-								<label class="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Environment Variables</label>
-								<button onclick={addEnvPair} class="text-xs text-gray-500 hover:text-gray-900 dark:hover:text-white">+ Add</button>
+								<label class="text-[11px] font-medium text-fg-muted uppercase tracking-wider">Environment Variables</label>
+								<button onclick={addEnvPair} class="text-xs text-fg-muted hover:text-fg">+ Add</button>
 							</div>
 							{#each envPairs as pair, i}
 								<div class="flex gap-2 mb-2">
 									<input type="text" bind:value={pair.key} placeholder="KEY"
-										class="w-1/3 px-2 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 font-mono">
+										class="w-1/3 px-2 py-1.5 text-xs border border-border rounded-md bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono">
 									<input type="text" bind:value={pair.value} placeholder="value"
-										class="flex-1 px-2 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400 font-mono">
-									<button onclick={() => removeEnvPair(i)} class="text-xs text-red-500 hover:text-red-700 px-1">x</button>
+										class="flex-1 px-2 py-1.5 text-xs border border-border rounded-md bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono">
+									<button onclick={() => removeEnvPair(i)} class="text-xs text-error hover:text-error px-1">x</button>
 								</div>
 							{/each}
 						</div>
 					{:else}
 						<div>
-							<label class="block text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Server URL</label>
+							<label class="block text-[11px] font-medium text-fg-muted uppercase tracking-wider mb-1">Server URL</label>
 							<input type="text" bind:value={url} placeholder="e.g. http://localhost:8080/sse"
-								class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400">
+								class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary-500">
 						</div>
 					{/if}
 				</div>
 
 				<div class="flex gap-2 mt-5">
 					<button onclick={saveServer} disabled={saving || !name.trim()}
-						class="px-4 py-1.5 text-xs font-medium rounded-md bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors disabled:opacity-50">
+						class="px-4 py-1.5 text-xs font-medium rounded-md bg-gradient-to-br from-primary-500 to-primary-700 text-white hover:from-primary-400 hover:to-primary-600 transition-colors disabled:opacity-50">
 						{saving ? 'Saving...' : editingName ? 'Update' : 'Save'}
 					</button>
 					<button onclick={resetForm}
-						class="px-4 py-1.5 text-xs font-medium rounded-md border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+						class="px-4 py-1.5 text-xs font-medium rounded-md border border-border text-fg-secondary hover:bg-[var(--color-elevated-50)] transition-colors">
 						Cancel
 					</button>
 				</div>
 
-				<p class="text-[11px] text-gray-400 mt-3">Restart the engine after adding/removing servers for changes to take effect.</p>
+				<p class="text-[11px] text-fg-muted mt-3">Restart the engine after adding/removing servers for changes to take effect.</p>
 			</div>
 		{/if}
 
 		<!-- Installed Servers List -->
 		{#if loading}
-			<p class="text-sm text-gray-500 dark:text-gray-400">Loading...</p>
+			<p class="text-sm text-fg-muted">Loading...</p>
 		{:else if Object.keys(servers).length === 0 && !showForm}
-			<div class="text-center py-16 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
+			<div class="text-center py-16 bg-surface/50 rounded-xl border border-border">
 				<p class="text-3xl mb-3">&#x2B21;</p>
-				<p class="text-sm text-gray-500 dark:text-gray-400 mb-1">No MCP servers configured</p>
-				<p class="text-xs text-gray-400 dark:text-gray-500 mb-4">Browse the catalog to find and install servers</p>
+				<p class="text-sm text-fg-muted mb-1">No MCP servers configured</p>
+				<p class="text-xs text-fg-muted mb-4">Browse the catalog to find and install servers</p>
 				<button onclick={() => tab = 'catalog'}
-					class="px-4 py-2 text-xs font-medium rounded-md bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors">
+					class="px-4 py-2 text-xs font-medium rounded-md bg-gradient-to-br from-primary-500 to-primary-700 text-white hover:from-primary-400 hover:to-primary-600 transition-colors">
 					Browse Catalog
 				</button>
 			</div>
 		{:else}
 			<div class="space-y-3">
 				{#each Object.entries(servers) as [serverName, server]}
-					<div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+					<div class="bg-surface rounded-xl border border-border p-4">
 						<div class="flex items-center justify-between">
 							<div class="flex items-center gap-3">
 								<span class="inline-flex px-2 py-0.5 text-[10px] font-medium rounded-full
-									{server.transport === 'http' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400'}">
+									{server.transport === 'http' ? 'bg-[var(--color-info-15)] text-info' : 'bg-[var(--color-accent-500-15)] text-[var(--color-accent-500)]'}">
 									{server.transport === 'http' ? 'HTTP' : 'STDIO'}
 								</span>
 								<div>
-									<p class="text-sm font-medium text-gray-900 dark:text-white">{serverName}</p>
-									<p class="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5">
+									<p class="text-sm font-medium text-fg">{serverName}</p>
+									<p class="text-xs text-fg-muted font-mono mt-0.5">
 										{#if server.transport === 'http'}
 											{server.url}
 										{:else}
@@ -579,17 +575,17 @@
 							</div>
 							<div class="flex gap-2">
 								<button onclick={() => editServer(serverName)}
-									class="text-xs text-gray-500 hover:text-gray-900 dark:hover:text-white font-medium">Edit</button>
+									class="text-xs text-fg-muted hover:text-fg font-medium">Edit</button>
 								<button onclick={() => deleteServer(serverName)}
-									class="text-xs text-red-500 hover:text-red-700 font-medium">Remove</button>
+									class="text-xs text-error hover:text-error font-medium">Remove</button>
 							</div>
 						</div>
 						{#if server.env && Object.keys(server.env).length > 0}
-							<div class="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
-								<p class="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Env</p>
+							<div class="mt-2 pt-2 border-t border-border">
+								<p class="text-[10px] text-fg-muted uppercase tracking-wider mb-1">Env</p>
 								<div class="flex flex-wrap gap-1">
 									{#each Object.keys(server.env) as key}
-										<span class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-[10px] font-mono text-gray-600 dark:text-gray-400">{key}</span>
+										<span class="px-1.5 py-0.5 bg-elevated rounded text-[10px] font-mono text-fg-secondary">{key}</span>
 									{/each}
 								</div>
 							</div>
@@ -604,7 +600,7 @@
 		<div class="mb-5 space-y-3">
 			<!-- Search -->
 			<input type="text" bind:value={catalogSearch} placeholder="Search servers..."
-				class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-400">
+				class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary-500">
 
 			<!-- Category filter -->
 			<div class="flex flex-wrap gap-1.5">
@@ -612,8 +608,8 @@
 					<button onclick={() => catalogCategory = cat.id}
 						class="px-2.5 py-1 text-[11px] font-medium rounded-full border transition-colors
 							{catalogCategory === cat.id
-								? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-gray-900 dark:border-white'
-								: 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}">
+								? 'bg-gradient-to-br from-primary-500 to-primary-700 text-white border-primary-500'
+								: 'border-border text-fg-muted hover:bg-[var(--color-elevated-50)]'}">
 						{cat.label}
 					</button>
 				{/each}
@@ -622,32 +618,32 @@
 
 		{#if filteredCatalog.length === 0}
 			<div class="text-center py-12">
-				<p class="text-sm text-gray-500 dark:text-gray-400">No servers found matching your search</p>
+				<p class="text-sm text-fg-muted">No servers found matching your search</p>
 			</div>
 		{:else}
 			<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
 				{#each filteredCatalog as entry}
-					<div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 flex flex-col justify-between">
+					<div class="bg-surface rounded-xl border border-border p-4 flex flex-col justify-between">
 						<div>
 							<div class="flex items-start justify-between mb-2">
 								<div class="flex items-center gap-2">
-									<h4 class="text-sm font-medium text-gray-900 dark:text-white">{entry.name}</h4>
+									<h4 class="text-sm font-medium text-fg">{entry.name}</h4>
 									{#if installedNames.has(entry.name)}
-										<span class="px-1.5 py-0.5 text-[9px] font-medium rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">Installed</span>
+										<span class="px-1.5 py-0.5 text-[9px] font-medium rounded-full bg-[var(--color-success-15)] text-success">Installed</span>
 									{/if}
 								</div>
 								<span class="px-1.5 py-0.5 text-[9px] font-medium rounded-full
-									{entry.source === 'Anthropic' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}">
+									{entry.source === 'Anthropic' ? 'bg-[var(--color-accent-500-15)] text-accent-500' : 'bg-elevated text-fg-secondary'}">
 									{entry.source}
 								</span>
 							</div>
-							<p class="text-xs text-gray-500 dark:text-gray-400 mb-3 leading-relaxed">{entry.description}</p>
+							<p class="text-xs text-fg-muted mb-3 leading-relaxed">{entry.description}</p>
 							<div class="flex flex-wrap gap-1 mb-3">
-								<span class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-[10px] font-mono text-gray-500 dark:text-gray-400">
+								<span class="px-1.5 py-0.5 bg-elevated rounded text-[10px] font-mono text-fg-muted">
 									{entry.command} {entry.args[entry.args.length - 1]}
 								</span>
 								{#if entry.env && entry.env.length > 0}
-									<span class="px-1.5 py-0.5 bg-yellow-50 dark:bg-yellow-900/20 rounded text-[10px] text-yellow-700 dark:text-yellow-400">
+									<span class="px-1.5 py-0.5 bg-[var(--color-warning-15)] rounded text-[10px] text-warning">
 										{entry.env.length} key{entry.env.length > 1 ? 's' : ''} required
 									</span>
 								{/if}
@@ -656,22 +652,22 @@
 						<div class="flex gap-2">
 							{#if installedNames.has(entry.name)}
 								<button disabled
-									class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed">
+									class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md bg-elevated text-fg-muted cursor-not-allowed">
 									Already Installed
 								</button>
 							{:else if entry.env && entry.env.length > 0}
 								<button onclick={() => installFromCatalog(entry)} disabled={saving}
-									class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors disabled:opacity-50">
+									class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md bg-gradient-to-br from-primary-500 to-primary-700 text-white hover:from-primary-400 hover:to-primary-600 transition-colors disabled:opacity-50">
 									Configure & Install
 								</button>
 							{:else}
 								<button onclick={() => quickInstall(entry)} disabled={saving}
-									class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors disabled:opacity-50">
+									class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md bg-gradient-to-br from-primary-500 to-primary-700 text-white hover:from-primary-400 hover:to-primary-600 transition-colors disabled:opacity-50">
 									{saving ? 'Installing...' : 'Install'}
 								</button>
 							{/if}
 							<a href={entry.repo} target="_blank" rel="noopener noreferrer"
-								class="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+								class="px-3 py-1.5 text-xs font-medium rounded-md border border-border text-fg-muted hover:bg-[var(--color-elevated-50)] transition-colors">
 								Repo
 							</a>
 						</div>

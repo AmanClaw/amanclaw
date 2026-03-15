@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api';
+	import { PageHeader, Button, Card, EmptyState, Badge } from '@amanclaw/ui';
 
 	let activeTab = $state('doa');
 	let loading = $state(false);
@@ -68,17 +69,14 @@
 	});
 </script>
 
-<div class="p-8 max-w-4xl">
-	<div class="mb-6">
-		<h2 class="text-xl font-semibold text-gray-900 tracking-tight">Content</h2>
-		<p class="text-sm text-gray-500 mt-1">Browse Islamic content and reference data</p>
-	</div>
+<div class="max-w-4xl">
+	<PageHeader title="Content" subtitle="Browse Islamic content and reference data" />
 
-	<div class="flex gap-1 mb-6 bg-gray-100 p-1 rounded-lg w-fit">
+	<div class="flex gap-1 mb-6 bg-elevated p-1 rounded-lg w-fit">
 		{#each ['doa', 'zakat', 'khutbah'] as tab}
 			<button
 				class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors
-					{activeTab === tab ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}"
+					{activeTab === tab ? 'bg-surface text-fg shadow-sm' : 'text-fg-secondary hover:text-fg'}"
 				onclick={() => { activeTab = tab; if (tab === 'zakat' && !zakatRates) loadZakat(); }}
 			>
 				{tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -89,54 +87,54 @@
 	{#if activeTab === 'doa'}
 		<div class="flex items-center gap-3 mb-4">
 			<select bind:value={doaCategory} onchange={() => { doaSearch = ''; loadDoas(); }}
-				class="px-3 py-1.5 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900">
+				class="px-3 py-1.5 text-xs border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
 				{#each categories as cat}
 					<option value={cat.value}>{cat.label}</option>
 				{/each}
 			</select>
 			<div class="flex gap-1 flex-1">
 				<input type="text" bind:value={doaSearch} placeholder="Search doas..."
-					class="flex-1 px-3 py-1.5 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900"
+					class="flex-1 px-3 py-1.5 text-xs border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
 					onkeydown={(e) => { if (e.key === 'Enter') loadDoas(); }}>
 				<button onclick={loadDoas}
-					class="px-3 py-1.5 text-xs font-medium rounded-md bg-gray-900 text-white hover:bg-gray-800">
+					class="px-3 py-1.5 text-xs font-medium rounded-md bg-gradient-to-br from-primary-500 to-primary-700 text-white hover:from-primary-400 hover:to-primary-600">
 					Search
 				</button>
 			</div>
-			<span class="text-xs text-gray-400">{doas.length} result{doas.length !== 1 ? 's' : ''}</span>
+			<span class="text-xs text-fg-muted">{doas.length} result{doas.length !== 1 ? 's' : ''}</span>
 		</div>
 
 		{#if loading}
-			<p class="text-sm text-gray-500">Loading...</p>
+			<p class="text-sm text-fg-muted">Loading...</p>
 		{:else if doas.length === 0}
-			<div class="text-center py-12 bg-gray-50 rounded-xl border border-gray-200">
-				<p class="text-sm text-gray-500">No doas found</p>
+			<div class="text-center py-12 bg-surface rounded-xl border border-border">
+				<p class="text-sm text-fg-muted">No doas found</p>
 			</div>
 		{:else}
 			<div class="space-y-3">
 				{#each doas as doa}
-					<div class="bg-white rounded-xl border border-gray-200 p-5">
+					<div class="bg-surface rounded-xl border border-border p-5">
 						<div class="flex items-start justify-between mb-3">
 							<div>
-								<p class="text-sm font-medium text-gray-900">{doa.title_ms}</p>
-								<p class="text-xs text-gray-500">{doa.title_en}</p>
+								<p class="text-sm font-medium text-fg">{doa.title_ms}</p>
+								<p class="text-xs text-fg-muted">{doa.title_en}</p>
 							</div>
-							<span class="text-[10px] font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600">{doa.category}</span>
+							<span class="text-[10px] font-medium px-2 py-0.5 rounded bg-elevated text-fg-secondary">{doa.category}</span>
 						</div>
-						<p class="text-xl text-right leading-loose text-gray-800 font-serif mb-3" dir="rtl">{doa.arabic}</p>
-						<p class="text-xs text-gray-500 italic mb-2">{doa.transliteration}</p>
+						<p class="text-xl text-right leading-loose text-fg font-serif mb-3" dir="rtl">{doa.arabic}</p>
+						<p class="text-xs text-fg-muted italic mb-2">{doa.transliteration}</p>
 						<div class="grid grid-cols-2 gap-3 text-xs">
 							<div>
-								<span class="text-gray-400 block mb-0.5">BM</span>
-								<p class="text-gray-700">{doa.translation_ms}</p>
+								<span class="text-fg-muted block mb-0.5">BM</span>
+								<p class="text-fg-secondary">{doa.translation_ms}</p>
 							</div>
 							<div>
-								<span class="text-gray-400 block mb-0.5">EN</span>
-								<p class="text-gray-700">{doa.translation_en}</p>
+								<span class="text-fg-muted block mb-0.5">EN</span>
+								<p class="text-fg-secondary">{doa.translation_en}</p>
 							</div>
 						</div>
 						{#if doa.source}
-							<p class="text-[10px] text-gray-400 mt-2">{doa.source}</p>
+							<p class="text-[10px] text-fg-muted mt-2">{doa.source}</p>
 						{/if}
 					</div>
 				{/each}
@@ -144,51 +142,51 @@
 		{/if}
 
 	{:else if activeTab === 'zakat'}
-		<div class="bg-gray-50 rounded-xl border border-gray-200 p-5">
-			<p class="text-sm font-medium text-gray-900 mb-4">Zakat Fitrah Rates</p>
+		<div class="bg-surface rounded-xl border border-border p-5">
+			<p class="text-sm font-medium text-fg mb-4">Zakat Fitrah Rates</p>
 			{#if zakatRates}
-				<div class="bg-white rounded-lg border border-gray-200 p-4 mb-3">
+				<div class="bg-surface rounded-lg border border-border p-4 mb-3">
 					<div class="grid grid-cols-3 gap-4 text-xs">
 						<div>
-							<span class="text-gray-400 block">Rate</span>
-							<span class="text-lg font-semibold text-gray-900">RM {zakatRates.fitrah?.rate?.toFixed(2)}</span>
+							<span class="text-fg-muted block">Rate</span>
+							<span class="text-lg font-semibold text-fg">RM {zakatRates.fitrah?.rate?.toFixed(2)}</span>
 						</div>
 						<div>
-							<span class="text-gray-400 block">Currency</span>
-							<span class="text-gray-700">{zakatRates.fitrah?.currency}</span>
+							<span class="text-fg-muted block">Currency</span>
+							<span class="text-fg-secondary">{zakatRates.fitrah?.currency}</span>
 						</div>
 						<div>
-							<span class="text-gray-400 block">Year</span>
-							<span class="text-gray-700">{zakatRates.fitrah?.year}</span>
+							<span class="text-fg-muted block">Year</span>
+							<span class="text-fg-secondary">{zakatRates.fitrah?.year}</span>
 						</div>
 					</div>
 				</div>
-				<p class="text-xs text-gray-500">{zakatRates.note}</p>
+				<p class="text-xs text-fg-muted">{zakatRates.note}</p>
 			{:else}
-				<p class="text-xs text-gray-500">Loading rates...</p>
+				<p class="text-xs text-fg-muted">Loading rates...</p>
 			{/if}
 		</div>
 
 	{:else if activeTab === 'khutbah'}
-		<div class="bg-gray-50 rounded-xl border border-gray-200 p-5">
+		<div class="bg-surface rounded-xl border border-border p-5">
 			<div class="flex items-center justify-between mb-4">
-				<p class="text-sm font-medium text-gray-900">Latest Khutbah</p>
+				<p class="text-sm font-medium text-fg">Latest Khutbah</p>
 				<button onclick={fetchKhutbah} disabled={fetchingKhutbah}
-					class="px-3 py-1.5 text-xs font-medium rounded-md bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50">
+					class="px-3 py-1.5 text-xs font-medium rounded-md bg-gradient-to-br from-primary-500 to-primary-700 text-white hover:from-primary-400 hover:to-primary-600 disabled:opacity-50">
 					{fetchingKhutbah ? 'Fetching...' : 'Fetch Latest'}
 				</button>
 			</div>
 			{#if khutbah}
 				{#if khutbah.available}
-					<div class="bg-white rounded-lg border border-gray-200 p-4">
-						<p class="text-sm text-gray-900">{khutbah.title || 'Untitled'}</p>
-						<p class="text-xs text-gray-500 mt-2">{khutbah.content || ''}</p>
+					<div class="bg-surface rounded-lg border border-border p-4">
+						<p class="text-sm text-fg">{khutbah.title || 'Untitled'}</p>
+						<p class="text-xs text-fg-muted mt-2">{khutbah.content || ''}</p>
 					</div>
 				{:else}
-					<p class="text-xs text-gray-500">{khutbah.note}</p>
+					<p class="text-xs text-fg-muted">{khutbah.note}</p>
 				{/if}
 			{:else}
-				<p class="text-xs text-gray-500">Click "Fetch Latest" to load khutbah data.</p>
+				<p class="text-xs text-fg-muted">Click "Fetch Latest" to load khutbah data.</p>
 			{/if}
 		</div>
 	{/if}

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { api } from '$lib/api';
+	import { PageHeader, Button, Card, EmptyState, Badge } from '@amanclaw/ui';
 
 	interface ChannelStatus {
 		id: string;
@@ -67,10 +68,10 @@
 	}
 
 	function statusColor(ch: ChannelStatus): string {
-		if (ch.running) return 'border-green-300';
-		if (ch.error) return 'border-red-300';
-		if (ch.configured) return 'border-yellow-300';
-		return 'border-gray-200';
+		if (ch.running) return 'border-[var(--color-success-20)]';
+		if (ch.error) return 'border-[var(--color-error-20)]';
+		if (ch.configured) return 'border-[var(--color-warning-20)]';
+		return 'border-border';
 	}
 
 	function statusText(ch: ChannelStatus): string {
@@ -81,10 +82,10 @@
 	}
 
 	function statusDot(ch: ChannelStatus): string {
-		if (ch.running) return 'bg-green-500';
-		if (ch.error) return 'bg-red-500';
-		if (ch.configured) return 'bg-yellow-500';
-		return 'bg-gray-400';
+		if (ch.running) return 'bg-success';
+		if (ch.error) return 'bg-[var(--color-error-15)]0';
+		if (ch.configured) return 'bg-[var(--color-warning-15)]0';
+		return 'bg-fg-muted';
 	}
 
 	async function saveWaConfig() {
@@ -172,14 +173,11 @@
 	}
 </script>
 
-<div class="p-8 max-w-4xl">
-	<div class="mb-6">
-		<h2 class="text-xl font-semibold text-gray-900 tracking-tight">Channels</h2>
-		<p class="text-sm text-gray-500 mt-1">Configure, start, and monitor your messaging channels</p>
-	</div>
+<div class="max-w-4xl">
+	<PageHeader title="Channels" subtitle="Configure, start, and monitor your messaging channels" />
 
 	{#if loading}
-		<p class="text-sm text-gray-400">Loading channels...</p>
+		<p class="text-sm text-fg-muted">Loading channels...</p>
 	{:else}
 		<div class="grid grid-cols-2 gap-3">
 			{#each channelOrder as id}
@@ -187,58 +185,58 @@
 				{@const meta = channelMeta[id]}
 				{#if meta}
 					<div class={id === 'whatsapp-web' && (showQr || editingChannel === 'whatsapp-web') ? 'col-span-2' : ''}>
-						<div class="bg-gray-50 rounded-xl border {statusColor(ch)} p-5">
+						<div class="bg-surface rounded-xl border {statusColor(ch)} p-5">
 							<div class="flex items-center justify-between mb-1">
 								<div class="flex items-center gap-2">
 									<span class="w-2 h-2 rounded-full {statusDot(ch)}"></span>
-									<h3 class="text-sm font-medium text-gray-900">{meta.label}</h3>
+									<h3 class="text-sm font-medium text-fg">{meta.label}</h3>
 								</div>
 								<span class="text-[10px] font-medium px-1.5 py-0.5 rounded
-									{ch.running ? 'bg-green-100 text-green-700' :
-									 ch.error ? 'bg-red-100 text-red-700' :
-									 ch.configured ? 'bg-yellow-100 text-yellow-700' :
-									 'bg-gray-100 text-gray-500'}">
+									{ch.running ? 'bg-[var(--color-success-15)] text-success' :
+									 ch.error ? 'bg-[var(--color-error-15)] text-error' :
+									 ch.configured ? 'bg-[var(--color-warning-15)] text-warning' :
+									 'bg-elevated text-fg-muted'}">
 									{statusText(ch)}
 								</span>
 							</div>
-							<p class="text-[11px] text-gray-500 mb-3">{meta.description}</p>
+							<p class="text-[11px] text-fg-muted mb-3">{meta.description}</p>
 
 							{#if ch.error}
-								<div class="mb-2 p-2 bg-red-50 rounded text-[11px] text-red-700">{ch.error}</div>
+								<div class="mb-2 p-2 bg-[var(--color-error-15)] rounded text-[11px] text-error">{ch.error}</div>
 							{/if}
 
 							{#if editingChannel === id && id === 'whatsapp-web'}
 								<div class="space-y-2 mb-3">
 									<div>
-										<label class="block text-[11px] font-medium text-gray-700 mb-0.5">WAHA URL</label>
+										<label class="block text-[11px] font-medium text-fg-secondary mb-0.5">WAHA URL</label>
 										<input type="text" bind:value={wahaUrl} placeholder="http://localhost:3000"
-											class="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900">
+											class="w-full px-3 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
 									</div>
 									<div class="grid grid-cols-3 gap-2">
 										<div>
-											<label class="block text-[11px] font-medium text-gray-700 mb-0.5">API Key</label>
+											<label class="block text-[11px] font-medium text-fg-secondary mb-0.5">API Key</label>
 											<input type="password" bind:value={wahaApiKey} placeholder="Optional"
-												class="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900">
+												class="w-full px-3 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
 										</div>
 										<div>
-											<label class="block text-[11px] font-medium text-gray-700 mb-0.5">Session</label>
+											<label class="block text-[11px] font-medium text-fg-secondary mb-0.5">Session</label>
 											<input type="text" bind:value={wahaSession} placeholder="default"
-												class="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900">
+												class="w-full px-3 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
 										</div>
 										<div>
-											<label class="block text-[11px] font-medium text-gray-700 mb-0.5">Port</label>
+											<label class="block text-[11px] font-medium text-fg-secondary mb-0.5">Port</label>
 											<input type="number" bind:value={wahaPort} placeholder="8081"
-												class="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900">
+												class="w-full px-3 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
 										</div>
 									</div>
 								</div>
 								<div class="flex gap-2">
 									<button onclick={saveWaConfig} disabled={saving}
-										class="px-3 py-1.5 text-xs font-medium rounded-md bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50">
+										class="px-3 py-1.5 text-xs font-medium rounded-md bg-gradient-to-br from-primary-500 to-primary-700 text-white hover:from-primary-400 hover:to-primary-600 disabled:opacity-50">
 										{saving ? 'Saving...' : 'Save & Connect'}
 									</button>
 									<button onclick={() => editingChannel = null}
-										class="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100">
+										class="px-3 py-1.5 text-xs font-medium rounded-md border border-border text-fg-secondary hover:bg-elevated">
 										Cancel
 									</button>
 								</div>
@@ -247,31 +245,31 @@
 									{#if !ch.configured}
 										{#if id === 'whatsapp-web'}
 											<button onclick={() => editingChannel = id}
-												class="px-3 py-1.5 text-xs font-medium rounded-md bg-gray-900 text-white hover:bg-gray-800">
+												class="px-3 py-1.5 text-xs font-medium rounded-md bg-gradient-to-br from-primary-500 to-primary-700 text-white hover:from-primary-400 hover:to-primary-600">
 												Setup
 											</button>
 										{:else}
-											<span class="text-[11px] text-gray-400">Configure in Settings</span>
+											<span class="text-[11px] text-fg-muted">Configure in Settings</span>
 										{/if}
 									{:else if ch.running}
 										<button onclick={() => handleStop(id)}
-											class="px-3 py-1.5 text-xs font-medium rounded-md border border-red-300 text-red-700 hover:bg-red-50">
+											class="px-3 py-1.5 text-xs font-medium rounded-md border border-[var(--color-error-20)] text-error hover:bg-[var(--color-error-15)]">
 											Stop
 										</button>
 										{#if id === 'whatsapp-web'}
 											<button onclick={() => editingChannel = id}
-												class="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100">
+												class="px-3 py-1.5 text-xs font-medium rounded-md border border-border text-fg-secondary hover:bg-elevated">
 												Edit
 											</button>
 										{/if}
 									{:else}
 										<button onclick={() => handleStart(id)}
-											class="px-3 py-1.5 text-xs font-medium rounded-md bg-gray-900 text-white hover:bg-gray-800">
+											class="px-3 py-1.5 text-xs font-medium rounded-md bg-gradient-to-br from-primary-500 to-primary-700 text-white hover:from-primary-400 hover:to-primary-600">
 											Start
 										</button>
 										{#if id === 'whatsapp-web'}
 											<button onclick={() => editingChannel = id}
-												class="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100">
+												class="px-3 py-1.5 text-xs font-medium rounded-md border border-border text-fg-secondary hover:bg-elevated">
 												Edit
 											</button>
 										{/if}
@@ -281,21 +279,21 @@
 						</div>
 
 						{#if id === 'whatsapp-web' && showQr}
-							<div class="mt-2 bg-gray-50 rounded-xl border border-gray-200 p-5">
+							<div class="mt-2 bg-surface rounded-xl border border-border p-5">
 								{#if qrStatus === 'loading'}
 									<div class="flex items-center justify-center p-6">
-										<div class="animate-spin w-5 h-5 border-2 border-gray-900 border-t-transparent rounded-full"></div>
-										<span class="ml-3 text-sm text-gray-500">Loading QR code...</span>
+										<div class="animate-spin w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full"></div>
+										<span class="ml-3 text-sm text-fg-muted">Loading QR code...</span>
 									</div>
 								{:else if qrStatus === 'connected'}
-									<div class="flex items-center justify-center p-4 bg-green-50 rounded-lg">
-										<span class="text-sm font-medium text-green-700">WhatsApp Connected!</span>
+									<div class="flex items-center justify-center p-4 bg-[var(--color-success-15)] rounded-lg">
+										<span class="text-sm font-medium text-success">WhatsApp Connected!</span>
 									</div>
 								{:else if qrStatus === 'error'}
 									<div class="p-4">
-										<p class="text-sm text-red-700 mb-2">{qrError}</p>
+										<p class="text-sm text-error mb-2">{qrError}</p>
 										<button onclick={startQrPolling}
-											class="px-3 py-1.5 text-xs font-medium rounded-md bg-gray-900 text-white hover:bg-gray-800">
+											class="px-3 py-1.5 text-xs font-medium rounded-md bg-gradient-to-br from-primary-500 to-primary-700 text-white hover:from-primary-400 hover:to-primary-600">
 											Retry
 										</button>
 									</div>
@@ -304,12 +302,12 @@
 										{#if qrData && qrData.startsWith('data:')}
 											<img src={qrData} alt="WhatsApp QR Code" class="w-56 h-56 rounded-lg" />
 										{:else if qrData}
-											<div class="bg-white p-4 rounded-lg border border-gray-200">
-												<p class="text-xs text-gray-500 font-mono break-all">{qrData}</p>
+											<div class="bg-surface p-4 rounded-lg border border-border">
+												<p class="text-xs text-fg-muted font-mono break-all">{qrData}</p>
 											</div>
 										{/if}
-										<p class="text-xs text-gray-500 mt-3">Scan this QR code with WhatsApp on your phone</p>
-										<p class="text-[10px] text-gray-400 mt-1">QR refreshes automatically every 15 seconds</p>
+										<p class="text-xs text-fg-muted mt-3">Scan this QR code with WhatsApp on your phone</p>
+										<p class="text-[10px] text-fg-muted mt-1">QR refreshes automatically every 15 seconds</p>
 									</div>
 								{/if}
 							</div>
