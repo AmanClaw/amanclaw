@@ -1584,7 +1584,7 @@ pub async fn registry_search_installed(
 // --- Marketplace Browse (Skill Index) ---
 
 /// Bundled seed index (compiled into the binary from docs/skill-index.json).
-const SEED_INDEX_JSON: &str = include_str!("../../../docs/skill-index.json");
+const SEED_INDEX_JSON: &str = include_str!("../../../../docs/skill-index.json");
 
 #[tauri::command]
 pub async fn marketplace_browse(

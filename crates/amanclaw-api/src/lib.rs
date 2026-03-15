@@ -18,7 +18,7 @@ use state::ApiState;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
-static DASHBOARD_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../../dashboard/dist");
+static DASHBOARD_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../apps/dashboard/dist");
 
 pub fn api_router(state: ApiState) -> Router {
     let authed = Router::new()

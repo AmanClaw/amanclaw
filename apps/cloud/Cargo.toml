@@ -14,11 +14,11 @@ name = "amanclaw_cloud"
 path = "src/lib.rs"
 
 [dependencies]
-amanclaw-core = { path = "../rust/crates/amanclaw-core" }
-amanclaw-traits = { path = "../rust/crates/amanclaw-traits" }
-amanclaw-api = { path = "../rust/crates/amanclaw-api" }
-amanclaw-islamic-db = { path = "../rust/crates/amanclaw-islamic-db" }
-amanclaw-security = { path = "../rust/crates/amanclaw-security" }
+amanclaw-core = { path = "../../crates/amanclaw-core" }
+amanclaw-traits = { path = "../../crates/amanclaw-traits" }
+amanclaw-api = { path = "../../crates/amanclaw-api" }
+amanclaw-islamic-db = { path = "../../crates/amanclaw-islamic-db" }
+amanclaw-security = { path = "../../crates/amanclaw-security" }
 
 axum = { version = "0.8", features = ["json"] }
 tokio = { version = "1", features = ["full"] }

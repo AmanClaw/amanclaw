@@ -199,7 +199,7 @@ mod tests {
 
     #[test]
     fn test_parse_seed_index() {
-        let json = include_str!("../../../../docs/skill-index.json");
+        let json = include_str!("../../../docs/skill-index.json");
         let idx: SkillIndex = serde_json::from_str(json).unwrap();
         assert_eq!(idx.skills.len(), 11);
         assert_eq!(idx.packs.len(), 3);

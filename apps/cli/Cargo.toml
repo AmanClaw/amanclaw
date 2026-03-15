@@ -12,10 +12,10 @@ name = "amanclaw"
 path = "src/main.rs"
 
 [dependencies]
-amanclaw-core = { path = "../amanclaw-core" }
-amanclaw-api = { path = "../amanclaw-api" }
-amanclaw-traits = { path = "../amanclaw-traits" }
-amanclaw-mcp = { path = "../amanclaw-mcp" }
+amanclaw-core = { path = "../../crates/amanclaw-core" }
+amanclaw-api = { path = "../../crates/amanclaw-api" }
+amanclaw-traits = { path = "../../crates/amanclaw-traits" }
+amanclaw-mcp = { path = "../../crates/amanclaw-mcp" }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
@@ -29,9 +29,9 @@ axum = { version = "0.8", features = ["json"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 reqwest = { workspace = true }
-amanclaw-skill-index = { path = "../amanclaw-skill-index" }
-amanclaw-registry = { path = "../amanclaw-registry" }
-amanclaw-islamic-db = { path = "../amanclaw-islamic-db" }
+amanclaw-skill-index = { path = "../../crates/amanclaw-skill-index" }
+amanclaw-registry = { path = "../../crates/amanclaw-registry" }
+amanclaw-islamic-db = { path = "../../crates/amanclaw-islamic-db" }
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
 toml = "0.8"
 sha2 = "0.10"
