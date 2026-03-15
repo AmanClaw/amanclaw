@@ -1,5 +1,6 @@
 <script lang="ts">
-  import StatusBadge from './StatusBadge.svelte'
+  import { Badge } from '@amanclaw/ui'
+  import { Eye, EyeOff } from '@amanclaw/ui'
 
   interface ChannelStatus {
     id: string
@@ -80,11 +81,11 @@
     }
   }
 
-  const statusBadge = $derived(
-    channel.running ? 'online' :
-    channel.error ? 'offline' :
+  const statusBadge = $derived<'success' | 'error' | 'warning'>(
+    channel.running ? 'success' :
+    channel.error ? 'error' :
     channel.configured ? 'warning' :
-    'offline'
+    'error'
   )
 
   const statusLabel = $derived(
@@ -95,22 +96,27 @@
   )
 
   const borderColor = $derived(
-    channel.running ? 'border-green-300 dark:border-green-700' :
-    channel.error ? 'border-red-300 dark:border-red-700' :
-    channel.configured ? 'border-yellow-300 dark:border-yellow-700' :
-    'border-gray-200 dark:border-gray-700'
+    channel.running ? 'border-green-500/30' :
+    channel.error ? 'border-red-500/30' :
+    channel.configured ? 'border-amber-500/30' :
+    'border-border'
   )
 </script>
 
-<div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border {borderColor}">
+<div class="bg-surface rounded-xl p-6 border {borderColor}">
   <div class="flex items-center justify-between mb-2">
-    <h3 class="font-semibold text-gray-900 dark:text-white">{label}</h3>
-    <StatusBadge status={statusBadge} label={statusLabel} />
+    <h3 class="font-semibold text-fg">{label}</h3>
+    <Badge variant={statusBadge}>
+      <span class="flex items-center gap-1.5">
+        <span class="w-1.5 h-1.5 rounded-full {channel.running ? 'bg-green-400' : channel.error ? 'bg-red-400' : channel.configured ? 'bg-amber-400' : 'bg-red-400'}"></span>
+        {statusLabel}
+      </span>
+    </Badge>
   </div>
-  <p class="text-sm text-gray-500 mb-4">{description}</p>
+  <p class="text-[13px] text-fg-muted mb-4">{description}</p>
 
   {#if channel.error}
-    <div class="mb-3 p-2 bg-red-50 dark:bg-red-900/20 rounded text-xs text-red-700 dark:text-red-400">
+    <div class="mb-3 p-2 bg-[var(--color-error-15)] rounded text-xs text-red-400">
       {channel.error}
     </div>
   {/if}
@@ -119,21 +125,25 @@
     <div class="space-y-3 mb-4">
       {#each fields as field}
         <div>
-          <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{field.label}</label>
+          <label class="block text-xs font-medium text-fg-secondary mb-1">{field.label}</label>
           <div class="relative">
             <input
               type={field.type === 'password' && !showPassword[field.key] ? 'password' : 'text'}
               bind:value={formValues[field.key]}
               placeholder={field.placeholder}
-              class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              class="w-full px-3 py-2 text-sm border border-border bg-elevated text-fg rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-transparent"
             />
             {#if field.type === 'password'}
               <button
                 type="button"
                 onclick={() => showPassword[field.key] = !showPassword[field.key]}
-                class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600"
+                class="absolute right-2 top-1/2 -translate-y-1/2 text-fg-muted hover:text-fg-secondary"
               >
-                {showPassword[field.key] ? 'Hide' : 'Show'}
+                {#if showPassword[field.key]}
+                  <EyeOff size={14} />
+                {:else}
+                  <Eye size={14} />
+                {/if}
               </button>
             {/if}
           </div>
@@ -144,13 +154,13 @@
       <button
         onclick={handleSave}
         disabled={saving}
-        class="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+        class="px-3 py-1.5 text-xs font-medium rounded-md bg-primary-600 text-white hover:bg-primary-500 disabled:opacity-50 transition-colors"
       >
         {saving ? 'Saving...' : 'Save & Connect'}
       </button>
       <button
         onclick={cancelForm}
-        class="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+        class="px-3 py-1.5 text-xs font-medium rounded-md border border-border text-fg-secondary hover:bg-[var(--color-elevated-50)] transition-colors"
       >
         Cancel
       </button>
@@ -160,20 +170,20 @@
       {#if !channel.configured}
         <button
           onclick={openForm}
-          class="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+          class="px-3 py-1.5 text-xs font-medium rounded-md bg-primary-600 text-white hover:bg-primary-500 transition-colors"
         >
           Setup
         </button>
       {:else if channel.running}
         <button
           onclick={handleStop}
-          class="px-3 py-1.5 text-xs font-medium rounded-md border border-red-300 text-red-700 hover:bg-red-50 transition-colors"
+          class="px-3 py-1.5 text-xs font-medium rounded-md border border-red-500/30 text-red-400 hover:bg-[var(--color-error-15)] transition-colors"
         >
           Stop
         </button>
         <button
           onclick={openForm}
-          class="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 transition-colors"
+          class="px-3 py-1.5 text-xs font-medium rounded-md border border-border text-fg-secondary hover:bg-[var(--color-elevated-50)] transition-colors"
         >
           Edit
         </button>
@@ -181,13 +191,13 @@
         <button
           onclick={handleStart}
           disabled={starting}
-          class="px-3 py-1.5 text-xs font-medium rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+          class="px-3 py-1.5 text-xs font-medium rounded-md bg-green-600 text-white hover:bg-green-500 disabled:opacity-50 transition-colors"
         >
           {starting ? 'Starting...' : 'Start'}
         </button>
         <button
           onclick={openForm}
-          class="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 transition-colors"
+          class="px-3 py-1.5 text-xs font-medium rounded-md border border-border text-fg-secondary hover:bg-[var(--color-elevated-50)] transition-colors"
         >
           Edit
         </button>

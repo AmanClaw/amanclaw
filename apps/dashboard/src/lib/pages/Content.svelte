@@ -1,6 +1,15 @@
-<div class="p-6 md:p-8">
-  <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Content Management</h2>
-  <div class="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-sm border border-gray-200 dark:border-gray-700 text-center">
-    <p class="text-gray-500 dark:text-gray-400">Content management (doa, zakat rates, khutbah) will be available in a future update.</p>
+<script lang="ts">
+  import { PageHeader, Card } from '@amanclaw/ui'
+  import { FileText } from '@amanclaw/ui'
+</script>
+
+<PageHeader title="Content Management" />
+
+<Card class="text-center py-8">
+  <div class="flex flex-col items-center gap-3">
+    <div class="w-12 h-12 rounded-xl bg-[var(--color-primary-500-10)] flex items-center justify-center">
+      <FileText size={24} class="text-primary-500" />
+    </div>
+    <p class="text-fg-muted">Content management (doa, zakat rates, khutbah) will be available in a future update.</p>
   </div>
-</div>
+</Card>

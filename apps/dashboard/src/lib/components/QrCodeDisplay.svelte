@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte'
+  import { Loader2 } from '@amanclaw/ui'
 
   interface Props {
     fetchQr: () => Promise<any>
@@ -72,25 +73,25 @@
 <div class="mt-4">
   {#if status === 'loading'}
     <div class="flex items-center justify-center p-8">
-      <div class="animate-spin w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-      <span class="ml-3 text-sm text-gray-500">Loading QR code...</span>
+      <Loader2 size={20} class="animate-spin text-primary-500" />
+      <span class="ml-3 text-sm text-fg-muted">Loading QR code...</span>
     </div>
   {:else if status === 'connected'}
-    <div class="flex items-center justify-center p-6 bg-green-50 dark:bg-green-900/20 rounded-lg">
-      <span class="text-green-700 dark:text-green-400 font-medium text-sm">WhatsApp Connected!</span>
+    <div class="flex items-center justify-center p-6 bg-[var(--color-success-15)] rounded-lg">
+      <span class="text-green-400 font-medium text-sm">WhatsApp Connected!</span>
     </div>
   {:else if status === 'error'}
-    <div class="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
-      <p class="text-sm text-red-700 dark:text-red-400 mb-2">{errorMsg}</p>
+    <div class="p-4 bg-[var(--color-error-15)] rounded-lg">
+      <p class="text-sm text-red-400 mb-2">{errorMsg}</p>
       <button
         onclick={() => { status = 'loading'; startPolling() }}
-        class="px-3 py-1.5 text-xs font-medium rounded-md bg-red-600 text-white hover:bg-red-700 transition-colors"
+        class="px-3 py-1.5 text-xs font-medium rounded-md bg-red-600 text-white hover:bg-red-500 transition-colors"
       >
         Retry
       </button>
     </div>
   {:else if status === 'scanning'}
-    <div class="flex flex-col items-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+    <div class="flex flex-col items-center p-4 bg-elevated rounded-lg">
       {#if qrData && qrData.startsWith('data:')}
         <img src={qrData} alt="WhatsApp QR Code" class="w-64 h-64 rounded-lg" />
       {:else if qrData}
@@ -98,10 +99,10 @@
           <p class="text-xs text-gray-500 font-mono break-all">{qrData}</p>
         </div>
       {:else}
-        <p class="text-sm text-gray-500">Waiting for QR code...</p>
+        <p class="text-sm text-fg-muted">Waiting for QR code...</p>
       {/if}
-      <p class="text-xs text-gray-500 mt-3">Scan this QR code with WhatsApp on your phone</p>
-      <p class="text-[10px] text-gray-400 mt-1">QR refreshes automatically every 15 seconds</p>
+      <p class="text-xs text-fg-muted mt-3">Scan this QR code with WhatsApp on your phone</p>
+      <p class="text-xs text-fg-muted mt-1">QR refreshes automatically every 15 seconds</p>
     </div>
   {/if}
 </div>
