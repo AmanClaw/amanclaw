@@ -1,16 +1,12 @@
 import { writable } from 'svelte/store';
+import { browser } from '$app/environment';
 
 type Theme = 'dark' | 'light';
 
 function createThemeStore() {
-  const stored = typeof localStorage !== 'undefined'
+  const stored = browser
     ? localStorage.getItem('amanclaw-theme') as Theme | null
     : null;
-
-  const systemPreference: Theme =
-    typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: light)').matches
-      ? 'light'
-      : 'dark';
 
   // Default to light mode. User can toggle to dark via the theme button.
   const initial: Theme = stored ?? 'light';
@@ -18,14 +14,12 @@ function createThemeStore() {
   const { subscribe, set } = writable<Theme>(initial);
 
   function apply(theme: Theme) {
+    if (!browser) return;
     const root = document.documentElement;
     root.classList.remove('dark', 'light');
     root.classList.add(theme);
     localStorage.setItem('amanclaw-theme', theme);
   }
-
-  // Don't auto-apply on load — HTML already has class="dark".
-  // Only apply when user explicitly toggles.
 
   return {
     subscribe,
