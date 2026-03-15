@@ -16,3 +16,9 @@ export { default as Modal } from './components/Modal.svelte';
 export { default as Tooltip } from './components/Tooltip.svelte';
 export { default as Toast } from './components/Toast.svelte';
 export { default as Table } from './components/Table.svelte';
+
+// Layouts
+export { default as Sidebar } from './layouts/Sidebar.svelte';
+export { default as TopBar } from './layouts/TopBar.svelte';
+export { default as PageHeader } from './layouts/PageHeader.svelte';
+export { default as BottomNav } from './layouts/BottomNav.svelte';
