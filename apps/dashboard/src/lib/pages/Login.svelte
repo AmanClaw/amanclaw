@@ -29,43 +29,47 @@
     <div class="absolute -bottom-40 -left-40 w-80 h-80 bg-accent-500/5 rounded-full blur-3xl"></div>
   </div>
 
-  <div class="w-full max-w-sm p-8 relative z-10">
+  <div class="w-full max-w-md p-8 relative z-10">
     <!-- Brand Header -->
-    <div class="text-center mb-8">
-      <img src="/admin/logo.png" alt="AmanClaw" class="w-20 h-20 mx-auto mb-4 drop-shadow-[0_0_20px_rgba(20,184,166,0.3)]" />
-      <h1 class="text-2xl font-bold text-white">AmanClaw</h1>
-      <p class="text-sm text-[#6b7f9e] mt-1">Management Dashboard</p>
+    <div class="text-center mb-10">
+      <!-- Large logo with animated glow -->
+      <div class="relative inline-block mb-6">
+        <div class="absolute inset-0 w-36 h-36 mx-auto bg-primary-500/20 rounded-full blur-2xl animate-pulse"></div>
+        <img src="/admin/logo.png" alt="AmanClaw" class="w-36 h-36 mx-auto relative drop-shadow-[0_0_30px_rgba(20,184,166,0.4)]" />
+      </div>
+      <h1 class="text-3xl font-bold text-white tracking-tight">AmanClaw</h1>
+      <p class="text-sm text-[#6b7f9e] mt-2">Management Dashboard</p>
     </div>
 
     <!-- Login Card -->
-    <div class="bg-[#111d33]/80 backdrop-blur-sm rounded-2xl p-6 border border-[#1e2d45] shadow-xl">
-      <form onsubmit={(e: Event) => { e.preventDefault(); handleLogin() }} class="space-y-4">
+    <div class="bg-[#111d33]/60 backdrop-blur-xl rounded-2xl p-8 border border-[#1e2d45]/80 shadow-2xl shadow-black/20">
+      <form onsubmit={(e: Event) => { e.preventDefault(); handleLogin() }} class="space-y-5">
         <div>
-          <label class="block text-xs font-medium text-[#6b7f9e] uppercase tracking-wider mb-2">Password</label>
+          <label class="block text-xs font-semibold text-[#6b7f9e] uppercase tracking-wider mb-2.5">Password</label>
           <div class="relative">
-            <div class="absolute left-3 top-1/2 -translate-y-1/2 text-[#4a5f7e]">
-              <Key size={16} />
+            <div class="absolute left-4 top-1/2 -translate-y-1/2 text-[#4a5f7e]">
+              <Key size={18} />
             </div>
             <input
               type="password"
               bind:value={password}
               placeholder="Enter admin password"
-              class="w-full pl-10 pr-4 py-3 rounded-xl border border-[#1e2d45] bg-[#0b1628] text-white placeholder-[#4a5f7e] focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500/50 outline-none transition-colors"
+              class="w-full pl-12 pr-4 py-3.5 rounded-xl border border-[#1e2d45] bg-[#0b1628]/80 text-white placeholder-[#4a5f7e] text-[15px] focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500/40 outline-none transition-all"
             />
           </div>
         </div>
         {#if error}
-          <div class="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+          <div class="p-3.5 bg-red-500/10 border border-red-500/20 rounded-xl">
             <p class="text-red-400 text-sm">{error}</p>
           </div>
         {/if}
         <button
           type="submit"
           disabled={loading}
-          class="w-full py-3 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-400 hover:to-primary-500 text-white rounded-xl font-medium disabled:opacity-50 transition-all shadow-lg shadow-primary-500/20 flex items-center justify-center gap-2"
+          class="w-full py-3.5 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-400 hover:to-primary-600 text-white rounded-xl font-semibold text-[15px] disabled:opacity-50 transition-all shadow-lg shadow-primary-500/25 flex items-center justify-center gap-2"
         >
           {#if loading}
-            <Loader2 size={16} class="animate-spin" />
+            <Loader2 size={18} class="animate-spin" />
             Logging in...
           {:else}
             Login
@@ -75,7 +79,7 @@
     </div>
 
     <!-- Footer accent -->
-    <div class="mt-6 text-center">
+    <div class="mt-8 text-center">
       <p class="text-xs text-[#4a5f7e]">Powered by <span class="text-accent-500 font-medium">AmanClaw</span></p>
     </div>
   </div>
