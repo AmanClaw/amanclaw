@@ -1,9 +1,15 @@
 @import "tailwindcss";
 @import "@amanclaw/ui/tokens/theme.css";
 
-/* Force dark theme base styles */
 html, body {
-  background-color: #0a0f1a !important;
-  color: #f1f5f9 !important;
+  background-color: var(--color-base);
+  color: var(--color-fg);
+}
+
+html.dark, html.dark body {
   color-scheme: dark;
+}
+
+html.light, html.light body {
+  color-scheme: light;
 }

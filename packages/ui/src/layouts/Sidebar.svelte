@@ -69,9 +69,9 @@
               <button
                 onclick={() => onNavigate(item.id)}
                 class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-left
-                       {active ? 'bg-[var(--color-primary-500-10)] text-primary-500' : 'text-fg-secondary hover:bg-elevated hover:text-fg'}"
+                       {active ? 'bg-[var(--color-primary-500-15)] text-primary-700' : 'text-fg-secondary hover:bg-elevated hover:text-fg'}"
               >
-                <item.icon size={18} class="{active ? 'text-primary-500' : 'text-fg-muted'} shrink-0" />
+                <item.icon size={18} class="{active ? 'text-primary-700' : 'text-fg-muted'} shrink-0" />
                 <span class="text-sm font-medium">{item.label}</span>
                 {#if item.badge}
                   <span class="ml-auto text-[10px] font-semibold bg-[var(--color-accent-500-15)] text-accent-500 px-1.5 py-0.5 rounded">
@@ -89,7 +89,7 @@
             <button
               onclick={() => onNavigate(item.id)}
               class="w-full flex items-center justify-center p-2.5 rounded-lg transition-colors
-                     {active ? 'bg-[var(--color-primary-500-10)] text-primary-500' : 'text-fg-muted hover:bg-elevated hover:text-fg'}"
+                     {active ? 'bg-[var(--color-primary-500-15)] text-primary-700' : 'text-fg-muted hover:bg-elevated hover:text-fg'}"
             >
               <item.icon size={18} />
             </button>

@@ -21,6 +21,9 @@ function createThemeStore() {
     localStorage.setItem('amanclaw-theme', theme);
   }
 
+  // Sync HTML class with stored preference on load
+  if (browser) apply(initial);
+
   return {
     subscribe,
     toggle() {
