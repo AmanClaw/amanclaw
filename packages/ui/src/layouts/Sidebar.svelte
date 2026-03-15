@@ -38,18 +38,18 @@
   style="width: {collapsed ? '64px' : '260px'}; transition: width var(--transition-normal);"
 >
   <!-- Logo header -->
-  <div class="px-5 pt-6 pb-6 flex items-center gap-3 {collapsed ? 'justify-center px-3' : ''}">
+  <div class="px-5 pt-5 pb-4 flex items-center gap-3 border-b border-border mb-2 {collapsed ? 'justify-center px-3' : ''}">
     {#if logoUrl}
-      <img src={logoUrl} alt="AmanClaw" class="w-9 h-9 rounded-lg object-cover shrink-0" />
+      <img src={logoUrl} alt="AmanClaw" class="shrink-0 object-contain" style="width: 32px; height: 32px;" />
     {:else}
-      <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shrink-0">
+      <div class="shrink-0 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center" style="width: 32px; height: 32px;">
         <span class="text-white text-sm font-bold">A</span>
       </div>
     {/if}
     {#if !collapsed}
       <div>
         <span class="text-sm font-bold text-fg tracking-tight">AmanClaw</span>
-        <p class="text-xs text-fg-muted mt-0.5">Community Bot</p>
+        <p class="text-xs text-fg-muted">Community Bot</p>
       </div>
     {/if}
     {#if headerSlot}
