@@ -34,7 +34,7 @@
 </script>
 
 <aside
-  class="h-screen bg-surface border-r border-border flex flex-col z-[var(--z-sidebar)]"
+  class="h-screen bg-surface border-r border-border flex flex-col z-[var(--z-sidebar)] shadow-[1px_0_3px_rgba(0,0,0,0.04)]"
   style="width: {collapsed ? '64px' : '260px'}; transition: width var(--transition-normal);"
 >
   <!-- Logo header -->
@@ -49,7 +49,7 @@
     {#if !collapsed}
       <div>
         <span class="text-sm font-bold text-fg tracking-tight">AmanClaw</span>
-        <p class="text-xs text-fg-muted">Community Bot</p>
+        <p class="text-[11px] text-fg-muted">Community Bot</p>
       </div>
     {/if}
     {#if headerSlot}
@@ -62,19 +62,19 @@
     {#each groups as group}
       {#if !collapsed}
         <div>
-          <p class="text-[11px] font-semibold uppercase tracking-wider text-fg-muted px-3 mb-2">{group.label}</p>
-          <div class="space-y-1">
+          <p class="text-[10px] font-semibold uppercase tracking-widest text-fg-muted/70 px-3 mb-2">{group.label}</p>
+          <div class="space-y-0.5">
             {#each group.items as item}
               {@const active = activePage === item.id}
               <button
                 onclick={() => onNavigate(item.id)}
-                class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-left
-                       {active ? 'bg-[var(--color-primary-500-15)] text-primary-700' : 'text-fg-secondary hover:bg-elevated hover:text-fg'}"
+                class="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-left
+                       {active ? 'bg-primary-100 text-primary-900 font-medium shadow-sm' : 'text-fg-secondary hover:bg-elevated hover:text-fg'}"
               >
                 <item.icon size={18} class="{active ? 'text-primary-700' : 'text-fg-muted'} shrink-0" />
-                <span class="text-sm font-medium">{item.label}</span>
+                <span class="text-[13px]">{item.label}</span>
                 {#if item.badge}
-                  <span class="ml-auto text-[10px] font-semibold bg-[var(--color-accent-500-15)] text-accent-500 px-1.5 py-0.5 rounded">
+                  <span class="ml-auto text-[10px] font-semibold bg-[var(--color-accent-500-15)] text-accent-700 px-1.5 py-0.5 rounded">
                     {item.badge}
                   </span>
                 {/if}
@@ -83,13 +83,13 @@
           </div>
         </div>
       {:else}
-        <div class="space-y-1">
+        <div class="space-y-0.5">
           {#each group.items as item}
             {@const active = activePage === item.id}
             <button
               onclick={() => onNavigate(item.id)}
-              class="w-full flex items-center justify-center p-2.5 rounded-lg transition-colors
-                     {active ? 'bg-[var(--color-primary-500-15)] text-primary-700' : 'text-fg-muted hover:bg-elevated hover:text-fg'}"
+              class="w-full flex items-center justify-center p-2.5 rounded-lg transition-all
+                     {active ? 'bg-primary-100 text-primary-900 shadow-sm' : 'text-fg-muted hover:bg-elevated hover:text-fg'}"
             >
               <item.icon size={18} />
             </button>
