@@ -25,6 +25,7 @@ amanclaw-skill-hijri = { path = "../../plugins/skill-hijri" }
 amanclaw-skill-doa = { path = "../../plugins/skill-doa" }
 amanclaw-skill-quran = { path = "../../plugins/skill-quran" }
 amanclaw-skill-hadith = { path = "../../plugins/skill-hadith-rs" }
+amanclaw-skill-fiqh = { path = "../../plugins/skill-fiqh" }
 amanclaw-islamic-db = { path = "../amanclaw-islamic-db" }
 tokio = { workspace = true }
 tracing = { workspace = true }

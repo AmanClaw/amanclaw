@@ -145,6 +145,14 @@ impl Engine {
                 registry.register(hadith_skill);
                 tracing::info!("Hadith skill registered (IslamicDb available)");
             }
+
+            let fiqh_skill: Arc<dyn amanclaw_traits::skill::Skill> =
+                Arc::new(amanclaw_skill_fiqh::FiqhSkill::new(idb.clone()));
+            let name = fiqh_skill.metadata().name;
+            if !disabled.iter().any(|d| d == &name) {
+                registry.register(fiqh_skill);
+                tracing::info!("Fiqh skill registered (IslamicDb available)");
+            }
         }
 
         // Register sub-agent skill if enabled
