@@ -211,7 +211,7 @@
 </script>
 
 <div class="max-w-5xl">
-	<PageHeader title="Webhooks" subtitle="{tab === 'endpoints' ? `${endpoints.length} endpoint${endpoints.length !== 1 ? 's' : ''} configured` : 'Incoming webhook delivery history'}">
+	<PageHeader title="Webhooks" subtitle={tab === 'endpoints' ? `${endpoints.length} endpoint${endpoints.length !== 1 ? 's' : ''} configured` : 'Incoming webhook delivery history'}>
 		{#snippet action()}
 			{#if tab === 'endpoints' && !showForm}
 				<Button size="sm" onclick={() => { resetForm(); showForm = true; }}>Add Webhook</Button>
