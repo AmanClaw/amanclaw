@@ -1,0 +1,41 @@
+[package]
+name = "amanclaw-cloud"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "AmanClaw Cloud — managed hosting for AmanClaw AI agent"
+
+[[bin]]
+name = "amanclaw-cloud"
+path = "src/main.rs"
+
+[lib]
+name = "amanclaw_cloud"
+path = "src/lib.rs"
+
+[dependencies]
+amanclaw-core = { path = "../rust/crates/amanclaw-core" }
+amanclaw-traits = { path = "../rust/crates/amanclaw-traits" }
+amanclaw-api = { path = "../rust/crates/amanclaw-api" }
+amanclaw-islamic-db = { path = "../rust/crates/amanclaw-islamic-db" }
+amanclaw-security = { path = "../rust/crates/amanclaw-security" }
+
+axum = { version = "0.8", features = ["json"] }
+tokio = { version = "1", features = ["full"] }
+sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+jsonwebtoken = "9"
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+clap = { version = "4", features = ["derive"] }
+uuid = { version = "1", features = ["v4"] }
+rand = "0.9"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
+tempfile = "3"

@@ -1,0 +1,1 @@
+//! Cloud management database schema.

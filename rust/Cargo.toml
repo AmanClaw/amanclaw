@@ -32,6 +32,7 @@ members = [
     "crates/amanclaw-islamic-db",
     "plugins/skill-hadith-rs",
     "plugins/skill-fiqh",
+    "../cloud",
 ]
 
 [workspace.package]

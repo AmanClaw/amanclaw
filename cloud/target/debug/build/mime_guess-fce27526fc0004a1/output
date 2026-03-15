@@ -1,0 +1,1 @@
+cargo:rustc-env=MIME_TYPES_GENERATED_PATH=/Users/aman-asmuei/Personals/aman-office/secureclaw-simple/cloud/target/debug/build/mime_guess-fce27526fc0004a1/out/mime_types_generated.rs
