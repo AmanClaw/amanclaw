@@ -12,7 +12,8 @@ function createThemeStore() {
       ? 'light'
       : 'dark';
 
-  const initial = stored ?? systemPreference;
+  // Default to dark — AmanClaw's brand is dark-first
+  const initial = stored ?? 'dark';
 
   const { subscribe, set } = writable<Theme>(initial);
 
