@@ -12,8 +12,9 @@ function createThemeStore() {
       ? 'light'
       : 'dark';
 
-  // Default to dark — AmanClaw's brand is dark-first
-  const initial = stored ?? 'dark';
+  // Always default to dark — AmanClaw's brand is dark-first.
+  // Only use stored preference if explicitly set by user via toggle.
+  const initial: Theme = 'dark';
 
   const { subscribe, set } = writable<Theme>(initial);
 
@@ -24,9 +25,8 @@ function createThemeStore() {
     localStorage.setItem('amanclaw-theme', theme);
   }
 
-  if (typeof document !== 'undefined') {
-    apply(initial);
-  }
+  // Don't auto-apply on load — HTML already has class="dark".
+  // Only apply when user explicitly toggles.
 
   return {
     subscribe,
