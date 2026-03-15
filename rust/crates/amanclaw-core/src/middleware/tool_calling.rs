@@ -52,11 +52,21 @@ impl PipelineMiddleware for ToolCallingMiddleware {
         )
         .await?;
 
-        ctx.extensions.insert(LlmResponseText(response.clone()));
+        // Islamic content guardrails: append disclaimer if response discusses
+        // Islamic rulings without proper scholarly attribution
+        let mut final_response = response;
+        if let Some(disclaimer) =
+            amanclaw_security::islamic_guardrails::suggest_disclaimer(&final_response)
+        {
+            final_response.push_str(&disclaimer);
+        }
+
+        ctx.extensions
+            .insert(LlmResponseText(final_response.clone()));
 
         Ok(Some(OutgoingMessage {
             chat_id: ctx.msg.chat_id.clone(),
-            text: response,
+            text: final_response,
             parse_mode: None,
             reply_to: None,
             platform: None,
