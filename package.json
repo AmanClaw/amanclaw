@@ -1,0 +1,10 @@
+{
+  "name": "amanclaw",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev:desktop": "pnpm --filter @amanclaw/desktop dev",
+    "dev:dashboard": "pnpm --filter @amanclaw/dashboard dev",
+    "build:ui": "pnpm --filter @amanclaw/ui build"
+  }
+}
