@@ -32,9 +32,7 @@
   <div class="w-full max-w-sm p-8 relative z-10">
     <!-- Brand Header -->
     <div class="text-center mb-8">
-      <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary-500/20">
-        <span class="text-white text-xl font-bold">A</span>
-      </div>
+      <img src="/admin/logo.png" alt="AmanClaw" class="w-20 h-20 mx-auto mb-4 drop-shadow-[0_0_20px_rgba(20,184,166,0.3)]" />
       <h1 class="text-2xl font-bold text-white">AmanClaw</h1>
       <p class="text-sm text-[#6b7f9e] mt-1">Management Dashboard</p>
     </div>
